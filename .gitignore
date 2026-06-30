@@ -1,0 +1,18 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment variables
+.env
+
+# Generated documents
+app/output/*.docx
+app/output/*.pdf
+
+# OS files
+.DS_Store
+Thumbs.db
