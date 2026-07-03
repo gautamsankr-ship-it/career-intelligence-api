@@ -1,0 +1,704 @@
+{
+  "profile_version": "1.0",
+
+  "candidate": {
+    "full_name": "Shankar Gautam",
+    "title": "Chartered Accountant | Finance Transformation | Data Analytics | AI & Automation",
+    "location": "Kathmandu, Nepal",
+    "nationality": "Nepalese",
+    "email": "",
+    "phone": "",
+    "linkedin": "",
+    "github": "",
+    "portfolio": ""
+  },
+
+  "career_objective": {
+    "short_term": [
+      "Finance Manager",
+      "Financial Controller",
+      "Finance Business Partner",
+      "Senior Financial Accountant",
+      "Senior Management Accountant"
+    ],
+    "medium_term": [
+      "Finance Transformation Consultant",
+      "Financial Data Analyst",
+      "Business Intelligence Consultant",
+      "AI Automation Consultant"
+    ],
+    "long_term": [
+      "FinTech Product Manager",
+      "AI Product Manager",
+      "Head of Finance Transformation",
+      "Founder - AI Financial Technology"
+    ]
+  },
+
+  "professional_summary": {
+    "headline": "Chartered Accountant with 15+ years of experience across accounting, taxation, audit, financial reporting, Australian public practice, ERP implementation, business automation and data-driven finance.",
+    "career_direction": "Transitioning towards Financial Technology, Artificial Intelligence, Data Analytics and Intelligent Process Automation while leveraging deep finance expertise.",
+    "value_proposition": "Combines finance leadership with modern technology to improve business performance through analytics, automation and AI."
+  },
+
+  "experience": {
+    "years": 15,
+
+    "leadership": [
+      "Managing Partner",
+      "Financial Consultant",
+      "Board Director",
+      "Founder",
+      "Co-Founder",
+      "Entrepreneur"
+    ],
+
+    "finance_roles": [
+      "Senior Accountant",
+      "Management Accountant",
+      "Financial Accountant",
+      "Finance Manager",
+      "Financial Controller",
+      "Business Advisor",
+      "Audit Manager",
+      "Project Finance Consultant"
+    ],
+
+    "industries": [
+      "Accounting",
+      "Audit",
+      "Professional Services",
+      "Financial Services",
+      "Renewable Energy",
+      "Hydropower",
+      "Insurance",
+      "ERP",
+      "SaaS"
+    ]
+  },
+
+  "education": [
+    {
+      "qualification": "Chartered Accountant",
+      "institution": "Institute of Chartered Accountants of India"
+    },
+    {
+      "qualification": "Bachelor of Business Studies",
+      "institution": "Tribhuvan University"
+    }
+  ],
+
+  "future_education": {
+    "planned_degree": "Master of Financial Technology"
+  },
+
+  "skills": {
+    "accounting": [
+    "Financial Reporting",
+    "Management Reporting",
+    "Management Accounting",
+    "Financial Accounting",
+    "General Ledger",
+    "Journal Entries",
+    "Month End Close",
+    "Quarter End Close",
+    "Year End Close",
+    "Bank Reconciliation",
+    "Balance Sheet Reconciliation",
+    "Accounts Payable",
+    "Accounts Receivable",
+    "Cash Flow Management",
+    "Cash Flow Forecasting",
+    "Budgeting",
+    "Forecasting",
+    "Variance Analysis",
+    "Financial Statements",
+    "Consolidation",
+    "Cost Accounting",
+    "Inventory Accounting",
+    "Project Accounting",
+    "Fixed Asset Accounting",
+    "Financial Controls",
+    "Internal Controls",
+    "Board Reporting",
+    "KPI Reporting",
+    "Business Performance Analysis",
+    "Working Capital Management"
+  ],
+
+    "taxation": [
+    "Australian Tax",
+    "Income Tax",
+    "Company Tax",
+    "Trust Tax",
+    "Partnership Tax",
+    "Capital Gains Tax",
+    "GST",
+    "BAS",
+    "FBT",
+    "Payroll Tax",
+    "Tax Planning",
+    "Tax Compliance",
+    "Tax Advisory"
+  ],
+
+    "audit": [
+    "External Audit",
+    "Internal Audit",
+    "Risk Assessment",
+    "Internal Control Review",
+    "Compliance",
+    "Audit Planning",
+    "Audit Documentation",
+    "Audit Reporting",
+    "Financial Due Diligence",
+    "Operational Review"
+  ],
+
+    "finance": [
+    "Business Advisory",
+    "Financial Analysis",
+    "Commercial Finance",
+    "Business Partnering",
+    "Financial Modelling",
+    "Investment Analysis",
+    "Project Finance",
+    "Renewable Energy Finance",
+    "Infrastructure Finance",
+    "Feasibility Study",
+    "Business Valuation",
+    "Strategic Planning",
+    "Corporate Finance",
+    "Performance Analysis",
+    "Decision Support"
+  ],
+
+    "leadership": [
+    "Leadership",
+    "Team Management",
+    "Stakeholder Management",
+    "Client Relationship Management",
+    "Business Development",
+    "People Management",
+    "Mentoring",
+    "Coaching",
+    "Negotiation",
+    "Presentation",
+    "Communication",
+    "Problem Solving",
+    "Strategic Thinking"
+  ]
+
+},
+
+"technology": {
+
+    "accounting_software": [
+        "Xero",
+        "QuickBooks",
+        "MYOB",
+        "CAS360",
+        "Simple Fund 360",
+        "Zoho Books",
+        "Odoo"
+  ],
+     "analytics": [
+        "Power BI",
+        "Excel",
+        "Power Query",
+        "Power Pivot",
+        "SQL",
+        "PostgreSQL",
+        "Pandas",
+        "NumPy",
+        "Matplotlib",
+        "Scikit-learn"
+  ],
+
+     "programming": [
+        "Python",
+        "Django",
+        "Django REST Framework",
+        "FastAPI",
+        "REST API",
+        "JSON",
+        "Git",
+        "GitHub",
+        "VS Code"
+  ],
+
+    "ai": [
+        "OpenAI API",
+        "LLM",
+        "Prompt Engineering",
+        "AI Agents",
+        "GitHub Copilot",
+        "AI Assisted Development",
+        "Machine Learning",
+        "Predictive Analytics"
+  ],
+
+    "automation": [
+        "n8n",
+        "Zapier",
+        "Make.com",
+        "Workflow Automation",
+        "API Integration",
+        "Business Process Automation"
+  ],
+
+    "learning": [
+        "Docker",
+        "Azure",
+        "AWS",
+        "LangChain",
+        "Model Context Protocol",
+        "React"
+  ]
+},
+
+      
+"projects": [
+
+    {
+        "name": "Career Intelligence Platform",
+        "category": "Artificial Intelligence",
+        "status": "In Progress",
+
+        "description": "AI powered job discovery, career intelligence, resume optimization and automated job application platform.",
+
+        "business_domains": [
+            "Recruitment",
+            "HR Technology",
+            "Artificial Intelligence",
+            "Career Management"
+        ],
+
+        "technologies": [
+            "Python",
+            "FastAPI",
+            "OpenAI API",
+            "PostgreSQL",
+            "JSON",
+            "GitHub"
+        ],
+
+        "skills": [
+            "AI Agents",
+            "Prompt Engineering",
+            "REST API",
+            "Automation",
+            "System Design"
+        ]
+    },
+
+    {
+        "name": "Health Insurance Premium Prediction",
+
+        "category": "Machine Learning",
+
+        "status": "Completed",
+
+        "description": "Predictive machine learning model for estimating health insurance premium using regression techniques.",
+
+        "business_domains": [
+            "Insurance",
+            "Predictive Analytics"
+        ],
+
+        "technologies": [
+            "Python",
+            "Pandas",
+            "NumPy",
+            "Scikit-learn",
+            "Matplotlib"
+        ],
+
+        "skills": [
+            "Regression",
+            "Machine Learning",
+            "EDA",
+            "Feature Engineering",
+            "Data Visualization"
+        ]
+    },
+
+    {
+        "name": "Financial Forecasting Models",
+
+        "category": "Finance",
+
+        "status": "Completed",
+
+        "description": "Financial forecasting, valuation, budgeting and scenario modelling for business decision making.",
+
+        "business_domains": [
+            "Finance",
+            "Corporate Planning"
+        ],
+
+        "technologies": [
+            "Excel",
+            "Power BI",
+            "Python"
+        ],
+
+        "skills": [
+            "Forecasting",
+            "Financial Modelling",
+            "Business Analysis",
+            "Cash Flow Forecasting"
+        ]
+    },
+
+    {
+        "name": "Sewa360 ERP",
+
+        "category": "ERP",
+
+        "status": "Founder",
+
+        "description": "ERP platform for accounting firms and professional service businesses.",
+
+        "business_domains": [
+            "ERP",
+            "Professional Services",
+            "Accounting"
+        ],
+
+        "technologies": [
+            "ERP Design",
+            "Workflow Automation"
+        ],
+
+        "skills": [
+            "Business Analysis",
+            "Product Design",
+            "Requirements Gathering"
+        ]
+    }
+
+]    
+,
+"achievements": [
+
+    "15+ years Chartered Accountant",
+
+    "Built offshore accounting team for Australian accounting firm",
+
+    "Managing Partner of Chartered Accountancy Firm",
+
+    "Financial Due Diligence Consultant",
+
+    "Board Director of Public Company",
+
+    "Founder of ERP Startup",
+
+    "Built AI powered Career Intelligence Platform",
+
+    "Built Machine Learning prediction model",
+
+    "Developed financial forecasting models",
+
+    "Implemented business automation solutions",
+
+    "Expert in Australian Accounting",
+
+    "Experienced in SMSF administration",
+
+    "Business Advisor",
+
+    "Entrepreneur",
+
+    "University Lecturer",
+
+    "Author of Advanced Accounting Book"
+
+]
+
+,
+"responsibilities": {
+
+    "finance": [
+
+        "Prepared monthly, quarterly and annual financial statements.",
+
+        "Managed month-end and year-end financial close process.",
+
+        "Prepared management reports for senior leadership.",
+
+        "Developed annual budgets and rolling forecasts.",
+
+        "Performed variance analysis and business performance reporting.",
+
+        "Managed cash flow forecasting and working capital.",
+
+        "Prepared board reporting packs and financial presentations.",
+
+        "Performed financial analysis supporting strategic decisions.",
+
+        "Improved financial reporting processes.",
+
+        "Implemented financial controls and governance."
+    ],
+
+    "tax": [
+
+        "Prepared Australian income tax returns.",
+
+        "Prepared Business Activity Statements (BAS).",
+
+        "Managed GST compliance.",
+
+        "Prepared financial statements for taxation purposes.",
+
+        "Provided taxation advisory services.",
+
+        "Reviewed tax compliance documentation."
+    ],
+
+    "audit": [
+
+        "Led external audit engagements.",
+
+        "Performed internal control reviews.",
+
+        "Conducted risk assessments.",
+
+        "Prepared audit working papers.",
+
+        "Communicated audit findings to management.",
+
+        "Ensured regulatory compliance."
+    ],
+
+    "advisory": [
+
+        "Conducted financial due diligence.",
+
+        "Prepared financial models.",
+
+        "Performed feasibility studies.",
+
+        "Supported project finance transactions.",
+
+        "Provided business advisory services.",
+
+        "Performed business valuation assignments."
+    ],
+
+    "leadership": [
+
+        "Managed multidisciplinary teams.",
+
+        "Built offshore accounting teams.",
+
+        "Mentored junior accountants.",
+
+        "Managed client relationships.",
+
+        "Led stakeholder meetings.",
+
+        "Presented financial information to boards.",
+
+        "Managed multiple concurrent client engagements."
+    ],
+
+    "technology": [
+
+        "Implemented accounting software.",
+
+        "Designed business automation workflows.",
+
+        "Integrated AI into finance processes.",
+
+        "Developed financial dashboards using Power BI.",
+
+        "Developed Python automation tools.",
+
+        "Designed REST API based applications.",
+
+        "Built AI powered business applications.",
+
+        "Developed financial forecasting models.",
+
+        "Built machine learning prediction models.",
+
+        "Designed data driven decision support systems."
+    ]
+}
+
+,
+"ats_keywords": {
+
+    "finance": [
+
+        "Finance Manager",
+
+        "Financial Controller",
+
+        "Financial Accountant",
+
+        "Management Accountant",
+
+        "Senior Accountant",
+
+        "Commercial Finance",
+
+        "FP&A",
+
+        "Finance Business Partner",
+
+        "Financial Reporting",
+
+        "Management Reporting",
+
+        "Budgeting",
+
+        "Forecasting",
+
+        "Variance Analysis",
+
+        "Cash Flow",
+
+        "Financial Modelling"
+    ],
+
+    "audit": [
+
+        "Audit",
+
+        "Risk",
+
+        "Internal Controls",
+
+        "Compliance",
+
+        "Due Diligence",
+
+        "Governance"
+    ],
+
+    "tax": [
+
+        "Australian Tax",
+
+        "BAS",
+
+        "GST",
+
+        "Income Tax",
+
+        "SMSF",
+
+        "Tax Advisory"
+    ],
+
+    "technology": [
+
+        "Power BI",
+
+        "Python",
+
+        "SQL",
+
+        "PostgreSQL",
+
+        "FastAPI",
+
+        "Django",
+
+        "REST API",
+
+        "Git",
+
+        "GitHub",
+
+        "JSON"
+    ],
+
+    "artificial_intelligence": [
+
+        "Artificial Intelligence",
+
+        "Machine Learning",
+
+        "LLM",
+
+        "OpenAI",
+
+        "Prompt Engineering",
+
+        "AI Automation",
+
+        "Workflow Automation",
+
+        "Business Automation",
+
+        "Predictive Analytics",
+
+        "Data Analytics"
+    ]
+}
+,
+
+ 
+"career_preferences": {
+
+    "preferred_countries": [
+
+        "Australia",
+
+        "United Kingdom",
+
+        "United States",
+
+        "Remote"
+
+    ],
+
+    "preferred_roles": [
+
+        "Finance Manager",
+
+        "Financial Controller",
+
+        "Senior Financial Accountant",
+
+        "Finance Business Partner",
+
+        "Financial Analyst",
+
+        "Business Intelligence Analyst",
+
+        "Data Analyst",
+
+        "AI Automation Consultant",
+
+        "Finance Transformation Consultant",
+
+        "FinTech Consultant"
+
+    ],
+
+    "preferred_industries": [
+
+        "Accounting",
+
+        "Professional Services",
+
+        "Financial Services",
+
+        "FinTech",
+
+        "Artificial Intelligence",
+
+        "Technology",
+
+        "Renewable Energy",
+
+        "Infrastructure"
+
+    ]
+}
+}

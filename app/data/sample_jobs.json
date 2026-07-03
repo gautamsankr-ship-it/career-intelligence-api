@@ -1,0 +1,29 @@
+[
+  {
+    "company": "Bamboo",
+    "job_title": "Financial Data Analyst",
+    "location": "Remote",
+    "employment_type": "Full Time",
+    "job_url": "https://example.com/job1",
+    "source": "Sample",
+    "job_description": "Financial Data Analyst. Power BI, SQL, Excel, Financial Reporting, Australian Accounting."
+  },
+  {
+    "company": "EY",
+    "job_title": "Senior Accountant",
+    "location": "Remote",
+    "employment_type": "Full Time",
+    "job_url": "https://example.com/job2",
+    "source": "Sample",
+    "job_description": "Senior Accountant with Xero, BAS, Tax, Financial Statements and SMSF experience."
+  },
+  {
+    "company": "Deloitte",
+    "job_title": "Finance Manager",
+    "location": "Remote",
+    "employment_type": "Full Time",
+    "job_url": "https://example.com/job3",
+    "source": "Sample",
+    "job_description": "Finance Manager with leadership, budgeting, forecasting, reporting and Power BI."
+  }
+]

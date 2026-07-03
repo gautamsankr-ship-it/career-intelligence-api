@@ -1,0 +1,36 @@
+{
+  "searches": [
+    {
+      "name": "Australia Accountant Remote",
+      "keyword": "Senior Accountant",
+      "country": "Australia",
+      "geoId": "101452733",
+      "remote": true,
+      "posted": "24h"
+    },
+    {
+      "name": "Australia Financial Analyst",
+      "keyword": "Financial Analyst",
+      "country": "Australia",
+      "geoId": "101452733",
+      "remote": true,
+      "posted": "24h"
+    },
+    {
+      "name": "Australia Finance Manager",
+      "keyword": "Finance Manager",
+      "country": "Australia",
+      "geoId": "101452733",
+      "remote": true,
+      "posted": "24h"
+    },
+    {
+      "name": "Australia FP&A",
+      "keyword": "FP&A",
+      "country": "Australia",
+      "geoId": "101452733",
+      "remote": true,
+      "posted": "24h"
+    }
+  ]
+}
