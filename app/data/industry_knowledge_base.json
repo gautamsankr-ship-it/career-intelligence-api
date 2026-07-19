@@ -1,0 +1,64 @@
+{
+  "Professional Services": [
+    "Accounting",
+    "Audit",
+    "Tax",
+    "Business Advisory",
+    "Consulting",
+    "Financial Reporting",
+    "Finance Transformation",
+    "Risk Advisory",
+    "Assurance",
+    "Compliance"
+  ],
+
+  "Financial Services": [
+    "Banking",
+    "Insurance",
+    "Investment",
+    "FinTech",
+    "Treasury",
+    "Risk Management",
+    "Corporate Finance",
+    "Wealth Management"
+  ],
+
+  "Renewable Energy": [
+    "Hydropower",
+    "Solar",
+    "Wind",
+    "Utilities",
+    "Infrastructure",
+    "Project Finance",
+    "Energy Finance",
+    "Power Generation"
+  ],
+
+  "Accounting": [
+    "Financial Reporting",
+    "General Ledger",
+    "Month End Close",
+    "Financial Statements",
+    "Management Reporting",
+    "Tax",
+    "Audit"
+  ],
+
+  "ERP": [
+    "Odoo",
+    "SAP",
+    "Oracle",
+    "Microsoft Dynamics",
+    "Business Process Automation",
+    "Workflow Automation"
+  ],
+
+  "Artificial Intelligence": [
+    "Machine Learning",
+    "AI",
+    "LLM",
+    "Prompt Engineering",
+    "OpenAI API",
+    "Automation"
+  ]
+}

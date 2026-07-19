@@ -1,0 +1,1626 @@
+{
+    "candidate": {},
+    "explicit_capabilities": [
+        "AI Agents",
+        "AI Assisted Development",
+        "API Integration",
+        "AWS",
+        "Accounting",
+        "Accounts Payable",
+        "Accounts Receivable",
+        "Artificial Intelligence",
+        "Audit",
+        "Audit Documentation",
+        "Audit Manager",
+        "Audit Planning",
+        "Audit Reporting",
+        "Australian Tax",
+        "Automation",
+        "Azure",
+        "BAS",
+        "Bachelor of Business Studies",
+        "Balance Sheet Reconciliation",
+        "Bank Reconciliation",
+        "Board Director",
+        "Board Reporting",
+        "Budgeting",
+        "Built AI powered business applications.",
+        "Built machine learning prediction models.",
+        "Built offshore accounting teams.",
+        "Business Advisor",
+        "Business Advisory",
+        "Business Analysis",
+        "Business Development",
+        "Business Partnering",
+        "Business Performance Analysis",
+        "Business Process Automation",
+        "Business Valuation",
+        "CAS360",
+        "Capital Gains Tax",
+        "Career Intelligence Platform",
+        "Career Management",
+        "Cash Flow Forecasting",
+        "Cash Flow Management",
+        "Chartered Accountant",
+        "Client Relationship Management",
+        "Co-Founder",
+        "Coaching",
+        "Commercial Finance",
+        "Communicated audit findings to management.",
+        "Communication",
+        "Company Tax",
+        "Compliance",
+        "Conducted financial due diligence.",
+        "Conducted risk assessments.",
+        "Consolidation",
+        "Corporate Finance",
+        "Corporate Planning",
+        "Cost Accounting",
+        "Data Visualization",
+        "Decision Support",
+        "Designed REST API based applications.",
+        "Designed business automation workflows.",
+        "Designed data driven decision support systems.",
+        "Developed Python automation tools.",
+        "Developed annual budgets and rolling forecasts.",
+        "Developed financial dashboards using Power BI.",
+        "Developed financial forecasting models.",
+        "Django",
+        "Django REST Framework",
+        "Docker",
+        "EDA",
+        "ERP",
+        "ERP Design",
+        "Ensured regulatory compliance.",
+        "Entrepreneur",
+        "Excel",
+        "External Audit",
+        "FBT",
+        "FastAPI",
+        "Feasibility Study",
+        "Feature Engineering",
+        "Finance",
+        "Finance Manager",
+        "Financial Accountant",
+        "Financial Accounting",
+        "Financial Analysis",
+        "Financial Consultant",
+        "Financial Controller",
+        "Financial Controls",
+        "Financial Due Diligence",
+        "Financial Forecasting Models",
+        "Financial Modelling",
+        "Financial Reporting",
+        "Financial Services",
+        "Financial Statements",
+        "Fixed Asset Accounting",
+        "Forecasting",
+        "Founder",
+        "GST",
+        "General Ledger",
+        "Git",
+        "GitHub",
+        "GitHub Copilot",
+        "HR Technology",
+        "Health Insurance Premium Prediction",
+        "Hydropower",
+        "Implemented accounting software.",
+        "Implemented financial controls and governance.",
+        "Improved financial reporting processes.",
+        "Income Tax",
+        "Infrastructure Finance",
+        "Insurance",
+        "Integrated AI into finance processes.",
+        "Internal Audit",
+        "Internal Control Review",
+        "Internal Controls",
+        "Inventory Accounting",
+        "Investment Analysis",
+        "JSON",
+        "Journal Entries",
+        "KPI Reporting",
+        "LLM",
+        "LangChain",
+        "Leadership",
+        "Led external audit engagements.",
+        "Led stakeholder meetings.",
+        "MYOB",
+        "Machine Learning",
+        "Make.com",
+        "Managed GST compliance.",
+        "Managed cash flow forecasting and working capital.",
+        "Managed client relationships.",
+        "Managed month-end and year-end financial close process.",
+        "Managed multidisciplinary teams.",
+        "Managed multiple concurrent client engagements.",
+        "Management Accountant",
+        "Management Accounting",
+        "Management Reporting",
+        "Managing Partner",
+        "Matplotlib",
+        "Mentored junior accountants.",
+        "Mentoring",
+        "Model Context Protocol",
+        "Month End Close",
+        "Negotiation",
+        "NumPy",
+        "Odoo",
+        "OpenAI API",
+        "Operational Review",
+        "Pandas",
+        "Partnership Tax",
+        "Payroll Tax",
+        "People Management",
+        "Performance Analysis",
+        "Performed business valuation assignments.",
+        "Performed feasibility studies.",
+        "Performed financial analysis supporting strategic decisions.",
+        "Performed internal control reviews.",
+        "Performed variance analysis and business performance reporting.",
+        "PostgreSQL",
+        "Power BI",
+        "Power Pivot",
+        "Power Query",
+        "Predictive Analytics",
+        "Prepared Australian income tax returns.",
+        "Prepared Business Activity Statements (BAS).",
+        "Prepared audit working papers.",
+        "Prepared board reporting packs and financial presentations.",
+        "Prepared financial models.",
+        "Prepared financial statements for taxation purposes.",
+        "Prepared management reports for senior leadership.",
+        "Prepared monthly, quarterly and annual financial statements.",
+        "Presentation",
+        "Presented financial information to boards.",
+        "Problem Solving",
+        "Product Design",
+        "Professional Services",
+        "Project Accounting",
+        "Project Finance",
+        "Project Finance Consultant",
+        "Prompt Engineering",
+        "Provided business advisory services.",
+        "Provided taxation advisory services.",
+        "Python",
+        "Quarter End Close",
+        "QuickBooks",
+        "REST API",
+        "React",
+        "Recruitment",
+        "Regression",
+        "Renewable Energy",
+        "Renewable Energy Finance",
+        "Requirements Gathering",
+        "Reviewed tax compliance documentation.",
+        "Risk Assessment",
+        "SQL",
+        "SaaS",
+        "Scikit-learn",
+        "Senior Accountant",
+        "Sewa360 ERP",
+        "Simple Fund 360",
+        "Stakeholder Management",
+        "Strategic Planning",
+        "Strategic Thinking",
+        "Supported project finance transactions.",
+        "System Design",
+        "Tax Advisory",
+        "Tax Compliance",
+        "Tax Planning",
+        "Team Management",
+        "Trust Tax",
+        "VS Code",
+        "Variance Analysis",
+        "Workflow Automation",
+        "Working Capital Management",
+        "Xero",
+        "Year End Close",
+        "Zapier",
+        "Zoho Books",
+        "n8n"
+    ],
+    "capability_records": [
+        {
+            "capability": "AI Agents",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "AI Assisted Development",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "API Integration",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "AWS",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Accounting",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Accounts Payable",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Accounts Receivable",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Artificial Intelligence",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Audit",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Audit Documentation",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Audit Manager",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Audit Planning",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Audit Reporting",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Australian Tax",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Automation",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Azure",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "BAS",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Bachelor of Business Studies",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Balance Sheet Reconciliation",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Bank Reconciliation",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Board Director",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Board Reporting",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Budgeting",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Built AI powered business applications.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Built machine learning prediction models.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Built offshore accounting teams.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Business Advisor",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Business Advisory",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Business Analysis",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Business Development",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Business Partnering",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Business Performance Analysis",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Business Process Automation",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Business Valuation",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "CAS360",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Capital Gains Tax",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Career Intelligence Platform",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Career Management",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Cash Flow Forecasting",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Cash Flow Management",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Chartered Accountant",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Client Relationship Management",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Co-Founder",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Coaching",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Commercial Finance",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Communicated audit findings to management.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Communication",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Company Tax",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Compliance",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Conducted financial due diligence.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Conducted risk assessments.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Consolidation",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Corporate Finance",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Corporate Planning",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Cost Accounting",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Data Visualization",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Decision Support",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Designed REST API based applications.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Designed business automation workflows.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Designed data driven decision support systems.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Developed Python automation tools.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Developed annual budgets and rolling forecasts.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Developed financial dashboards using Power BI.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Developed financial forecasting models.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Django",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Django REST Framework",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Docker",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "EDA",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "ERP",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "ERP Design",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Ensured regulatory compliance.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Entrepreneur",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Excel",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "External Audit",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "FBT",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "FastAPI",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Feasibility Study",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Feature Engineering",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Finance",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Finance Manager",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Financial Accountant",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Financial Accounting",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Financial Analysis",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Financial Consultant",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Financial Controller",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Financial Controls",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Financial Due Diligence",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Financial Forecasting Models",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Financial Modelling",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Financial Reporting",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Financial Services",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Financial Statements",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Fixed Asset Accounting",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Forecasting",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Founder",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "GST",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "General Ledger",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Git",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "GitHub",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "GitHub Copilot",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "HR Technology",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Health Insurance Premium Prediction",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Hydropower",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Implemented accounting software.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Implemented financial controls and governance.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Improved financial reporting processes.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Income Tax",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Infrastructure Finance",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Insurance",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Integrated AI into finance processes.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Internal Audit",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Internal Control Review",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Internal Controls",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Inventory Accounting",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Investment Analysis",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "JSON",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Journal Entries",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "KPI Reporting",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "LLM",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "LangChain",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Leadership",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Led external audit engagements.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Led stakeholder meetings.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "MYOB",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Machine Learning",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Make.com",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Managed GST compliance.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Managed cash flow forecasting and working capital.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Managed client relationships.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Managed month-end and year-end financial close process.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Managed multidisciplinary teams.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Managed multiple concurrent client engagements.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Management Accountant",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Management Accounting",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Management Reporting",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Managing Partner",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Matplotlib",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Mentored junior accountants.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Mentoring",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Model Context Protocol",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Month End Close",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Negotiation",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "NumPy",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Odoo",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "OpenAI API",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Operational Review",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Pandas",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Partnership Tax",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Payroll Tax",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "People Management",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Performance Analysis",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Performed business valuation assignments.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Performed feasibility studies.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Performed financial analysis supporting strategic decisions.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Performed internal control reviews.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Performed variance analysis and business performance reporting.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "PostgreSQL",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Power BI",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Power Pivot",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Power Query",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Predictive Analytics",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Prepared Australian income tax returns.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Prepared Business Activity Statements (BAS).",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Prepared audit working papers.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Prepared board reporting packs and financial presentations.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Prepared financial models.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Prepared financial statements for taxation purposes.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Prepared management reports for senior leadership.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Prepared monthly, quarterly and annual financial statements.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Presentation",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Presented financial information to boards.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Problem Solving",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Product Design",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Professional Services",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Project Accounting",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Project Finance",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Project Finance Consultant",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Prompt Engineering",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Provided business advisory services.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Provided taxation advisory services.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Python",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Quarter End Close",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "QuickBooks",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "REST API",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "React",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Recruitment",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Regression",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Renewable Energy",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Renewable Energy Finance",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Requirements Gathering",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Reviewed tax compliance documentation.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Risk Assessment",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "SQL",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "SaaS",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Scikit-learn",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Senior Accountant",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Sewa360 ERP",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Simple Fund 360",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Stakeholder Management",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Strategic Planning",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Strategic Thinking",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Supported project finance transactions.",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "System Design",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Tax Advisory",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Tax Compliance",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Tax Planning",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Team Management",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Trust Tax",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "VS Code",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Variance Analysis",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Workflow Automation",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Working Capital Management",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Xero",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Year End Close",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Zapier",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Zoho Books",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "n8n",
+            "confidence": 100,
+            "explicit": true,
+            "inferred": false
+        },
+        {
+            "capability": "Business Intelligence",
+            "confidence": 85,
+            "explicit": false,
+            "inferred": true
+        },
+        {
+            "capability": "Cash Management",
+            "confidence": 85,
+            "explicit": false,
+            "inferred": true
+        },
+        {
+            "capability": "Cloud Accounting",
+            "confidence": 85,
+            "explicit": false,
+            "inferred": true
+        },
+        {
+            "capability": "Commercial Due Diligence",
+            "confidence": 85,
+            "explicit": false,
+            "inferred": true
+        },
+        {
+            "capability": "DCF Valuation",
+            "confidence": 85,
+            "explicit": false,
+            "inferred": true
+        },
+        {
+            "capability": "Dashboard Development",
+            "confidence": 85,
+            "explicit": false,
+            "inferred": true
+        },
+        {
+            "capability": "Data Analytics",
+            "confidence": 85,
+            "explicit": false,
+            "inferred": true
+        },
+        {
+            "capability": "Deal Advisory",
+            "confidence": 85,
+            "explicit": false,
+            "inferred": true
+        },
+        {
+            "capability": "Digital Transformation",
+            "confidence": 85,
+            "explicit": false,
+            "inferred": true
+        },
+        {
+            "capability": "Energy Finance",
+            "confidence": 85,
+            "explicit": false,
+            "inferred": true
+        },
+        {
+            "capability": "Executive Communication",
+            "confidence": 85,
+            "explicit": false,
+            "inferred": true
+        },
+        {
+            "capability": "FP&A",
+            "confidence": 85,
+            "explicit": false,
+            "inferred": true
+        },
+        {
+            "capability": "Financial Advisory",
+            "confidence": 85,
+            "explicit": false,
+            "inferred": true
+        },
+        {
+            "capability": "Governance",
+            "confidence": 85,
+            "explicit": false,
+            "inferred": true
+        },
+        {
+            "capability": "Performance Management",
+            "confidence": 85,
+            "explicit": false,
+            "inferred": true
+        },
+        {
+            "capability": "Transaction Advisory",
+            "confidence": 85,
+            "explicit": false,
+            "inferred": true
+        }
+    ],
+    "statistics": {
+        "explicit_count": 217,
+        "inferred_count": 233
+    }
+}

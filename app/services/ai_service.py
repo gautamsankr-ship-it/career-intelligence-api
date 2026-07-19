@@ -4,33 +4,34 @@ import json
 from dotenv import load_dotenv
 from openai import OpenAI
 
-# Load environment variables
+# ============================================================
+# Load Environment
+# ============================================================
+
 load_dotenv()
 
-# Initialize OpenAI client
 client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY")
 )
 
+# ============================================================
+# AI Job Analysis
+# ============================================================
 
 def analyze_job(job_description: str):
     """
-    Analyze a job description using OpenAI
-    and return structured JSON.
+    Analyze a job description and return structured JSON.
     """
 
-    prompt = f"""
-You are an Executive Recruitment Consultant, ATS Specialist,
-Career Coach and HR Director.
+    prompt = """
+You are an Executive Recruitment Consultant,
+ATS Specialist,
+Career Coach,
+HR Director.
 
-Your task is to analyze the following job description and
-extract structured information that will later be used for:
+Analyze the following job description.
 
-1. ATS Match Score
-2. Resume Optimization
-3. Cover Letter Generation
-4. Interview Preparation
-5. Career Recommendation
+Extract ALL relevant information.
 
 Return ONLY valid JSON.
 
@@ -38,9 +39,9 @@ Job Description:
 
 {job_description}
 
-Return JSON in the following format exactly.
+Return JSON EXACTLY in the following structure.
 
-{
+{{
     "company": "",
     "job_title": "",
     "location": "",
@@ -74,41 +75,73 @@ Return JSON in the following format exactly.
 
     "summary": "",
 
-    "match_reasoning": {
+    "match_reasoning": {{
         "must_have_skills": [],
         "nice_to_have_skills": [],
         "biggest_challenges": [],
         "ideal_candidate": ""
-    }
-}
-"""
+    }}
+}}
+""".format(job_description=job_description)
 
     response = client.chat.completions.create(
+
         model="gpt-4.1-mini",
+
         temperature=0,
-        response_format={"type": "json_object"},
+
+        response_format={
+            "type": "json_object"
+        },
+
         messages=[
+
             {
                 "role": "system",
                 "content": """
-        You are a senior recruitment consultant.
+You are one of the world's best executive recruiters.
 
-        Extract information exactly as requested.
+Your task is to analyze job descriptions.
 
-        Do not invent information.
+Rules:
 
-        If a field is missing, return an empty string,
-        empty array or 0.
+1. Return ONLY valid JSON.
 
-        Return ONLY valid JSON.
-        """
+2. Never return markdown.
+
+3. Never explain your answer.
+
+4. If information is unavailable:
+
+- use ""
+
+- use []
+
+- use 0
+
+5. Extract ATS keywords exactly as written.
+
+6. Infer years of experience where possible.
+
+7. Identify the most important responsibilities.
+
+8. Identify the ideal candidate profile.
+
+9. Prioritize finance, accounting, AI,
+data analytics, automation,
+leadership and ERP technologies.
+
+Return ONLY JSON.
+"""
             },
+
             {
                 "role": "user",
                 "content": prompt
-            },
+            }
 
         ]
+
     )
 
     content = response.choices[0].message.content

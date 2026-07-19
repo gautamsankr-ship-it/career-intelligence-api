@@ -1,8 +1,10 @@
 from app.models.decision_model import CareerDecision, ScoreCard
+from app.services.scoring.education_scorer import EducationScorer
 
 from app.services.scoring.skill_scorer import SkillScorer
 from app.services.scoring.responsibility_scorer import ResponsibilityScorer
 from app.services.scoring.experience_scorer import ExperienceScorer
+from app.services.scoring.industry import IndustryScorer
 
 
 class CareerDecisionEngine:
@@ -18,6 +20,8 @@ class CareerDecisionEngine:
             "employer": 10,
             "career_growth": 10,
         }
+        self.education_scorer = EducationScorer()
+        self.industry_scorer = IndustryScorer()
 
         self.skill_scorer = SkillScorer()
         self.responsibility_scorer = ResponsibilityScorer()
@@ -178,53 +182,20 @@ class CareerDecisionEngine:
             job
 
         )
-        # ============================================================
+   
+    
     # INDUSTRY
     # ============================================================
 
     def _score_industry(self, candidate, job):
 
-        candidate_industries = [
-
-            x.lower()
-
-            for x in candidate.get("industries", [])
-
-        ]
-
-        text = (
-
-            job.get("summary", "")
-
-            + " "
-
-            + " ".join(job.get("keywords", []))
-
-        ).lower()
-
-        matched = []
-
-        for industry in candidate_industries:
-
-            if industry in text:
-
-                matched.append(industry)
-
-        if candidate_industries:
-
-            ratio = len(matched) / len(candidate_industries)
-
-        else:
-
-            ratio = 0
-
-        score = round(
-
-            ratio *
+        result = self.industry_scorer.score(
 
             self.weights["industry"],
 
-            1
+            candidate,
+
+            job
 
         )
 
@@ -234,104 +205,43 @@ class CareerDecisionEngine:
 
             weight=self.weights["industry"],
 
-            score=score,
+            score=result["score"],
 
-            confidence=90,
+            confidence=result["confidence"],
 
-            matched=matched,
+            matched=result["matched"],
 
-            missing=[],
+            missing=result["missing"],
 
-            reason=f"Matched {len(matched)} industries."
+            reason=result["reason"]
 
         )
-
+    
     # ============================================================
     # EDUCATION
     # ============================================================
 
     def _score_education(self, candidate, job):
 
-        education = candidate.get("education", [])
-
-        degrees = [
-
-            e.get("degree", "").lower()
-
-            for e in education
-
-        ]
-
-        text = (
-
-            job.get("summary", "")
-
-            + " "
-
-            + " ".join(job.get("keywords", []))
-
-        ).lower()
-
-        matched = []
-
-        if "chartered accountant" in text or "ca" in text:
-
-            if any("chartered accountant" in d for d in degrees):
-
-                matched.append("Chartered Accountant")
-
-        if "bachelor" in text:
-
-            if any("bachelor" in d for d in degrees):
-
-                matched.append("Bachelor")
-
-        score = min(
+        return self.education_scorer.score(
 
             self.weights["education"],
 
-            len(matched) * 5
+            candidate,
+
+            job
 
         )
-
-        return ScoreCard(
-
-            category="Education",
-
-            weight=self.weights["education"],
-
-            score=score,
-
-            confidence=90,
-
-            matched=matched,
-
-            missing=[],
-
-            reason="Education assessment."
-
-        )
-
+    
     # ============================================================
     # EMPLOYER
     # ============================================================
 
     def _score_employer(self, employer):
 
-        score = round(
-
-            employer.overall_score / 10,
-
-            1
-
-        )
-
         score = min(
-
-            score,
-
+            employer.overall_score,
             self.weights["employer"]
-
         )
 
         return ScoreCard(
@@ -344,11 +254,7 @@ class CareerDecisionEngine:
 
             confidence=95,
 
-            matched=[
-
-                employer.company
-
-            ],
+            matched=[employer.company],
 
             missing=[],
 
@@ -362,20 +268,9 @@ class CareerDecisionEngine:
 
     def _score_career_growth(self, candidate, employer):
 
-        score = round(
-
-            employer.career_growth_score / 10,
-
-            1
-
-        )
-
         score = min(
-
-            score,
-
+            employer.career_growth_score,
             self.weights["career_growth"]
-
         )
 
         return ScoreCard(
@@ -386,7 +281,7 @@ class CareerDecisionEngine:
 
             score=score,
 
-            confidence=90,
+            confidence=95,
 
             matched=[],
 

@@ -1,238 +1,90 @@
-import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
-from app.models.application_context import ApplicationContext
-
-from app.services.profile_service import load_candidate_profile
 from app.services.ai_service import analyze_job
-from app.services.employer_service import EmployerService
+from app.services.ats import ATSEngine
 from app.services.career_engine import CareerDecisionEngine
-
-from app.services.resume_optimizer import optimize_resume
-from app.services.cover_letter_service import generate_cover_letter
-
-from app.services.docx_service import (
-    generate_resume_docx,
-    generate_cover_letter_docx,
-    save_career_report,
-)
-
-
-# ============================================================
-# PHASE 1
-# Decision Only
-# ============================================================
-
-def build_decision(job_description: str):
-
-    candidate = load_candidate_profile()
-
-    context = ApplicationContext(
-
-        candidate=candidate,
-
-        job_description=job_description
-
-    )
-
-    # -------------------------------------------------------
-    # Candidate
-    # -------------------------------------------------------
-
-    print("\n" + "=" * 80)
-    print("CANDIDATE PROFILE")
-    print("=" * 80)
-
-    print("Name :", candidate.get("name"))
-
-    skills = candidate.get("skills", {})
-
-    total_skills = 0
-
-    for values in skills.values():
-
-        total_skills += len(values)
-
-    print("Skills :", total_skills)
-
-    # -------------------------------------------------------
-    # Job Analysis
-    # -------------------------------------------------------
-
-    print("\n========== RAW JOB DESCRIPTION ==========")
-    print(context.job_description[:1000])
-    print("Length:", len(context.job_description))
-
-    context.job_analysis = analyze_job(
-
-        context.job_description
-
-    )
-
-    print("\n" + "=" * 80)
-    print("JOB ANALYSIS")
-    print("=" * 80)
-
-    print(json.dumps(
-
-        context.job_analysis,
-
-        indent=2
-
-    ))
-
-    # -------------------------------------------------------
-    # Employer
-    # -------------------------------------------------------
-
-    context.employer = EmployerService().analyze(
-
-        context.job_analysis
-
-    )
-
-    print("\n" + "=" * 80)
-    print("EMPLOYER")
-    print("=" * 80)
-
-    print(context.employer)
-
-    # -------------------------------------------------------
-    # Career Decision
-    # -------------------------------------------------------
-
-    engine = CareerDecisionEngine()
-
-    context.decision = engine.evaluate(
-
-        context.candidate,
-
-        context.job_analysis,
-
-        context.employer
-
-    )
-
-    print("\n" + "=" * 80)
-    print("CAREER DECISION")
-    print("=" * 80)
-
-    print(
-
-        "Overall Score :",
-
-        context.decision.overall_score
-
-    )
-
-    print(
-
-        "Decision      :",
-
-        context.decision.decision
-
-    )
-
-    print(
-
-        "Priority      :",
-
-        context.decision.priority
-
-    )
-
-    print()
-
-    for card in context.decision.scorecards:
-
-        print(card)
-
-    return context
-
-
-# ============================================================
-# PHASE 2
-# Generate Application Package
-# ============================================================
-
-def generate_package(
-
-    context: ApplicationContext
-
-):
-
-    context.resume = optimize_resume(
-
-        context.candidate,
-
-        context.job_analysis,
-
-        context.decision
-
-    )
-
-    context.cover_letter = generate_cover_letter(
-
-        context.candidate,
-
-        context.job_analysis,
-
-        context.decision
-
-    )
-
-    context.resume_file = generate_resume_docx(
-
-        context.resume,
-
-        context.job_analysis["company"],
-
-        context.job_analysis["job_title"]
-
-    )
-
-    context.cover_letter_file = generate_cover_letter_docx(
-
-        context.cover_letter,
-
-        context.job_analysis["company"],
-
-        context.job_analysis["job_title"]
-
-    )
-
-    context.report_file = save_career_report(
-
-        context.decision,
-
-        context.employer,
-
-        context.job_analysis["company"],
-
-        context.job_analysis["job_title"]
-
-    )
-
-    return context
-
-
-# ============================================================
-# Backward Compatibility
-# ============================================================
-
-def build_application(
-
-    job_description: str
-
-):
-
-    context = build_decision(
-
-        job_description
-
-    )
-
-    return generate_package(
-
-        context
-
-    )
+from app.services.docx_service import generate_resume_docx
+from app.services.employer_service import EmployerService
+from app.services.profile_service import ProfileService
+from app.services.resume_composer import ResumeComposer
+from app.services.resume_generator import ResumeGenerator
+from app.services.resume_optimizer import ResumeOptimizer
+
+
+@dataclass(frozen=True)
+class ApplicationResult:
+    """Artifacts produced by the layered application pipeline."""
+
+    profile: dict[str, Any]
+    job_analysis: dict[str, Any]
+    employer: Any
+    career_decision: Any
+    ats_result: dict[str, Any]
+    resume_strategy: dict[str, Any]
+    resume_composition: dict[str, Any]
+    markdown_path: str
+    docx_path: str
+
+
+class ApplicationService:
+    """Orchestrates the supported profile-to-DOCX application pipeline."""
+
+    def __init__(self) -> None:
+        self.profile_loader = ProfileService()
+        self.employer_analyzer = EmployerService()
+        self.career_engine = CareerDecisionEngine()
+        self.ats_engine = ATSEngine()
+        self.resume_strategy_engine = ResumeOptimizer()
+        self.resume_composer = ResumeComposer()
+        self.resume_generator = ResumeGenerator()
+
+    def generate_documents(self, job_description: str) -> ApplicationResult:
+        """Generate Markdown and DOCX resume artifacts for one job description."""
+        if not job_description or not job_description.strip():
+            raise ValueError("job_description must not be empty")
+
+        profile = self.profile_loader.get_profile()
+        job_analysis = analyze_job(job_description)
+        employer = self.employer_analyzer.analyze(job_analysis)
+        career_decision = self.career_engine.evaluate(
+            profile,
+            job_analysis,
+            employer,
+        )
+        ats_result = self.ats_engine.analyze(job_analysis)
+        resume_strategy = self.resume_strategy_engine.optimize(
+            career_decision,
+            ats_result,
+            job_analysis,
+        )
+        resume_composition = self.resume_composer.compose(
+            profile,
+            job_analysis,
+            career_decision,
+            ats_result,
+            resume_strategy,
+        )
+        markdown_path = self.resume_generator.generate(
+            resume_composition,
+            job_analysis,
+        )
+        markdown = Path(markdown_path).read_text(encoding="utf-8")
+        docx_path = generate_resume_docx(
+            markdown,
+            company=job_analysis.get("company", "Company"),
+            job_title=job_analysis.get("job_title", "Position"),
+        )
+
+        return ApplicationResult(
+            profile=profile,
+            job_analysis=job_analysis,
+            employer=employer,
+            career_decision=career_decision,
+            ats_result=ats_result,
+            resume_strategy=resume_strategy,
+            resume_composition=resume_composition,
+            markdown_path=markdown_path,
+            docx_path=docx_path,
+        )

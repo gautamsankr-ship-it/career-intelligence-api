@@ -1,32 +1,49 @@
-from dataclasses import dataclass, field
-from typing import Dict, Optional
+from dataclasses import dataclass
+from typing import Any, Optional
 
-from app.models.decision_model import CareerDecision
+from app.models.recruiter_decision import RecruiterDecision
 
 
 @dataclass
 class ApplicationContext:
+    """
+    Carries all information related to one job application
+    through the processing pipeline.
+    """
 
+    # --------------------------------------------------
     # Input
+    # --------------------------------------------------
 
-    candidate: Dict
-
+    candidate: dict
     job_description: str
 
-    # Generated
+    # --------------------------------------------------
+    # AI Analysis
+    # --------------------------------------------------
 
-    job_analysis: Optional[Dict] = None
+    job_analysis: Optional[dict] = None
 
-    employer: Optional[Dict] = None
+    employer: Optional[Any] = None
 
-    decision: Optional[CareerDecision] = None
+    decision: Optional[Any] = None
 
-    resume: Optional[str] = None
+    recruiter: Optional[RecruiterDecision] = None
 
-    cover_letter: Optional[str] = None
+    # --------------------------------------------------
+    # Generated Documents
+    # --------------------------------------------------
 
-    resume_file: Optional[str] = None
+    resume: Optional[Any] = None
 
-    cover_letter_file: Optional[str] = None
+    cover_letter: Optional[Any] = None
 
-    metadata: Dict = field(default_factory=dict)
+    # --------------------------------------------------
+    # Generated Files
+    # --------------------------------------------------
+
+    resume_file: str = ""
+
+    cover_letter_file: str = ""
+
+    report_file: str = ""

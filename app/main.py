@@ -8,9 +8,7 @@ from app.services.ai_service import analyze_job
 from app.services.profile_service import load_candidate_profile
 from app.services.employer_service import EmployerService
 from app.services.career_engine import CareerDecisionEngine
-from app.services.resume_optimizer import optimize_resume
-from app.services.docx_service import generate_resume_docx
-from app.services.application_service import build_application
+from app.services.application_service import ApplicationService
 
 app = FastAPI(
     title="Career Intelligence Platform Document Service",
@@ -101,50 +99,26 @@ def analyze_job_endpoint(request: JobRequest):
 
 @app.post("/generate-resume")
 def generate_resume(request: JobRequest):
-
-    candidate = load_candidate_profile()
-
-    job = analyze_job(
-        request.job_description
-    )
-
-    employer = EmployerService().analyze(
-        job
-    )
-
-    decision = CareerDecisionEngine().evaluate(
-        candidate,
-        job,
-        employer
-    )
-
-    optimized_resume = optimize_resume(
-        candidate,
-        job,
-        decision
-    )
-
-    filename = generate_resume_docx(
-        optimized_resume,
-        "generated_resume.docx"
-    )
+    result = ApplicationService().generate_documents(request.job_description)
 
     return {
-
         "success": True,
-
-        "filename": filename,
-
-        "match_score": decision.overall_score,
-
-        "decision": decision.decision
-
+        "markdown_file": result.markdown_path,
+        "filename": result.docx_path,
+        "match_score": result.career_decision.overall_score,
+        "decision": result.career_decision.decision,
     }
 
 
 @app.post("/apply")
 def apply(request: JobRequest):
+    result = ApplicationService().generate_documents(request.job_description)
 
-    return build_application(
-        request.job_description
-    )
+    return {
+        "success": True,
+        "job_analysis": result.job_analysis,
+        "markdown_file": result.markdown_path,
+        "docx_file": result.docx_path,
+        "match_score": result.career_decision.overall_score,
+        "decision": result.career_decision.decision,
+    }

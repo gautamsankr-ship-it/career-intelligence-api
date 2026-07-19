@@ -1,39 +1,27 @@
-from app.services.profile_service import load_candidate_profile
-from app.services.match_service import calculate_match
-from app.services.resume_optimizer import optimize_resume
+from app.services.resume_optimizer import ResumeOptimizer
 
-candidate_profile = load_candidate_profile()
 
 job_analysis = {
     "company": "Bamboo",
     "job_title": "Financial Data Analyst",
-    "location": "Remote",
-    "employment_type": "Full Time",
-    "required_skills": [
-        "Excel",
-        "SQL",
-        "Power BI",
-        "Financial Analysis"
-    ],
-    "keywords": [
-        "Financial Planning",
-        "Reporting",
-        "Dashboard"
-    ],
-    "summary": "Financial Data Analyst position."
+    "required_skills": ["Excel", "SQL", "Power BI", "Financial Analysis"],
+    "finance_domains": ["Financial Planning"],
 }
 
-career_report = calculate_match(
-    candidate_profile,
-    job_analysis
-)
+ats_result = {
+    "keyword_summary": {
+        "matched": [{"keyword": "Excel"}, {"keyword": "SQL"}],
+        "partial": [{"keyword": "Power BI"}],
+        "missing": ["Financial Analysis"],
+    }
+}
 
-resume = optimize_resume(
-    candidate_profile,
-    job_analysis,
-    career_report
+strategy = ResumeOptimizer().optimize(
+    career_result=None,
+    ats_result=ats_result,
+    job_analysis=job_analysis,
 )
 
 print("=" * 80)
-print(resume)
+print(strategy)
 print("=" * 80)

@@ -76,8 +76,154 @@
       "SaaS"
     ]
   },
+"branding": {
+  "professional_title": "Chartered Accountant | Corporate Finance | Financial Due Diligence | AI & Automation",
+  "resume_headline": "Senior Finance & Business Advisory Professional",
+  "linkedin_headline": "Chartered Accountant | Corporate Finance | AI | Financial Modelling | Due Diligence",
+  "personal_brand": "Finance professional combining deep accounting expertise with AI-driven automation and strategic advisory.",
+  "tagline": "Transforming Finance Through Technology and Intelligence"
+},
 
-  "education": [
+"career_direction": {
+  "current_focus": [
+    "Corporate Finance",
+    "Financial Due Diligence",
+    "Business Advisory",
+    "AI Automation",
+    "Financial Technology"
+  ],
+  "target_roles": [
+    "Finance Manager",
+    "Senior Financial Analyst",
+    "Corporate Finance Manager",
+    "Commercial Finance Manager",
+    "Business Advisory Manager",
+    "Financial Controller",
+    "Head of Finance",
+    "CFO"
+  ],
+  "preferred_industries": [
+    "Professional Services",
+    "Financial Services",
+    "Renewable Energy",
+    "Technology",
+    "Artificial Intelligence",
+    "Infrastructure",
+    "Consulting"
+  ]
+},
+
+"employment_history": [
+
+  {
+    "company": "GSN Associates",
+    "position": "Managing Partner",
+    "country": "Nepal",
+    "employment_type": "Full Time",
+    "period": "2022 - Present",
+
+    "summary": "Leading audit, taxation, advisory, outsourcing and AI transformation initiatives for SMEs and infrastructure projects.",
+
+    "team_size": 12,
+
+    "key_clients": [
+      "SMEs",
+      "Hydropower Companies",
+      "Financial Institutions"
+    ],
+
+    "responsibilities": [
+      "Audit",
+      "Corporate Finance",
+      "Business Advisory",
+      "Leadership",
+      "Client Management"
+    ],
+
+    "achievements": [
+      "Managing Partner of Chartered Accountancy Firm",
+      "Financial Due Diligence Consultant",
+      "Built AI Career Intelligence Platform"
+    ],
+
+    "technologies": [
+      "Excel",
+      "Power BI",
+      "Python",
+      "Odoo",
+      "CaseWare"
+    ]
+  },
+
+  {
+    "company": "Australian Accounting Firm",
+    "position": "Offshore Accounting Manager",
+    "country": "Australia",
+    "employment_type": "Remote",
+
+    "period": "2024 - 2025",
+
+    "summary": "Managed offshore accounting operations for Australian SMEs.",
+
+    "team_size": 12,
+
+    "responsibilities": [
+      "Management Accounting",
+      "Financial Reporting",
+      "Australian Tax",
+      "Leadership"
+    ],
+
+    "achievements": [
+      "Built offshore accounting team",
+      "Led accounting automation initiatives",
+      "Managed Australian client portfolio"
+    ],
+
+    "technologies": [
+      "Xero",
+      "MYOB",
+      "QuickBooks",
+      "Power BI",
+      "Excel"
+    ]
+  },
+
+  {
+    "company": "Independent Consulting",
+    "position": "Financial Due Diligence Consultant",
+
+    "country": "Nepal",
+
+    "employment_type": "Consulting",
+
+    "period": "2023 - Present",
+
+    "summary": "Financial due diligence and project finance advisory for hydropower and infrastructure projects.",
+
+    "responsibilities": [
+      "Project Finance",
+      "Financial Modelling",
+      "Corporate Finance",
+      "Investment Analysis"
+    ],
+
+    "achievements": [
+      "Hydropower Financial Due Diligence",
+      "Consortium Bank Advisory"
+    ],
+
+    "technologies": [
+      "Excel",
+      "Financial Models",
+      "Power BI"
+    ]
+  }
+
+],
+  
+  
+"education": [
     {
       "qualification": "Chartered Accountant",
       "institution": "Institute of Chartered Accountants of India"
@@ -91,6 +237,659 @@
   "future_education": {
     "planned_degree": "Master of Financial Technology"
   },
+
+"finance_domains": {
+
+  "core": [
+    "Financial Accounting",
+    "Management Accounting",
+    "Corporate Finance",
+    "Commercial Finance",
+    "Financial Reporting",
+    "Financial Analysis",
+    "Business Advisory",
+    "Project Finance",
+    "Financial Modelling",
+    "Budgeting",
+    "Forecasting",
+    "Cash Flow Forecasting",
+    "Variance Analysis",
+    "Decision Support",
+    "Business Valuation",
+    "Investment Analysis",
+    "Financial Due Diligence"
+  ],
+
+  "advanced": [
+    "Infrastructure Finance",
+    "Renewable Energy Finance",
+    "Hydropower Finance",
+    "Consortium Lending",
+    "Feasibility Studies",
+    "Strategic Planning",
+    "Performance Analysis",
+    "Board Reporting",
+    "Business Performance Management"
+  ]
+
+},
+
+"industry_expertise": {
+
+  "primary": [
+    "Accounting",
+    "Audit",
+    "Professional Services",
+    "Financial Services",
+    "Renewable Energy"
+  ],
+
+  "secondary": [
+    "Hydropower",
+    "Infrastructure",
+    "Artificial Intelligence",
+    "ERP",
+    "Software",
+    "Technology",
+    "Insurance",
+    "SaaS"
+  ]
+
+},
+
+"software": {
+
+  "erp": [
+    "Odoo",
+    "SAP",
+    "Oracle ERP"
+  ],
+
+  "accounting": [
+    "Xero",
+    "MYOB",
+    "QuickBooks",
+    "CaseWare",
+    "Simple Fund 360"
+  ],
+
+  "analytics": [
+    "Excel",
+    "Power BI",
+    "SQL",
+    "Python"
+  ],
+
+  "development": [
+    "FastAPI",
+    "PostgreSQL",
+    "Git",
+    "GitHub",
+    "VS Code"
+  ],
+
+  "productivity": [
+    "Microsoft 365",
+    "Teams",
+    "Planner",
+    "Trello",
+    "Notion"
+  ]
+
+},
+
+"technical_capabilities": {
+
+  "artificial_intelligence": [
+    "OpenAI API",
+    "Prompt Engineering",
+    "AI Agents",
+    "LLM Integration",
+    "Resume Intelligence",
+    "Career Intelligence"
+  ],
+
+  "automation": [
+    "Workflow Automation",
+    "Business Process Automation",
+    "API Integration",
+    "Document Automation",
+    "Report Automation"
+  ],
+
+  "data": [
+    "Data Analysis",
+    "Machine Learning",
+    "Predictive Analytics",
+    "Feature Engineering",
+    "Data Visualization"
+  ]
+
+},
+
+"leadership_profile": {
+
+  "team_management": true,
+
+  "executive_experience": true,
+
+  "board_experience": true,
+
+  "entrepreneur": true,
+
+  "consultant": true,
+
+  "people_management": true,
+
+  "coaching": true,
+
+  "mentoring": true
+
+},
+
+"consulting_specializations": [
+
+  "Financial Due Diligence",
+
+  "Corporate Finance",
+
+  "Business Advisory",
+
+  "Project Finance",
+
+  "Hydropower Advisory",
+
+  "Financial Modelling",
+
+  "Investment Analysis",
+
+  "Business Transformation",
+
+  "AI Strategy",
+
+  "ERP Strategy"
+
+],
+
+"consulting_engagements": [
+
+  {
+    "name": "Upper Ankhu Khola Hydropower Project",
+
+    "role": "Financial Due Diligence Consultant",
+
+    "client": "Consortium of Lending Banks",
+
+    "industry": "Hydropower",
+
+    "country": "Nepal",
+
+    "status": "Completed",
+
+    "description": "Performed financial due diligence covering project finance, EPC contracts, cost verification, funding utilization, regulatory compliance and lender risk assessment.",
+
+    "finance_domains": [
+      "Project Finance",
+      "Financial Due Diligence",
+      "Infrastructure Finance",
+      "Corporate Finance"
+    ],
+
+    "skills": [
+      "Financial Modelling",
+      "Risk Assessment",
+      "Financial Analysis",
+      "Investment Analysis"
+    ]
+  },
+
+  {
+    "name": "Financial Forecasting Models",
+
+    "role": "Finance Consultant",
+
+    "industry": "Corporate Finance",
+
+    "status": "Completed",
+
+    "description": "Developed budgeting, forecasting and financial modelling solutions supporting strategic business decisions.",
+
+    "finance_domains": [
+      "Financial Modelling",
+      "Forecasting",
+      "Budgeting"
+    ],
+
+    "skills": [
+      "Business Analysis",
+      "Cash Flow Forecasting",
+      "Scenario Analysis"
+    ]
+  }
+
+],
+
+"board_positions": [
+
+  {
+
+    "organization": "Public Company",
+
+    "role": "Board Director",
+
+    "country": "Nepal",
+
+    "status": "Current",
+
+    "responsibilities": [
+
+      "Corporate Governance",
+
+      "Strategic Planning",
+
+      "Financial Oversight",
+
+      "Risk Management"
+
+    ]
+
+  }
+
+],
+
+"entrepreneurship": [
+
+  {
+
+    "venture": "Career Intelligence Platform",
+
+    "role": "Founder",
+
+    "status": "In Progress",
+
+    "description": "Building an AI-powered career intelligence platform for automated job discovery, ATS optimization, resume generation and recruiter reasoning.",
+
+    "technologies": [
+
+      "Python",
+
+      "FastAPI",
+
+      "OpenAI",
+
+      "PostgreSQL"
+
+    ]
+
+  },
+
+  {
+
+    "venture": "Sewa360 ERP",
+
+    "role": "Co-Founder",
+
+    "status": "Prototype",
+
+    "description": "ERP platform for accounting firms and professional service businesses.",
+
+    "technologies": [
+
+      "ERP",
+
+      "Workflow Automation"
+
+    ]
+
+  }
+
+],
+
+"publications": [
+
+  {
+
+    "title": "Advanced Accounting Book",
+
+    "type": "Book",
+
+    "status": "Published"
+
+  }
+
+],
+
+"teaching": [
+
+  {
+
+    "role": "University Lecturer",
+
+    "subjects": [
+
+      "Accounting",
+
+      "Finance",
+
+      "Auditing"
+
+    ]
+
+  }
+
+],
+
+"professional_memberships": [
+
+  {
+
+    "organization": "Institute of Chartered Accountants of India",
+
+    "membership": "Chartered Accountant"
+
+  }
+
+],
+
+"career_highlights": [
+
+  "15+ years Chartered Accountant",
+
+  "Managing Partner",
+
+  "Financial Due Diligence Consultant",
+
+  "Board Director",
+
+  "Founder of AI Career Intelligence Platform",
+
+  "Founder of ERP Startup",
+
+  "Built Offshore Accounting Team",
+
+  "Expert in Australian Accounting",
+
+  "Business Advisor",
+
+  "Machine Learning Practitioner"
+
+],
+
+"thought_leadership": {
+
+  "topics": [
+
+    "Artificial Intelligence",
+
+    "Corporate Finance",
+
+    "Financial Modelling",
+
+    "Business Automation",
+
+    "ERP",
+
+    "Renewable Energy Finance"
+
+  ],
+
+  "writing": true,
+
+  "training": true,
+
+  "consulting": true
+
+},
+
+"career_preferences": {
+
+  "preferred_roles": [
+
+    "Chief Financial Officer",
+
+    "Head of Finance",
+
+    "Finance Director",
+
+    "Commercial Finance Manager",
+
+    "Corporate Finance Manager",
+
+    "Financial Controller",
+
+    "Financial Planning & Analysis Manager",
+
+    "Business Advisory Manager",
+
+    "AI Transformation Consultant"
+
+  ],
+
+  "preferred_employment": [
+
+    "Permanent",
+
+    "Contract",
+
+    "Consulting"
+
+  ],
+
+  "preferred_work_mode": [
+
+    "Remote",
+
+    "Hybrid"
+
+  ],
+
+  "preferred_company_size": [
+
+    "SME",
+
+    "Mid Market",
+
+    "Enterprise"
+
+  ],
+
+  "preferred_locations": [
+
+    "Australia",
+
+    "New Zealand",
+
+    "Singapore",
+
+    "United Kingdom",
+
+    "UAE",
+
+    "Remote"
+
+  ]
+
+},
+
+"salary_expectation": {
+
+  "currency": "AUD",
+
+  "minimum": 120000,
+
+  "preferred": 150000,
+
+  "consulting_daily_rate": 1200
+
+},
+
+"availability": {
+
+  "notice_period": "Negotiable",
+
+  "open_to_relocation": true,
+
+  "remote_available": true,
+
+  "travel_available": true
+
+},
+
+"languages": [
+
+  {
+
+    "language": "English",
+
+    "proficiency": "Professional"
+
+  },
+
+  {
+
+    "language": "Nepali",
+
+    "proficiency": "Native"
+
+  },
+
+  {
+
+    "language": "Hindi",
+
+    "proficiency": "Professional"
+
+  }
+
+],
+
+"professional_strengths": [
+
+  "Strategic Thinking",
+
+  "Financial Leadership",
+
+  "Commercial Acumen",
+
+  "Analytical Thinking",
+
+  "Decision Making",
+
+  "Stakeholder Management",
+
+  "Business Partnering",
+
+  "Problem Solving",
+
+  "Leadership",
+
+  "Innovation",
+
+  "AI Adoption",
+
+  "Business Transformation"
+
+],
+
+"unique_value_proposition": {
+
+  "statement": "Chartered Accountant combining deep finance expertise with artificial intelligence, automation and strategic business advisory.",
+
+  "competitive_advantages": [
+
+    "15+ years finance leadership",
+
+    "Australian accounting experience",
+
+    "Corporate Finance",
+
+    "Financial Due Diligence",
+
+    "Project Finance",
+
+    "Artificial Intelligence",
+
+    "Automation",
+
+    "ERP Strategy",
+
+    "Leadership",
+
+    "Entrepreneurship"
+
+  ]
+
+},
+
+"career_metrics": {
+
+  "years_experience": 15,
+
+  "countries_worked": [
+
+    "Nepal",
+
+    "Australia"
+
+  ],
+
+  "industries_served": [
+
+    "Accounting",
+
+    "Audit",
+
+    "Financial Services",
+
+    "Renewable Energy",
+
+    "Hydropower",
+
+    "ERP",
+
+    "Artificial Intelligence"
+
+  ],
+
+  "leadership_roles": 6,
+
+  "consulting_engagements": 10,
+
+  "major_projects": 15
+
+},
+
+"digital_presence": {
+
+  "linkedin": "",
+
+  "github": "",
+
+  "portfolio": "",
+
+  "website": ""
+
+},
+
+"metadata": {
+
+  "profile_version": "2.0",
+
+  "last_updated": "2026-07-08",
+
+  "maintainer": "Career Intelligence Platform",
+
+  "ai_ready": true,
+
+  "ats_ready": true,
+
+  "resume_ready": true,
+
+  "cover_letter_ready": true,
+
+  "interview_ready": true
+
+},
 
   "skills": {
     "accounting": [
@@ -640,65 +1439,5 @@
         "Data Analytics"
     ]
 }
-,
-
- 
-"career_preferences": {
-
-    "preferred_countries": [
-
-        "Australia",
-
-        "United Kingdom",
-
-        "United States",
-
-        "Remote"
-
-    ],
-
-    "preferred_roles": [
-
-        "Finance Manager",
-
-        "Financial Controller",
-
-        "Senior Financial Accountant",
-
-        "Finance Business Partner",
-
-        "Financial Analyst",
-
-        "Business Intelligence Analyst",
-
-        "Data Analyst",
-
-        "AI Automation Consultant",
-
-        "Finance Transformation Consultant",
-
-        "FinTech Consultant"
-
-    ],
-
-    "preferred_industries": [
-
-        "Accounting",
-
-        "Professional Services",
-
-        "Financial Services",
-
-        "FinTech",
-
-        "Artificial Intelligence",
-
-        "Technology",
-
-        "Renewable Energy",
-
-        "Infrastructure"
-
-    ]
 }
-}
+

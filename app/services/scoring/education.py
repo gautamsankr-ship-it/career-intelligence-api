@@ -1,1 +1,0 @@
-"""Education scoring helpers."""

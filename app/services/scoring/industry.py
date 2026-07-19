@@ -1,87 +1,150 @@
-"""Industry scoring helpers."""
-def calculate_industry_score(candidate_profile, job_analysis):
+from app.services.industry.industry_matcher import IndustryMatcher
 
-    candidate_industries = {
-        industry.lower().strip()
-        for industry in candidate_profile.get("industries", [])
-    }
 
-    # We will later replace this with AI extraction.
-    job_text = (
-        job_analysis.get("summary", "") + " " +
-        " ".join(job_analysis.get("keywords", []))
-    ).lower()
+def calculate_industry_score(candidate, job):
+    return IndustryScorer().score(10, candidate, job)
 
-    industry_similarity = {
 
-        "accounting": [
-            "audit",
-            "tax",
-            "financial services",
-            "consulting",
-            "professional services"
-        ],
+class IndustryScorer:
 
-        "renewable energy": [
-            "hydropower",
-            "solar",
-            "wind",
-            "utilities",
-            "infrastructure"
-        ],
+    def __init__(self):
 
-        "financial services": [
-            "banking",
-            "insurance",
-            "fintech",
-            "wealth",
-            "investment"
-        ]
-    }
+        self.matcher = IndustryMatcher()
 
-    score = 0
-    matched = []
+    # ==========================================================
+    # Industry Intelligence V4
+    # ==========================================================
 
-    for candidate in candidate_industries:
+    def score(self, weight, candidate, job):
 
-        if candidate in job_text:
+        capabilities = []
 
-            score = 10
-            matched.append(candidate)
-            break
+        capabilities.extend(
+            job.get("finance_domains", [])
+        )
 
-        if candidate in industry_similarity:
+        capabilities.extend(
+            job.get("required_skills", [])
+        )
 
-            for related in industry_similarity[candidate]:
+        capabilities.extend(
+            job.get("preferred_skills", [])
+        )
 
-                if related in job_text:
+        capabilities.extend(
+            job.get("technologies", [])
+        )
 
-                    score = 8
-                    matched.append(related)
-                    break
+        capabilities = sorted(
 
-    if score == 0:
+            {
 
-        reason = "No industry match found."
+                x.strip()
 
-    elif score == 10:
+                for x in capabilities
 
-        reason = "Direct industry match."
+                if x and x.strip()
 
-    else:
+            }
 
-        reason = "Related industry match."
+        )
 
-    return {
+        if not capabilities:
 
-        "score": score,
+            return {
 
-        "reason": reason,
+                "score": weight,
 
-        "evidence": {
+                "confidence": 100,
 
-            "matched": matched
+                "matched": [],
+
+                "missing": [],
+
+                "reason": "No industry capabilities extracted."
+
+            }
+
+        result = self.matcher.match_all(
+
+            capabilities
+
+        )
+
+        # ---------------------------------------------
+        # Family Coverage
+        # ---------------------------------------------
+
+        families = result["families"]
+
+        matched = result["matched"]
+
+        missing = result["missing"]
+
+        matched_families = len(
+
+            result["families"]
+
+        )
+
+        total_families = max(
+
+            len(
+
+                result["requested_families"]
+
+            ),
+
+            1
+
+        )
+
+        coverage = matched_families / total_families
+
+        # ---------------------------------------------
+        # Confidence Boost
+        # ---------------------------------------------
+
+        confidence = max(
+
+            result["confidence"],
+
+            coverage * 100
+
+        )
+
+        # ---------------------------------------------
+        # Final Score
+        # ---------------------------------------------
+
+        score = round(
+
+            coverage * weight,
+
+            1
+
+        )
+
+        return {
+
+            "score": score,
+
+            "confidence": round(confidence, 1),
+
+            "matched": matched,
+
+            "missing": missing,
+
+            "reason": (
+
+                f"Covered "
+
+                f"{matched_families} of "
+
+                f"{total_families} "
+
+                f"industry capability families."
+
+            )
 
         }
-
-    }

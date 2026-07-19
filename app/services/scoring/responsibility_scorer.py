@@ -1,66 +1,90 @@
-from app.services.evidence_engine import EvidenceEngine
 from app.services.scoring.score_utils import create_scorecard
+from app.services.responsibility.responsibility_matcher import ResponsibilityMatcher
 
 
 class ResponsibilityScorer:
 
     def __init__(self):
 
-        self.evidence = EvidenceEngine()
+        self.matcher = ResponsibilityMatcher()
+
+    # ==========================================================
+    # Responsibility Score
+    # ==========================================================
 
     def score(self, weight, candidate, job):
 
-        summary = job.get("summary", "")
+        responsibilities = job.get("responsibilities", [])
 
-        keywords = job.get("keywords", [])
+        if not responsibilities:
 
-        search_terms = []
+            return create_scorecard(
 
-        if summary:
-            search_terms.extend(summary.split())
+                category="Responsibilities",
 
-        search_terms.extend(keywords)
+                weight=weight,
+
+                score=weight,
+
+                confidence=100,
+
+                matched=[],
+
+                missing=[],
+
+                reason="No responsibilities extracted."
+
+            )
+
+        result = self.matcher.match_all(
+
+            responsibilities
+
+        )
 
         matched = []
+
         missing = []
 
-        total = 0
+        # ------------------------------------------------------
+        # Build consolidated evidence
+        # ------------------------------------------------------
 
-        seen = set()
+        for item in result["results"]:
 
-        for term in search_terms:
+            for match in item["matched"]:
 
-            term = term.strip()
+                matched.append(
 
-            if len(term) < 4:
-                continue
+                    match["matched"]
 
-            if term.lower() in seen:
-                continue
+                )
 
-            seen.add(term.lower())
+            missing.extend(
 
-            result = self.evidence.evidence_score(term)
+                item["missing"]
 
-            if result["score"] > 0:
+            )
 
-                matched.append(term)
+        matched = sorted(
 
-                total += min(result["score"], 10)
+            list(set(matched))
 
-            else:
+        )
 
-                missing.append(term)
+        missing = sorted(
 
-        if not search_terms:
+            list(set(missing))
 
-            score = weight
+        )
 
-        else:
+        score = round(
 
-            normalized = total / (len(seen) * 10)
+            result["score"] * weight,
 
-            score = round(weight * normalized, 1)
+            1
+
+        )
 
         return create_scorecard(
 
@@ -70,12 +94,26 @@ class ResponsibilityScorer:
 
             score=score,
 
-            confidence=95,
+            confidence=result["confidence"],
 
             matched=matched,
 
             missing=missing,
 
-            reason=f"Evidence found for {len(matched)} responsibility keywords."
+            reason=(
+
+                f"Matched "
+
+                f"{len(matched)} "
+
+                f"professional capabilities "
+
+                f"across "
+
+                f"{len(responsibilities)} "
+
+                f"responsibilities."
+
+            )
 
         )

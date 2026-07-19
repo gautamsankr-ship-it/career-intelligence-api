@@ -1,242 +1,211 @@
-from app.models.resume_optimization import ResumeOptimizationResult
-
-
 class ResumeOptimizer:
+    """
+    Resume Strategy Generator
 
-    def optimize(self, profile, job, decision):
+    Uses Career Intelligence and ATS Intelligence
+    to produce a resume optimization strategy.
 
-        result = ResumeOptimizationResult()
+    It NEVER generates resume text.
+    """
 
-        strategy = decision.resume_strategy
+    def optimize(
 
-        # =====================================================
-        # ATS Keywords
-        # =====================================================
+        self,
 
-        result.ats_keywords = strategy.get("keywords", [])
+        career_result,
 
-        result.missing_keywords = strategy.get("improve", [])
+        ats_result,
 
-        # =====================================================
-        # Skills Ranking
-        # =====================================================
+        job_analysis
 
-        all_skills = []
+    ):
 
-        for category in profile["skills"].values():
-            all_skills.extend(category)
+        keyword_summary = ats_result["keyword_summary"]
 
-        for category in profile["technology"].values():
-            all_skills.extend(category)
+        matched = [
 
-        ranked = []
+            item["keyword"]
 
-        for skill in all_skills:
-
-            score = 0
-
-            for keyword in result.ats_keywords:
-
-                if keyword.lower() in skill.lower():
-
-                    score += 10
-
-            ranked.append((score, skill))
-
-        ranked.sort(reverse=True)
-
-        result.top_skills = [
-
-            skill
-
-            for _, skill in ranked[:20]
+            for item in keyword_summary["matched"]
 
         ]
 
-        # =====================================================
-        # Projects
-        # =====================================================
+        partial = [
 
-        project_scores = []
+            item["keyword"]
 
-        for project in profile["projects"]:
+            for item in keyword_summary["partial"]
 
-            score = 0
+        ]
 
-            text = (
+        missing = keyword_summary["missing"]
 
-                project["description"]
+        # ------------------------------------------------------
+        # Summary Focus
+        # ------------------------------------------------------
 
-                + " "
+        summary_focus = []
 
-                + " ".join(project["skills"])
+        summary_focus.extend(
 
-            ).lower()
+            job_analysis.get(
 
-            for keyword in result.ats_keywords:
+                "finance_domains",
 
-                if keyword.lower() in text:
-
-                    score += 5
-
-            project_scores.append(
-
-                (score, project)
+                []
 
             )
 
-        project_scores.sort(
+        )
 
-            reverse=True,
+        summary_focus.extend(
 
-            key=lambda x: x[0]
+            job_analysis.get(
+
+                "required_skills",
+
+                []
+
+            )[:5]
 
         )
 
-        result.top_projects = [
+        # ------------------------------------------------------
+        # Experience Priority
+        # ------------------------------------------------------
 
-            project
+        experience_priority = []
 
-            for _, project in project_scores[:3]
+        if any(
 
-        ]
+            "finance" in x.lower()
 
-        # =====================================================
-        # Achievements
-        # =====================================================
+            for x in summary_focus
 
-        result.top_achievements = profile["achievements"][:8]
+        ):
 
-        # =====================================================
-        # Responsibilities
-        # =====================================================
+            experience_priority.append(
 
-        responsibilities = []
+                "Corporate Finance Experience"
 
-        for group in profile["responsibilities"].values():
+            )
 
-            responsibilities.extend(group)
+        if any(
 
-        result.top_responsibilities = responsibilities[:12]
+            "audit" in x.lower()
 
-        # =====================================================
-        # Positioning
-        # =====================================================
+            for x in summary_focus
 
-        title = job.get(
+        ):
+
+            experience_priority.append(
+
+                "Audit Experience"
+
+            )
+
+        if any(
+
+            "project" in x.lower()
+
+            for x in summary_focus
+
+        ):
+
+            experience_priority.append(
+
+                "Project Experience"
+
+            )
+
+        # ------------------------------------------------------
+        # Projects
+        # ------------------------------------------------------
+
+        projects = []
+
+        if "Financial Due Diligence" in matched:
+
+            projects.append(
+
+                "Hydropower Financial Due Diligence"
+
+            )
+
+        if "Automation" in matched:
+
+            projects.append(
+
+                "AI Career Intelligence Platform"
+
+            )
+
+        if "ERP" in matched:
+
+            projects.append(
+
+                "Fleet ERP Project"
+
+            )
+
+        # ------------------------------------------------------
+        # Resume Title
+        # ------------------------------------------------------
+
+        title = job_analysis.get(
 
             "job_title",
 
-            ""
-
-        ).lower()
-
-        if "finance" in title:
-
-            result.career_positioning = (
-
-                "Finance Transformation Professional"
-
-            )
-
-        elif "data" in title:
-
-            result.career_positioning = (
-
-                "Financial Data Analytics Professional"
-
-            )
-
-        elif "ai" in title:
-
-            result.career_positioning = (
-
-                "AI Automation Professional"
-
-            )
-
-        else:
-
-            result.career_positioning = (
-
-                profile["candidate"]["title"]
-
-            )
-
-        # =====================================================
-        # Executive Summary
-        # =====================================================
-
-        summary = profile["professional_summary"]
-
-        result.executive_summary = (
-
-            summary["headline"]
-
-            + " "
-
-            + summary["career_direction"]
+            "Professional Resume"
 
         )
 
-        # =====================================================
-        # Resume Intelligence
-        # =====================================================
+        # ------------------------------------------------------
+        # Strategy
+        # ------------------------------------------------------
 
-        result.strengths = [
+        return {
 
-            "Strong finance leadership",
+            "resume_title": title,
 
-            "Australian accounting expertise",
+            "summary_focus":
 
-            "AI and automation capability",
+                sorted(
 
-            "Data analytics experience"
+                    list(
 
-        ]
+                        set(summary_focus)
 
-        result.concerns = [
+                    )
 
-            "Needs stronger role-specific positioning"
+                ),
 
-        ]
+            "experience_priority":
 
-        result.recommendations = [
+                experience_priority,
 
-            "Emphasize relevant achievements.",
+            "skills_priority":
 
-            "Prioritize matching projects.",
+                matched,
 
-            "Move most relevant skills to page one."
+            "projects_priority":
 
-        ]
+                projects,
 
-        result.ats_before = decision.overall_score
+            "keywords_to_repeat":
 
-        result.ats_after = min(
+                matched,
 
-            100,
+            "keywords_to_strengthen":
 
-            decision.overall_score + 18
+                partial,
 
-        )
+            "keywords_missing":
 
-        result.recruiter_score = min(
+                missing,
 
-            100,
+            "recommended_length":
 
-            result.ats_after + 2
+                "2 pages"
 
-        )
-
-        result.hiring_manager_score = min(
-
-            100,
-
-            result.ats_after + 1
-
-        )
-
-        result.confidence = decision.confidence
-
-        return result
+        }

@@ -1,5 +1,12 @@
+from app.config import (
+    USE_CACHE,
+    MAX_JOBS,
+    REMOTE_ONLY,
+)
+
 from app.services.linkedin_url_builder import LinkedInURLBuilder
 from app.services.apify_service import ApifyJobService
+from app.services.cache_service import CacheService
 from app.models.career_opportunity import CareerOpportunity
 
 
@@ -11,27 +18,61 @@ class JobDiscoveryService:
 
         self.scraper = ApifyJobService()
 
+        self.cache = CacheService()
+
+    # ==========================================================
+    # Discover Jobs
+    # ==========================================================
+
     def discover_jobs(self) -> list[CareerOpportunity]:
 
-        searches = self.builder.build_urls()
+        if USE_CACHE:
 
-        urls = [
+            if not self.cache.exists():
 
-            search["url"]
+                raise FileNotFoundError(
 
-            for search in searches
+                    "\nNo cached jobs found.\n"
+                    "Run:\n"
+                    "python refresh_jobs.py\n"
+                    "to download fresh jobs."
 
-        ]
+                )
 
-        opportunities = self.scraper.scrape_jobs(
+            print("\nLoading jobs from cache...")
 
-            urls,
+            jobs = self.cache.load_jobs()
 
-            count=100
+            print(f"Loaded {len(jobs)} cached jobs.")
+
+        else:
+
+            raise RuntimeError(
+
+                "USE_CACHE=False.\n"
+                "Use refresh_jobs.py to refresh jobs."
+
+            )
+
+        jobs = self.remove_duplicates(jobs)
+
+        if REMOTE_ONLY:
+
+            jobs = self.filter_remote_jobs(jobs)
+
+        jobs.sort(
+
+            key=lambda x: x.posted_date,
+
+            reverse=True
 
         )
 
-        return self.remove_duplicates(opportunities)
+        return jobs[:MAX_JOBS]
+
+    # ==========================================================
+    # Duplicate Removal
+    # ==========================================================
 
     def remove_duplicates(
 
@@ -43,20 +84,94 @@ class JobDiscoveryService:
 
         unique = {}
 
-        for opportunity in opportunities:
+        for job in opportunities:
 
             key = (
 
-                opportunity.company.lower().strip(),
+                job.company.lower().strip(),
 
-                opportunity.job_title.lower().strip(),
+                job.job_title.lower().strip(),
 
-                opportunity.location.lower().strip()
+                job.location.lower().strip()
 
             )
 
             if key not in unique:
 
-                unique[key] = opportunity
+                unique[key] = job
 
         return list(unique.values())
+
+    # ==========================================================
+    # Remote Filter
+    # ==========================================================
+
+    def filter_remote_jobs(
+
+        self,
+
+        opportunities: list[CareerOpportunity]
+
+    ) -> list[CareerOpportunity]:
+
+        remote = []
+
+        banned = [
+
+            "on-site",
+
+            "onsite",
+
+            "hybrid",
+
+            "office",
+
+            "work authorization",
+
+            "visa required",
+
+            "citizenship",
+
+            "security clearance",
+
+            "must reside",
+
+            "must live"
+
+        ]
+
+        preferred = [
+
+            "remote",
+
+            "work from home",
+
+            "worldwide",
+
+            "distributed",
+
+            "global",
+
+            "anywhere"
+
+        ]
+
+        for job in opportunities:
+
+            text = (
+
+                f"{job.location} "
+
+                f"{job.job_description}"
+
+            ).lower()
+
+            if any(x in text for x in banned):
+
+                continue
+
+            if any(x in text for x in preferred):
+
+                remote.append(job)
+
+        return remote

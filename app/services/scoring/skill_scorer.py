@@ -1,4 +1,4 @@
-from app.services.evidence_engine import EvidenceEngine
+from app.services.skills.skill_matcher import SkillMatcher
 from app.services.scoring.score_utils import create_scorecard
 
 
@@ -6,71 +6,96 @@ class SkillScorer:
 
     def __init__(self):
 
-        self.evidence = EvidenceEngine()
+        self.matcher = SkillMatcher()
 
     def score(self, weight, candidate, job):
 
-        required_skills = job.get("required_skills", [])
+        required = []
 
-        if not required_skills:
+        required.extend(job.get("required_skills", []))
+        required.extend(job.get("preferred_skills", []))
+        required.extend(job.get("technologies", []))
+
+        required = sorted(
+
+            {
+
+                x.strip().lower()
+
+                for x in required
+
+                if x and x.strip()
+
+            }
+
+        )
+
+        if not required:
 
             return create_scorecard(
 
-                "Skills",
+                category="Skills",
 
-                weight,
+                weight=weight,
 
-                weight,
+                score=weight,
 
-                100,
+                confidence=100,
 
-                [],
+                matched=[],
 
-                [],
+                missing=[],
 
-                "No required skills.",
+                reason="No required skills extracted."
 
             )
 
-        matched = []
-        missing = []
+        result = self.matcher.match(required)
 
-        total = 0
+        score = round(
 
-        for skill in required_skills:
+            result["coverage"] * weight,
 
-            result = self.evidence.evidence_score(skill)
+            1
 
-            if result["score"] > 0:
+        )
 
-                matched.append(skill)
+        confidence = round(
 
-                total += min(result["score"], 10)
+            80 + result["coverage"] * 20,
 
-            else:
+            1
 
-                missing.append(skill)
-
-        normalized = total / (len(required_skills) * 10)
-
-        score = round(weight * normalized, 1)
-
-        confidence = round(normalized * 100, 1)
+        )
 
         return create_scorecard(
 
-            "Skills",
+            category="Skills",
 
-            weight,
+            weight=weight,
 
-            score,
+            score=score,
 
-            confidence,
+            confidence=confidence,
 
-            matched,
+            matched=[
 
-            missing,
+                item["skill"]
 
-            f"Evidence found for {len(matched)} skills.",
+                for item in result["matched"]
+
+            ],
+
+            missing=result["missing"],
+
+            reason=(
+
+                f"Matched "
+
+                f"{len(result['matched'])} "
+
+                f"weighted skills."
+
+            )
 
         )

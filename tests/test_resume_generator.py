@@ -1,4 +1,5 @@
 from app.services.profile_service import ProfileService
+from app.services.resume_composer import ResumeComposer
 from app.services.resume_generator import ResumeGenerator
 
 
@@ -10,47 +11,31 @@ job = {
     "job_title": "Finance Transformation Consultant"
 }
 
-decision = type(
-    "Decision",
-    (),
-    {
-        "resume_strategy": {
-            "keywords": [
+ats_result = {
+    "ats_score": {},
+    "keyword_summary": {},
+}
 
-                "Financial Reporting",
+resume_strategy = {
+    "resume_title": job["job_title"],
+    "summary_focus": [],
+    "skills_priority": [],
+    "projects_priority": [],
+    "keywords_missing": [],
+    "keywords_to_strengthen": [],
+}
 
-                "Finance Transformation",
-
-                "Power BI",
-
-                "Python",
-
-                "SQL",
-
-                "Artificial Intelligence",
-
-                "Business Automation",
-
-                "Australian Accounting",
-
-                "Project Management"
-
-            ]
-        }
-    }
-)()
+composition = ResumeComposer().compose(
+    profile,
+    job,
+    career_result=None,
+    ats_result=ats_result,
+    resume_strategy=resume_strategy,
+)
 
 generator = ResumeGenerator()
 
-file = generator.generate(
-
-    profile,
-
-    job,
-
-    decision
-
-)
+file = generator.generate(composition, job)
 
 print("=" * 70)
 print("RESUME GENERATED")

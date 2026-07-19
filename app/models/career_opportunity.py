@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+from app.models.recruiter_decision import RecruiterDecision
 
 
 @dataclass
@@ -8,7 +9,6 @@ class TimelineEvent:
     stage: str
     timestamp: datetime
     notes: str = ""
-
 
 @dataclass
 class CareerOpportunity:
@@ -31,6 +31,7 @@ class CareerOpportunity:
     job_analysis: Optional[Any] = None
     employer: Optional[Any] = None
     decision: Optional[Any] = None
+    recruiter: Optional[RecruiterDecision] = None
     resume_improvement: Optional[Any] = None
 
     # Scores

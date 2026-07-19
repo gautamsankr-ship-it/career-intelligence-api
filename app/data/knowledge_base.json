@@ -1,0 +1,78 @@
+{
+    "skill_synonyms": {
+
+        "forecasting": [
+            "financial forecasting",
+            "planning",
+            "budgeting",
+            "fp&a"
+        ],
+
+        "budgeting": [
+            "forecasting",
+            "planning"
+        ],
+
+        "financial reporting": [
+            "management reporting",
+            "board reporting"
+        ],
+
+        "power bi": [
+            "business intelligence",
+            "dashboard",
+            "data visualization"
+        ],
+
+        "erp": [
+            "odoo",
+            "sap",
+            "oracle",
+            "netsuite",
+            "dynamics"
+        ],
+
+        "automation": [
+            "workflow automation",
+            "business automation",
+            "process automation"
+        ],
+
+        "audit": [
+            "assurance",
+            "risk assessment",
+            "internal controls"
+        ],
+
+        "stakeholder management": [
+            "business partnering",
+            "client relationship management",
+            "cross functional collaboration"
+        ],
+
+        "financial modelling": [
+            "financial modeling",
+            "valuation",
+            "forecasting",
+            "budgeting"
+        ],
+
+        "excel": [
+            "microsoft excel",
+            "spreadsheets",
+            "advanced excel"
+        ],
+
+        "python": [
+            "programming",
+            "automation",
+            "scripting"
+        ],
+
+        "sql": [
+            "postgresql",
+            "database",
+            "data query"
+        ]
+    }
+}
