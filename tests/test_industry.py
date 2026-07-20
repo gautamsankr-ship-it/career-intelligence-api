@@ -1,5 +1,5 @@
 from app.services.profile_service import load_candidate_profile
-from app.services.scoring.industry import calculate_industry_score
+from app.services.scoring.industry import IndustryScorer
 
 candidate = load_candidate_profile()
 
@@ -16,7 +16,8 @@ job = {
 
 }
 
-result = calculate_industry_score(
+result = IndustryScorer().score(
+    10,
     candidate,
     job
 )

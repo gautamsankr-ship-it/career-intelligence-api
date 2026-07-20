@@ -1,10 +1,6 @@
 from app.services.industry.industry_matcher import IndustryMatcher
 
 
-def calculate_industry_score(candidate, job):
-    return IndustryScorer().score(10, candidate, job)
-
-
 class IndustryScorer:
 
     def __init__(self):
