@@ -317,16 +317,20 @@ class ApplicationBrowserService:
                     page.on("request", observe_request)
                 try:
                     await page.goto(context.application_url,wait_until="domcontentloaded",timeout=APPLICATION_BROWSER_TIMEOUT_MS)
+                    selection=await self.select_application_surface(page, context.portal)
+                    if selection["status"] == "APPLICATION_SURFACE_AMBIGUOUS":
+                        return {"outcome":"SUBMISSION_FAILED","signals":["APPLICATION_SURFACE_AMBIGUOUS"]}
+                    surface=selection["surface"] or page
                     seen=set(); actions=0; plan=None; html=""; entered_answers={}; wrapper_transitioned=False
                     for _ in range(6):
-                        html=await self._surface_content(page); surface_url=self._surface_url(page); purpose=self.page_purpose(surface_url,html); portal=self.detect_portal(surface_url,html)
+                        html=await self._surface_content(surface); surface_url=self._surface_url(surface); purpose=self.page_purpose(surface_url,html); portal=self.detect_portal(surface_url,html)
                         if self.network_events is not None and len(self.network_events) > network_event_count:
                             return {"outcome":"SUBMISSION_FAILED","signals":["EXTERNAL_REDIRECT_BLOCKED"]}
                         if portal!=context.portal:
                             return {"outcome":"SUBMISSION_FAILED","signals":["APPLICATION_CHANGED_AFTER_REVIEW","MISMATCH_PORTAL"]}
                         if purpose in {"CAPTCHA","LOGIN","MFA","ACCOUNT_CREATION"}: return {"outcome":"SUBMISSION_FAILED","signals":[purpose]}
                         if purpose == "APPLICATION_SUCCESS": return {"outcome":"SUBMISSION_FAILED","signals":["UNEXPECTED_APPLICATION_SUCCESS"]}
-                        if wrapper_transitioned and purpose == "NON_APPLICATION" and detect_portal_evidence(page.url, html).wrapper_detected:
+                        if wrapper_transitioned and purpose == "NON_APPLICATION" and detect_portal_evidence(self._surface_url(surface), html).wrapper_detected:
                             return {"outcome":"SUBMISSION_FAILED","signals":["LOOP_DETECTED"]}
                         if not wrapper_transitioned and purpose == "NON_APPLICATION":
                             target=await self._trusted_wrapper_application_target(page, context.portal, html)
@@ -349,12 +353,12 @@ class ApplicationBrowserService:
                         for field in plan.fields:
                             if field.action == "FILL" and field.answer is not None:
                                 entered_answers[field.label]=str(field.answer)
-                        await self._fill_supported(page,plan)
+                        await self._fill_supported(surface,plan)
                         safe=[t for t,_ in parser.buttons if SAFE_BUTTON.match(t.strip())]
                         if len(safe)!=1 or actions>=5: return {"outcome":"SUBMISSION_FAILED","signals":["NAVIGATION_UNCERTAIN"]}
-                        before_url=page.url; before_fingerprint=self._page_fingerprint(html)
-                        await self._click_safe_navigation(page, html); actions+=1
-                        await self._wait_for_meaningful_transition(page,before_url,before_fingerprint)
+                        before_url=self._surface_url(surface); before_fingerprint=self._page_fingerprint(html)
+                        await self._click_safe_navigation(surface, html); actions+=1
+                        await self._wait_for_meaningful_transition(surface,before_url,before_fingerprint)
                     else: return {"outcome":"SUBMISSION_FAILED","signals":["MAX_PAGES_EXCEEDED"]}
                     if review.unknown_required_fields or not review.final_submit_detected: return {"outcome":"SUBMISSION_FAILED","signals":["APPLICATION_CHANGED_AFTER_REVIEW"]}
                     reconciliation=self._reconcile_final_review(html, entered_answers, package, review)
@@ -362,15 +366,15 @@ class ApplicationBrowserService:
                         return {"outcome":"SUBMISSION_FAILED","signals":["APPLICATION_CHANGED_AFTER_REVIEW",*reconciliation["mismatches"]]}
                     parser=_FormParser(); parser.feed(html); candidates=[text for text,_ in parser.buttons if FINAL_BUTTON.search(text)]
                     if len(candidates)!=1: return {"outcome":"SUBMISSION_FAILED","signals":["FINAL_SUBMIT_AMBIGUOUS" if candidates else "FINAL_SUBMIT_NOT_FOUND"]}
-                    button=page.get_by_role("button",name=candidates[0],exact=True)
+                    button=surface.get_by_role("button",name=candidates[0],exact=True)
                     if await button.count()!=1 or not await button.is_visible() or not await button.is_enabled(): return {"outcome":"SUBMISSION_FAILED","signals":["FINAL_CONTROL_NOT_VERIFIED"]}
                     if not allow_final_click:
                         return {"outcome":"FINAL_REVIEW_READY","final_submit_detected":True,"final_submit_clicked":False,"signals":["FINAL_REVIEW_RECONCILED","FINAL_CONTROL_VERIFIED"]}
                     await button.click(); clicked=True; at=datetime.now(timezone.utc).isoformat()
-                    try: await page.wait_for_load_state("domcontentloaded",timeout=APPLICATION_BROWSER_TIMEOUT_MS)
+                    try: await surface.wait_for_load_state("domcontentloaded",timeout=APPLICATION_BROWSER_TIMEOUT_MS)
                     except Exception: return {"outcome":"SUBMISSION_OUTCOME_UNCERTAIN","submit_clicked_at":at,"signals":["POST_CLICK_TIMEOUT"]}
-                    body=(await self._surface_content(page)).lower(); signals=[]
-                    if self.page_purpose(self._surface_url(page),body)=="APPLICATION_SUCCESS": signals.append("SUCCESS_PAGE_CLASSIFIED")
+                    body=(await self._surface_content(surface)).lower(); signals=[]
+                    if self.page_purpose(self._surface_url(surface),body)=="APPLICATION_SUCCESS": signals.append("SUCCESS_PAGE_CLASSIFIED")
                     if re.search(r"thank you for applying|application (has been )?(submitted|received|complete)",body): signals.append("SUCCESS_MESSAGE")
                     if len(signals)>=1: return {"outcome":"SUBMISSION_CONFIRMED","submit_clicked_at":at,"confirmed_at":datetime.now(timezone.utc).isoformat(),"signals":signals}
                     if re.search(r"error|required field|unable to submit|validation",body): return {"outcome":"SUBMISSION_FAILED","submit_clicked_at":at,"signals":["FAILURE_SIGNAL"]}
@@ -417,6 +421,47 @@ class ApplicationBrowserService:
             if await link.is_visible() and href:
                 candidates.append(link)
         return candidates[0] if len(candidates) == 1 else ("AMBIGUOUS" if candidates else None)
+
+    async def select_application_surface(self, page: "Page", expected_portal: str) -> dict[str, Any]:
+        """Select the one trusted Page/Frame that hosts the application form.
+
+        The top-level page is always preferred and returned as-is whenever it
+        is already a valid surface for ``expected_portal``; no iframe search
+        is attempted in that case. Embedded-iframe discovery is otherwise
+        only attempted for Greenhouse, and a frame is only ever trusted when
+        it carries HIGH-confidence portal evidence for the expected portal
+        *and* is structurally an application form -- a domain/marker match
+        alone never authorizes a structurally inconsistent frame (e.g. a
+        CAPTCHA or auth iframe). Zero or multiple such frames fail closed
+        instead of guessing, and an uninspectable or detached candidate is
+        simply excluded rather than selected.
+        """
+        html = await self._surface_content(page)
+        url = self._surface_url(page)
+        if self.page_purpose(url, html) == "APPLICATION_FORM" and self.detect_portal(url, html) == expected_portal:
+            return {"surface": page, "status": "DIRECT_PAGE"}
+        if expected_portal != "GREENHOUSE":
+            return {"surface": None, "status": "APPLICATION_SURFACE_NOT_FOUND"}
+        candidates = []
+        for frame in page.frames:
+            if frame is page.main_frame or frame.is_detached():
+                continue
+            try:
+                frame_url = frame.url
+                frame_html = await frame.content()
+            except Exception:
+                continue
+            evidence = detect_portal_evidence(frame_url, frame_html)
+            if evidence.portal != "GREENHOUSE" or evidence.confidence != "HIGH":
+                continue
+            if self.page_purpose(frame_url, frame_html) != "APPLICATION_FORM":
+                continue
+            candidates.append(frame)
+        if len(candidates) == 1:
+            return {"surface": candidates[0], "status": "TRUSTED_IFRAME"}
+        if not candidates:
+            return {"surface": None, "status": "APPLICATION_SURFACE_NOT_FOUND"}
+        return {"surface": None, "status": "APPLICATION_SURFACE_AMBIGUOUS"}
 
     async def _progress_url(self, url, vacancy, tracker_id, headed, application_date, max_pages, max_navigation_actions):
         self.validate_url(url)

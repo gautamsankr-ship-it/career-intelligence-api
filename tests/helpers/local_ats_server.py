@@ -121,6 +121,53 @@ class LocalEmployerWrapper:
         self.server.shutdown(); self.thread.join(); self.server.server_close()
 
 
+class LocalGreenhouseIframeWrapper:
+    """Employer wrapper page embedding zero or more Greenhouse-style iframes.
+
+    Distinct from LocalFrameSurface (Task 21.8C.1's generic Page/Frame smoke
+    fixture): this fixture carries real portal-evidence markers so the
+    trusted-frame selector (Task 21.8C.2) can be exercised deterministically.
+    """
+    GREENHOUSE_FORM='<main data-portal="greenhouse" class="greenhouse application_form"><form><label for="first">First name</label><input id="first" name="first" required></form></main>'
+    CAPTCHA_FRAME='<main><h1>CAPTCHA required</h1><p>Verify you are human.</p></main>'
+    UNRELATED_FRAME='<main><p>Ad content</p></main>'
+
+    def __init__(self, variant="single"):
+        self.variant=variant
+        self.data={"visits":[]}
+
+    def start(self):
+        outer=self
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self,*args): pass
+            def do_GET(self):
+                path=urlparse(self.path).path
+                outer.data["visits"].append(path)
+                body=outer._body(path)
+                if body is None: self.send_response(404); self.end_headers(); return
+                self.send_response(200); self.send_header("Content-Type","text/html; charset=utf-8"); self.end_headers(); self.wfile.write(body.encode())
+        self.server=ThreadingHTTPServer(("127.0.0.1",0),Handler); self.thread=threading.Thread(target=self.server.serve_forever,daemon=True); self.thread.start()
+        return f"http://127.0.0.1:{self.server.server_port}/careers"
+
+    def _body(self, path):
+        if path == "/careers":
+            frames={
+                "single":'<iframe src="/app_a"></iframe>',
+                "with_unrelated":'<iframe src="/ad"></iframe><iframe src="/app_a"></iframe>',
+                "none":'<iframe src="/ad"></iframe>',
+                "ambiguous":'<iframe src="/app_a"></iframe><iframe src="/app_b"></iframe>',
+                "with_captcha":'<iframe src="/captcha"></iframe><iframe src="/app_a"></iframe>',
+            }[self.variant]
+            return f'<main><h1>Careers</h1>{frames}</main>'
+        if path in {"/app_a", "/app_b"}: return self.GREENHOUSE_FORM
+        if path == "/captcha": return self.CAPTCHA_FRAME
+        if path == "/ad": return self.UNRELATED_FRAME
+        return None
+
+    def close(self):
+        self.server.shutdown(); self.thread.join(); self.server.server_close()
+
+
 class LocalFrameSurface:
     """Tiny localhost Page/Frame smoke fixture; it is not an ATS topology."""
     def __init__(self):
