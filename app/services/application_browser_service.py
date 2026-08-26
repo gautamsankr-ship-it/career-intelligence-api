@@ -374,8 +374,9 @@ class ApplicationBrowserService:
                     if await button.count()!=1 or not await button.is_visible() or not await button.is_enabled(): return {"outcome":"SUBMISSION_FAILED","signals":["FINAL_CONTROL_NOT_VERIFIED"]}
                     if not allow_final_click:
                         return {"outcome":"FINAL_REVIEW_READY","final_submit_detected":True,"final_submit_clicked":False,"signals":["FINAL_REVIEW_RECONCILED","FINAL_CONTROL_VERIFIED"]}
+                    before_url=surface_url; before_fingerprint=self._page_fingerprint(html)
                     await button.click(); clicked=True; at=datetime.now(timezone.utc).isoformat()
-                    try: await surface.wait_for_load_state("domcontentloaded",timeout=APPLICATION_BROWSER_TIMEOUT_MS)
+                    try: await self._wait_for_meaningful_transition(surface,before_url,before_fingerprint)
                     except Exception: return {"outcome":"SUBMISSION_OUTCOME_UNCERTAIN","submit_clicked_at":at,"signals":["POST_CLICK_TIMEOUT"]}
                     body=(await self._surface_content(surface)).lower(); signals=[]
                     if self.page_purpose(self._surface_url(surface),body)=="APPLICATION_SUCCESS": signals.append("SUCCESS_PAGE_CLASSIFIED")

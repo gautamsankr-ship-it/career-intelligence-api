@@ -174,8 +174,16 @@ class LocalGreenhouseIframeEmployer:
 
     Unlike LocalGreenhouseIframeWrapper (Task 21.8C.2's single-stage selection
     fixture), this reuses the existing LocalATS server verbatim as the iframe
-    content source so the Task 21.8C.3 E2E test exercises the real multi-page
-    Greenhouse fixture through a real trusted Frame.
+    content source so the Task 21.8C.3/21.8C.4 tests exercise the real
+    multi-page Greenhouse fixture through a real trusted Frame.
+
+    The wrapper's own top-level "Submit" button and the unrelated iframe's own
+    "Submit Application" button are permanent decoys: the shared pipeline only
+    ever parses the *selected* trusted surface's own content, so every test
+    run against this fixture is itself proof those decoys are never treated
+    as the application's final control. The "#remove_ats" button lets a test
+    deterministically detach the trusted iframe under full test control (no
+    timing race), mirroring Task 21.8C.1's LocalFrameSurface technique.
     """
     def __init__(self, ats_url):
         self.ats_url=ats_url
@@ -189,9 +197,11 @@ class LocalGreenhouseIframeEmployer:
                 path=urlparse(self.path).path
                 outer.data["visits"].append(path)
                 if path == "/careers":
-                    body=f'<main><h1>Test Company — Finance Manager</h1><iframe src="/ad"></iframe><iframe src="{outer.ats_url}"></iframe></main>'
+                    body=(f'<main><h1>Test Company — Finance Manager</h1><button>Submit</button>'
+                          f'<button id="remove_ats" onclick="document.getElementById(\'ats\').remove()">Remove</button>'
+                          f'<iframe src="/ad"></iframe><iframe id="ats" src="{outer.ats_url}"></iframe></main>')
                 elif path == "/ad":
-                    body='<main><p>Ad content</p></main>'
+                    body='<main><p>Ad content</p><button>Submit Application</button></main>'
                 else:
                     self.send_response(404); self.end_headers(); return
                 self.send_response(200); self.send_header("Content-Type","text/html; charset=utf-8"); self.end_headers(); self.wfile.write(body.encode())
