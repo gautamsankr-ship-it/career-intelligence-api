@@ -1,0 +1,104 @@
+{
+  "portal": "GREENHOUSE",
+  "url": "https://boards.greenhouse.io/x/3",
+  "tracker_id": null,
+  "company": "",
+  "role": "",
+  "market": "united_kingdom",
+  "fields": [
+    {
+      "field_id": "cv",
+      "portal": "GREENHOUSE",
+      "label": "Resume / CV",
+      "question_text": "Resume / CV",
+      "field_type": "FILE",
+      "required": true,
+      "choices": [],
+      "maxlength": null,
+      "section": "",
+      "action": "DOCUMENT_NOT_READY",
+      "concept": "UNKNOWN",
+      "answer": null,
+      "confidence": "LOW",
+      "answer_source": "MANUAL_REQUIRED",
+      "reason": "Upload is limited to an exact existing vacancy document."
+    },
+    {
+      "field_id": "unknown",
+      "portal": "GREENHOUSE",
+      "label": "Describe your most unusual achievement",
+      "question_text": "Describe your most unusual achievement",
+      "field_type": "TEXT",
+      "required": true,
+      "choices": [],
+      "maxlength": null,
+      "section": "",
+      "action": "REVIEW",
+      "concept": "UNKNOWN",
+      "answer": null,
+      "confidence": "LOW",
+      "answer_source": "MANUAL_REQUIRED",
+      "reason": "No approved high-confidence reusable answer is available."
+    },
+    {
+      "field_id": "legal",
+      "portal": "GREENHOUSE",
+      "label": "I certify the information is accurate",
+      "question_text": "I certify the information is accurate",
+      "field_type": "CHECKBOX",
+      "required": true,
+      "choices": [],
+      "maxlength": null,
+      "section": "",
+      "action": "REVIEW",
+      "concept": "LEGAL_DECLARATION",
+      "answer": null,
+      "confidence": "LOW",
+      "answer_source": "MANUAL_REQUIRED",
+      "reason": "Sensitive, legal, or voluntary declaration requires human review."
+    }
+  ],
+  "authentication": "NO",
+  "mfa": "NO",
+  "captcha": "NO",
+  "final_submit_detected": false,
+  "readiness": "MANUAL_INPUT_REQUIRED",
+  "safe_navigation_detected": true,
+  "document_requirements": [
+    {
+      "field_id": "cv",
+      "label": "Resume / CV",
+      "kind": "RESUME",
+      "required": true,
+      "path": "",
+      "action": "DOCUMENT_NOT_READY"
+    }
+  ],
+  "application_submitted": false,
+  "page_purpose": "APPLICATION_FORM",
+  "route": {
+    "source_listing_url": "",
+    "application_url": "https://boards.greenhouse.io/example/jobs/1",
+    "application_url_type": "ATS_URL",
+    "application_url_source": "EXISTING_APPLICATION_URL",
+    "route_confidence": "HIGH",
+    "resolution_status": "RESOLVED",
+    "redirect_chain": [
+      "https://boards.greenhouse.io/example/jobs/1"
+    ],
+    "portal": "GREENHOUSE",
+    "source_authentication": "NO",
+    "source_captcha": "NO",
+    "resolved_at": "2026-08-25T17:43:56.385188+00:00"
+  },
+  "fields_filled": 0,
+  "documents_uploaded": 0,
+  "pages_navigated": 1,
+  "summary": {
+    "fields_detected": 3,
+    "auto_fillable_fields": 0,
+    "manual_review_fields": 2,
+    "optional_skipped_fields": 0,
+    "automation_coverage_percentage": 0.0
+  }
+}

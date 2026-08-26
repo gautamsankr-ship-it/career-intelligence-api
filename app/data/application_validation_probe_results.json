@@ -1,0 +1,64 @@
+{
+  "https://databricks.com/company/careers/open-positions/job?gh_jid=8604614002": {
+    "probe_state": "BROWSER_ERROR",
+    "fields_detected": 0,
+    "surface": "NOT_FOUND",
+    "portal": "GENERIC",
+    "probed_at": "2026-08-25T16:49:08.986941+00:00"
+  },
+  "https://jobs.lever.co/palantir/ac978161-6f46-4f6b-ad9e-a258e642751c/apply": {
+    "application_url": "https://jobs.lever.co/palantir/ac978161-6f46-4f6b-ad9e-a258e642751c/apply",
+    "portal": "LEVER",
+    "portal_confidence": "HIGH",
+    "probe_state": "CAPTCHA_REQUIRED",
+    "fields_detected": 0,
+    "surface": "MAIN_DOCUMENT",
+    "wrapper_detected": false,
+    "failure_reason": "",
+    "probed_at": "2026-08-25T17:09:53.025273+00:00"
+  },
+  "https://jobs.lever.co/palantir/a237973c-cb29-41fe-9c80-416e6f42e087/apply": {
+    "application_url": "https://jobs.lever.co/palantir/a237973c-cb29-41fe-9c80-416e6f42e087/apply",
+    "portal": "LEVER",
+    "portal_confidence": "HIGH",
+    "probe_state": "CAPTCHA_REQUIRED",
+    "fields_detected": 0,
+    "surface": "MAIN_DOCUMENT",
+    "wrapper_detected": false,
+    "failure_reason": "",
+    "probed_at": "2026-08-25T17:10:10.137293+00:00"
+  },
+  "https://jobs.lever.co/palantir/a5f93bb6-4f13-4451-80a4-f63090830269/apply": {
+    "application_url": "https://jobs.lever.co/palantir/a5f93bb6-4f13-4451-80a4-f63090830269/apply",
+    "portal": "LEVER",
+    "portal_confidence": "HIGH",
+    "probe_state": "CAPTCHA_REQUIRED",
+    "fields_detected": 0,
+    "surface": "MAIN_DOCUMENT",
+    "wrapper_detected": false,
+    "failure_reason": "",
+    "probed_at": "2026-08-25T17:10:15.309534+00:00"
+  },
+  "https://jobs.lever.co/palantir/0ccbe620-a3ef-41d1-a5c4-68e56b3c91d0/apply": {
+    "application_url": "https://jobs.lever.co/palantir/0ccbe620-a3ef-41d1-a5c4-68e56b3c91d0/apply",
+    "portal": "LEVER",
+    "portal_confidence": "HIGH",
+    "probe_state": "CAPTCHA_REQUIRED",
+    "fields_detected": 0,
+    "surface": "MAIN_DOCUMENT",
+    "wrapper_detected": false,
+    "failure_reason": "",
+    "probed_at": "2026-08-25T17:10:19.783135+00:00"
+  },
+  "https://jobs.lever.co/palantir/10dfc8bc-99ad-4ca2-ab76-853cb90a92c2/apply": {
+    "application_url": "https://jobs.lever.co/palantir/10dfc8bc-99ad-4ca2-ab76-853cb90a92c2/apply",
+    "portal": "LEVER",
+    "portal_confidence": "HIGH",
+    "probe_state": "CAPTCHA_REQUIRED",
+    "fields_detected": 0,
+    "surface": "MAIN_DOCUMENT",
+    "wrapper_detected": false,
+    "failure_reason": "",
+    "probed_at": "2026-08-25T17:10:24.266972+00:00"
+  }
+}

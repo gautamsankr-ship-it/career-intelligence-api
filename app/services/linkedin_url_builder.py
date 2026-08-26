@@ -1,41 +1,37 @@
-import json
 from urllib.parse import quote
+
+from app.services.job_search_config import LINKEDIN_FRESHNESS_SECONDS, linkedin_searches
 
 
 class LinkedInURLBuilder:
 
     def load_searches(self):
+        return linkedin_searches()
 
-        with open(
-            "app/data/job_searches.json",
-            encoding="utf-8"
-        ) as f:
-
-            return json.load(f)["searches"]
-
-    def build_urls(self):
+    def build_urls(self, searches=None):
 
         urls = []
 
-        for search in self.load_searches():
+        for search in searches or self.load_searches():
 
             keyword = quote(search["keyword"])
-
-            geo = search["geoId"]
+            geo = search["market"].linkedin_geo_id
 
             url = (
                 "https://www.linkedin.com/jobs/search/"
                 f"?keywords={keyword}"
                 f"&geoId={geo}"
                 "&f_WT=2"
-                "&f_TPR=r86400"
+                f"&f_TPR={LINKEDIN_FRESHNESS_SECONDS}"
             )
 
             urls.append({
 
-                "name": search["name"],
+                "name": f"{search['market'].label} {search['family'].label}",
 
-                "url": url
+                "url": url,
+                "market": search["market"].key,
+                "family": search["family"].key,
 
             })
 

@@ -1,0 +1,32 @@
+{
+  "execution_id": "e13ae9985799464a8caf9d132631aee3",
+  "tracker_id": 33,
+  "package_id": "pkg-33-a8eb470e62b4",
+  "portal": "UNKNOWN",
+  "application_url": "",
+  "mode": "INSPECT_ONLY",
+  "pages_processed": 0,
+  "fields_detected": 0,
+  "fields_resolved": 0,
+  "fields_filled": 0,
+  "fields_skipped": 0,
+  "manual_review_fields": 0,
+  "unknown_required_fields": 0,
+  "resume_uploaded": false,
+  "cover_letter_uploaded": false,
+  "captcha_detected": false,
+  "auth_required": false,
+  "mfa_required": false,
+  "account_creation_required": false,
+  "final_submit_detected": false,
+  "navigation_actions": 0,
+  "page_fingerprint": "",
+  "status": "DIRECT_ROUTE_REQUIRED",
+  "audit": [
+    {
+      "at": "2026-08-26T02:32:36.226309+00:00",
+      "action": "PACKAGE_LOADED"
+    }
+  ],
+  "created_at": "2026-08-26T02:32:36.226291+00:00"
+}

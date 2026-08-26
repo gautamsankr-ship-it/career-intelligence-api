@@ -20,6 +20,7 @@ class CacheService:
         )
 
         self.jobs_file = self.cache_dir / "raw_jobs.json"
+        self.arrangement_review_file = self.cache_dir / "arrangement_review_jobs.json"
 
     # ==========================================================
     # Save Jobs
@@ -33,6 +34,13 @@ class CacheService:
 
     ):
 
+        self._save_to_file(self.jobs_file, jobs)
+
+    def save_arrangement_review_jobs(self, jobs: list[CareerOpportunity]):
+        """Persist diagnostic UNKNOWN listings without adding tracker records."""
+        self._save_to_file(self.arrangement_review_file, jobs)
+
+    def _save_to_file(self, target: Path, jobs: list[CareerOpportunity]):
         data = []
 
         for job in jobs:
@@ -61,7 +69,7 @@ class CacheService:
 
         with open(
 
-            self.jobs_file,
+            target,
 
             "w",
 
@@ -89,13 +97,20 @@ class CacheService:
 
     def load_jobs(self):
 
-        if not self.jobs_file.exists():
+        return self._load_from_file(self.jobs_file)
+
+    def load_arrangement_review_jobs(self):
+        return self._load_from_file(self.arrangement_review_file)
+
+    def _load_from_file(self, target: Path):
+
+        if not target.exists():
 
             return []
 
         with open(
 
-            self.jobs_file,
+            target,
 
             "r",
 
@@ -120,6 +135,26 @@ class CacheService:
             )
 
         return jobs
+
+    def merge_refreshed_jobs(self, refreshed_jobs, refreshed_sources, deduplicate, refreshed_scopes=None):
+        """Merge source refreshes; optionally replace only successful source/markets."""
+        refreshed_source_names = {source.lower() for source in refreshed_sources}
+        use_scopes = refreshed_scopes is not None
+        refreshed_scopes = {
+            (source.lower(), market.lower()) for source, market in (refreshed_scopes or ())
+        }
+        retained = [
+            job
+            for job in self.load_jobs()
+            if (
+                (job.source.lower(), (job.market or "").lower()) not in refreshed_scopes
+                if use_scopes
+                else job.source.lower() not in refreshed_source_names
+            )
+        ]
+        merged = deduplicate([*retained, *refreshed_jobs])
+        self.save_jobs(merged)
+        return merged
 
     # ==========================================================
     # Cache Exists

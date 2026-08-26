@@ -17,6 +17,15 @@ class CareerOpportunity:
     id: str = ""
     source: str = ""
     job_url: str = ""
+    source_listing_url: str = ""
+    application_url: str = ""
+    application_url_type: str = "UNKNOWN_URL"
+    application_url_source: str = ""
+    application_portal: str = "UNKNOWN"
+    application_route_confidence: str = "LOW"
+    application_route_resolved_at: str = ""
+    application_route_status: str = "APPLICATION_ROUTE_UNRESOLVED"
+    market: str = ""
 
     # Job Details
     company: str = ""
@@ -26,6 +35,9 @@ class CareerOpportunity:
     salary: str = ""
     posted_date: str = ""
     job_description: str = ""
+    remote_status: Optional[bool] = None
+    work_arrangement: str = "UNKNOWN"
+    remote_scope: str = "UNKNOWN"
 
     # AI Objects
     job_analysis: Optional[Any] = None
@@ -63,6 +75,11 @@ class CareerOpportunity:
     @classmethod
     def from_apify(cls, item):
 
+        # Kept local to avoid a model/service import cycle at module load time.
+        from app.services.application_route_resolver import ApplicationRouteResolver
+        source_listing_url = item.get("link", "")
+        route = ApplicationRouteResolver().resolve({"job_url": source_listing_url, "application_url": item.get("applicationUrl", "")})
+
         return cls(
 
             # Identity
@@ -78,8 +95,17 @@ class CareerOpportunity:
             posted_date=item.get("postedAt", ""),
 
             # IMPORTANT FIXES
-            job_url=item.get("link", ""),
+            job_url=source_listing_url,
+            source_listing_url=source_listing_url,
+            application_url=route.application_url,
+            application_url_type=route.application_url_type,
+            application_url_source="DISCOVERY_METADATA:applicationUrl" if item.get("applicationUrl") else "",
+            application_portal=route.portal,
+            application_route_confidence=route.route_confidence,
+            application_route_resolved_at=route.resolved_at,
+            application_route_status=route.resolution_status if route.resolution_status != "EXTERNAL_ROUTE_UNRESOLVED" else "SOURCE_ONLY",
             job_description=item.get("descriptionText", ""),
+            remote_status=item.get("remote", None),
 
             # Store complete raw record
             metadata=item,

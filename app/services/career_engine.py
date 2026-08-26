@@ -1,4 +1,9 @@
 from app.models.decision_model import CareerDecision, ScoreCard
+from app.config import (
+    SCREENING_AUTO_APPLY,
+    SCREENING_REVIEW,
+    screening_decision,
+)
 from app.services.scoring.education_scorer import EducationScorer
 
 from app.services.scoring.skill_scorer import SkillScorer
@@ -55,21 +60,15 @@ class CareerDecisionEngine:
 
         confidence = self._calculate_confidence(scorecards)
 
-        if overall_score >= 90:
+        decision = screening_decision(overall_score)
 
-            decision = "APPROVE_AND_SEND"
+        if decision == SCREENING_AUTO_APPLY:
             priority = "HIGH"
             automation = "FULL"
-
-        elif overall_score >= 75:
-
-            decision = "GENERATE_AND_QUEUE"
+        elif decision == SCREENING_REVIEW:
             priority = "HIGH"
             automation = "SEMI"
-
         else:
-
-            decision = "REJECT"
             priority = "LOW"
             automation = "NONE"
 
@@ -336,29 +335,23 @@ class CareerDecisionEngine:
         }
 
     def _build_application_strategy(self, overall_score):
-
-        if overall_score >= 90:
-
-            action = "APPROVE_AND_SEND"
-
-        elif overall_score >= 75:
-
-            action = "GENERATE_AND_QUEUE"
-
-        else:
-
-            action = "REJECT"
+        action = screening_decision(overall_score)
+        eligible_for_review_or_apply = action in {
+            SCREENING_REVIEW,
+            SCREENING_AUTO_APPLY,
+        }
+        eligible_for_auto_apply = action == SCREENING_AUTO_APPLY
 
         return {
 
             "action": action,
 
-            "generate_resume": overall_score >= 75,
+            "generate_resume": eligible_for_auto_apply,
 
-            "generate_cover_letter": overall_score >= 75,
+            "generate_cover_letter": eligible_for_auto_apply,
 
-            "queue": overall_score >= 75,
+            "queue": eligible_for_review_or_apply,
 
-            "send": overall_score >= 90
+            "send": eligible_for_auto_apply
 
         }

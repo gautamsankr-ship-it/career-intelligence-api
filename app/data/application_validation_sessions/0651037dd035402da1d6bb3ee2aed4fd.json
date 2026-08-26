@@ -1,0 +1,50 @@
+{
+  "session_id": "0651037dd035402da1d6bb3ee2aed4fd",
+  "mode": "LIVE_VALIDATION",
+  "tracker_id": null,
+  "application_lifecycle_enabled": false,
+  "submission_enabled": false,
+  "source_url": "https://www.databricks.com/company/careers/finance/accounting-manager-8604614002?gh_jid=8604614002",
+  "final_url": "https://job-boards.greenhouse.io/embed/job_app?for=databricks&validityToken=EU65iVG7MXjn88KH_gxzNu75qB6D3O4bkkMz1PZoIbXnJz-rDVbVjUAfjoQXnSutdDOHUvVOM-x9fxp-9Z4U-3EtGEMtBZ8LcLtUSMMHhwY1WOA1P1axMGi5fAzBmaLpBQo4vtkIlxqN-4-Cpq4VXvlHYi_-PczrowNP-qNif0WxtCsBvD7MlKhGaIBh_5uo19xzqQFkoiOIsS0CRcizi7tTlVixe8uJfyf-wZukIgUon86NEJzisuTyT0Z0J8EYaOs0Zo3WUdHcu5cTzg9MAvVcw_xrj2L35q5PLh2Jv5952ImywC6zne-R_pHc1MopsQtdHxKN8JGAeMKmWQkS_g%3D%3D&token=8604614002",
+  "portal": "GREENHOUSE",
+  "market": "united_kingdom",
+  "profile": "SYNTHETIC",
+  "started_at": "2026-08-25T16:33:41.003092+00:00",
+  "updated_at": "2026-08-25T16:33:41.493806+00:00",
+  "state": "CAPTCHA_REQUIRED",
+  "pages_processed": 1,
+  "fields_detected": 0,
+  "fields_filled": 0,
+  "documents_uploaded": 0,
+  "exceptions": [],
+  "navigation_actions": [],
+  "final_review_detected": false,
+  "final_submit_detected": false,
+  "redirect_chain": [
+    "https://databricks.com/company/careers/open-positions/job?gh_jid=8604614002",
+    "https://www.databricks.com/company/careers/finance/accounting-manager-8604614002?gh_jid=8604614002"
+  ],
+  "wrapper_url": "https://www.databricks.com/company/careers/finance/accounting-manager-8604614002?gh_jid=8604614002",
+  "page_purpose": "CAPTCHA",
+  "safe_navigation_detected": false,
+  "portal_evidence": {
+    "portal": "GREENHOUSE",
+    "confidence": "HIGH",
+    "signals": [
+      "QUERY_PARAM_GH_JID",
+      "GREENHOUSE_IFRAME",
+      "GREENHOUSE_SCRIPT"
+    ],
+    "wrapper_detected": true
+  },
+  "wrapper_detected": true,
+  "application_surface": "IFRAME",
+  "field_snapshot": [],
+  "documents": [],
+  "application_submitted": false,
+  "tracker_updated": false,
+  "gmail_sent": false,
+  "page_fingerprints": [
+    "b6ec0aebeeff9dd509a5cd68b3236884d9b2d21616630a702c0490f00221033c"
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "portal": "GREENHOUSE",
+  "url": "https://boards.greenhouse.io/x/2",
+  "tracker_id": null,
+  "company": "",
+  "role": "",
+  "market": "united_kingdom",
+  "fields": [
+    {
+      "field_id": "s",
+      "portal": "GREENHOUSE",
+      "label": "Will you require visa sponsorship?",
+      "question_text": "Will you require visa sponsorship?",
+      "field_type": "SELECT",
+      "required": true,
+      "choices": [
+        "Yes",
+        "No"
+      ],
+      "maxlength": null,
+      "section": "",
+      "action": "FILL",
+      "concept": "SPONSORSHIP_UK",
+      "answer": "Yes",
+      "confidence": "HIGH",
+      "answer_source": "USER_APPROVED_ANSWER",
+      "reason": "Approved profile fact."
+    },
+    {
+      "field_id": "a",
+      "portal": "GREENHOUSE",
+      "label": "Are you authorized to work in the UK?",
+      "question_text": "Are you authorized to work in the UK?",
+      "field_type": "SELECT",
+      "required": true,
+      "choices": [
+        "Yes",
+        "No"
+      ],
+      "maxlength": null,
+      "section": "",
+      "action": "FILL",
+      "concept": "WORK_AUTHORIZATION_UK",
+      "answer": "No",
+      "confidence": "HIGH",
+      "answer_source": "APPROVED_RULE",
+      "reason": "Current approved UK work-right status (Task 13)."
+    }
+  ],
+  "authentication": "NO",
+  "mfa": "NO",
+  "captcha": "NO",
+  "final_submit_detected": false,
+  "readiness": "READY_FOR_FINAL_REVIEW",
+  "safe_navigation_detected": true,
+  "document_requirements": [],
+  "application_submitted": false,
+  "page_purpose": "APPLICATION_FORM",
+  "route": {
+    "source_listing_url": "",
+    "application_url": "https://boards.greenhouse.io/example/jobs/1",
+    "application_url_type": "ATS_URL",
+    "application_url_source": "EXISTING_APPLICATION_URL",
+    "route_confidence": "HIGH",
+    "resolution_status": "RESOLVED",
+    "redirect_chain": [
+      "https://boards.greenhouse.io/example/jobs/1"
+    ],
+    "portal": "GREENHOUSE",
+    "source_authentication": "NO",
+    "source_captcha": "NO",
+    "resolved_at": "2026-08-25T12:26:45.643519+00:00"
+  },
+  "fields_filled": 0,
+  "documents_uploaded": 0,
+  "pages_navigated": 1,
+  "summary": {
+    "fields_detected": 2,
+    "auto_fillable_fields": 2,
+    "manual_review_fields": 0,
+    "optional_skipped_fields": 0,
+    "automation_coverage_percentage": 100.0
+  }
+}

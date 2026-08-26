@@ -1,6 +1,8 @@
 # Python cache
 __pycache__/
 *.py[cod]
+*.pyo
+.pytest_cache/
 
 # Virtual environments
 .venv/
@@ -9,9 +11,22 @@ venv/
 # Environment variables
 .env
 
-# Generated documents
-app/output/*.docx
-app/output/*.pdf
+# Credentials and tokens
+credentials*.json
+client_secret*.json
+token*.json
+credentials.json
+token.json
+
+# Runtime/generated output
+/output/
+/applications/
+app/data/cache/*.json
+app/data/*.db
+*.zip
+
+# Local ad hoc/debug artifacts
+debug_*.py
 
 # OS files
 .DS_Store

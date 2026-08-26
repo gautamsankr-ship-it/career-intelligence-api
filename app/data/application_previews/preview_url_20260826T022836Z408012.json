@@ -1,0 +1,43 @@
+{
+  "portal": "GREENHOUSE",
+  "url": "https://boards.greenhouse.io/example/jobs/1",
+  "tracker_id": null,
+  "company": "",
+  "role": "",
+  "market": "united_kingdom",
+  "fields": [],
+  "authentication": "NO",
+  "mfa": "NO",
+  "captcha": "NO",
+  "final_submit_detected": false,
+  "readiness": "FORM_NOT_FOUND",
+  "safe_navigation_detected": false,
+  "document_requirements": [],
+  "application_submitted": false,
+  "page_purpose": "APPLICATION_SUCCESS",
+  "route": {
+    "source_listing_url": "",
+    "application_url": "https://boards.greenhouse.io/example/jobs/1",
+    "application_url_type": "ATS_URL",
+    "application_url_source": "EXISTING_APPLICATION_URL",
+    "route_confidence": "HIGH",
+    "resolution_status": "RESOLVED",
+    "redirect_chain": [
+      "https://boards.greenhouse.io/example/jobs/1"
+    ],
+    "portal": "GREENHOUSE",
+    "source_authentication": "NO",
+    "source_captcha": "NO",
+    "resolved_at": "2026-08-26T02:28:36.407711+00:00"
+  },
+  "fields_filled": 0,
+  "documents_uploaded": 0,
+  "pages_navigated": 1,
+  "summary": {
+    "fields_detected": 0,
+    "auto_fillable_fields": 0,
+    "manual_review_fields": 0,
+    "optional_skipped_fields": 0,
+    "automation_coverage_percentage": 0.0
+  }
+}

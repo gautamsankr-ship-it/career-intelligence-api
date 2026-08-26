@@ -1,0 +1,193 @@
+"""Safe Gmail OAuth, MIME, draft, and explicitly guarded send operations."""
+
+from __future__ import annotations
+
+import base64
+import mimetypes
+from email.message import EmailMessage
+from pathlib import Path
+from typing import Iterable
+
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+
+from app.config import (
+    GMAIL_AUTO_SEND,
+    GMAIL_CREDENTIALS_PATH,
+    GMAIL_DRY_RUN,
+    GMAIL_SCOPES,
+    GMAIL_TOKEN_PATH,
+)
+
+
+class GmailService:
+    """Gmail integration defaulting to draft-only behavior."""
+
+    def __init__(
+        self,
+        credentials_path: str | Path = GMAIL_CREDENTIALS_PATH,
+        token_path: str | Path = GMAIL_TOKEN_PATH,
+        dry_run: bool = GMAIL_DRY_RUN,
+        auto_send: bool = GMAIL_AUTO_SEND,
+        api_service=None,
+    ) -> None:
+        self.credentials_path = Path(credentials_path)
+        self.token_path = Path(token_path)
+        self.dry_run = dry_run
+        self.auto_send = auto_send
+        self._api_service = api_service
+
+    def authenticate(self):
+        if self._api_service is not None:
+            return self._api_service
+
+        credentials = None
+        if self.token_path.exists():
+            try:
+                credentials = Credentials.from_authorized_user_file(
+                    self.token_path,
+                    GMAIL_SCOPES,
+                )
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Could not read Gmail token file '{self.token_path}': {exc}"
+                ) from exc
+
+        if credentials and credentials.expired and credentials.refresh_token:
+            try:
+                credentials.refresh(Request())
+            except Exception as exc:
+                raise RuntimeError(f"Could not refresh Gmail OAuth token: {exc}") from exc
+        elif not credentials or not credentials.valid:
+            if not self.credentials_path.exists():
+                raise FileNotFoundError(
+                    f"Gmail OAuth credentials not found at '{self.credentials_path}'. "
+                    "Download the Desktop App credentials as described in GMAIL_SETUP.md."
+                )
+            try:
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    self.credentials_path,
+                    GMAIL_SCOPES,
+                )
+                credentials = flow.run_local_server(port=0)
+            except Exception as exc:
+                raise RuntimeError(f"Gmail OAuth authentication failed: {exc}") from exc
+
+        try:
+            self.token_path.write_text(credentials.to_json(), encoding="utf-8")
+            self._api_service = build("gmail", "v1", credentials=credentials)
+        except Exception as exc:
+            raise RuntimeError(f"Could not initialize Gmail API service: {exc}") from exc
+        return self._api_service
+
+    @staticmethod
+    def build_mime_message(
+        recipient: str,
+        subject: str,
+        body: str,
+        attachments: Iterable[str | Path] = (),
+    ) -> EmailMessage:
+        recipient = (recipient or "").strip()
+        if not recipient:
+            raise ValueError("A recipient email address must be supplied explicitly.")
+
+        message = EmailMessage()
+        message["To"] = recipient
+        message["Subject"] = subject
+        message.set_content(body)
+
+        for attachment in attachments:
+            path = Path(attachment)
+            if not path.is_file():
+                raise FileNotFoundError(f"Attachment not found: {path}")
+            content_type, _ = mimetypes.guess_type(path.name)
+            maintype, subtype = (content_type or "application/octet-stream").split(
+                "/", 1
+            )
+            message.add_attachment(
+                path.read_bytes(),
+                maintype=maintype,
+                subtype=subtype,
+                filename=path.name,
+            )
+        return message
+
+    @classmethod
+    def build_gmail_body(cls, message: EmailMessage) -> dict[str, str]:
+        raw = base64.urlsafe_b64encode(message.as_bytes()).decode("ascii")
+        return {"raw": raw}
+
+    def create_draft(
+        self,
+        recipient: str,
+        subject: str,
+        body: str,
+        attachments: Iterable[str | Path] = (),
+    ) -> str:
+        message = self.build_mime_message(recipient, subject, body, attachments)
+        response = (
+            self.authenticate()
+            .users()
+            .drafts()
+            .create(userId="me", body={"message": self.build_gmail_body(message)})
+            .execute()
+        )
+        draft_id = response.get("id") or response.get("message", {}).get("id")
+        if not draft_id:
+            raise RuntimeError("Gmail draft response did not include a draft ID.")
+        return draft_id
+
+    def send_message(
+        self,
+        recipient: str,
+        subject: str,
+        body: str,
+        attachments: Iterable[str | Path] = (),
+    ) -> str:
+        if self.dry_run or not self.auto_send:
+            raise RuntimeError(
+                "Gmail send is disabled. Keep GMAIL_DRY_RUN=True and "
+                "GMAIL_AUTO_SEND=False until explicitly enabled."
+            )
+        message = self.build_mime_message(recipient, subject, body, attachments)
+        response = (
+            self.authenticate()
+            .users()
+            .messages()
+            .send(userId="me", body=self.build_gmail_body(message))
+            .execute()
+        )
+        message_id = response.get("id")
+        if not message_id:
+            raise RuntimeError("Gmail send response did not include a message ID.")
+        return message_id
+
+    def create_draft_for_application(
+        self,
+        history,
+        job_fingerprint: str,
+        recipient: str,
+        subject: str,
+        body: str,
+        attachments: Iterable[str | Path] = (),
+    ) -> str:
+        """Create a draft and update the Task 3 history record safely."""
+        try:
+            draft_id = self.create_draft(recipient, subject, body, attachments)
+        except Exception as exc:
+            history.update_record(
+                job_fingerprint,
+                status="FAILED",
+                error_message=str(exc),
+            )
+            raise RuntimeError(f"Gmail draft creation failed: {exc}") from exc
+
+        history.update_record(
+            job_fingerprint,
+            status="DRAFTED",
+            gmail_message_id=draft_id,
+            error_message=None,
+        )
+        return draft_id

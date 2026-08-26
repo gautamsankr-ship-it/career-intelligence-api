@@ -11,9 +11,12 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 def _create_application_folder(company, job_title):
 
-    company = company.replace("/", "-").strip()
+    company = (company or "").replace("/", "-").strip()
 
-    job_title = job_title.replace("/", "-").strip()
+    job_title = (job_title or "Unknown Position").replace("/", "-").strip()
+
+    if not company:
+        company = "Unknown Company"
 
     folder = OUTPUT_DIR / f"{company}_{job_title}"
 

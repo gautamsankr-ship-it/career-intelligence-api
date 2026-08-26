@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List, Any
+from app.config import SCREENING_AUTO_APPLY, SCREENING_REVIEW, SCREENING_SKIP
 
 
 @dataclass
@@ -39,7 +40,7 @@ class ApplicationQueue:
 
             for item in self.items
 
-            if item.status == "PENDING"
+            if item.status == SCREENING_REVIEW
 
         ]
 
@@ -51,7 +52,7 @@ class ApplicationQueue:
 
             for item in self.items
 
-            if item.status == "READY"
+            if item.status == SCREENING_AUTO_APPLY
 
         ]
 
@@ -63,7 +64,7 @@ class ApplicationQueue:
 
             for item in self.items
 
-            if item.status == "REJECTED"
+            if item.status == SCREENING_SKIP
 
         ]
 

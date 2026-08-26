@@ -2,6 +2,11 @@ from app.models.application_queue import (
     ApplicationQueue,
     QueueItem
 )
+from app.config import (
+    SCREENING_AUTO_APPLY,
+    SCREENING_REVIEW,
+    SCREENING_SKIP,
+)
 
 
 class QueueService:
@@ -22,17 +27,8 @@ class QueueService:
             priority = opportunity.decision.priority
             score = opportunity.decision.overall_score
 
-        if decision == "REJECT":
-
-            status = "REJECTED"
-
-        elif decision == "GENERATE_AND_QUEUE":
-
-            status = "PENDING"
-
-        elif decision == "APPROVE_AND_SEND":
-
-            status = "READY"
+        if decision in {SCREENING_SKIP, SCREENING_REVIEW, SCREENING_AUTO_APPLY}:
+            status = decision
 
         else:
 

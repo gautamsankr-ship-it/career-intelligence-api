@@ -1,0 +1,37 @@
+{
+  "session_id": "73450d898ea041b8ad574ad1b07d3b3d",
+  "mode": "LIVE_VALIDATION",
+  "tracker_id": null,
+  "application_lifecycle_enabled": false,
+  "submission_enabled": false,
+  "source_url": "https://www.databricks.com/company/careers/finance/accounting-manager-8604614002?gh_jid=8604614002",
+  "final_url": "https://www.databricks.com/company/careers/finance/accounting-manager-8604614002?gh_jid=8604614002",
+  "portal": "UNKNOWN",
+  "market": "united_kingdom",
+  "profile": "SYNTHETIC",
+  "started_at": "2026-08-25T12:38:45.753637+00:00",
+  "updated_at": "2026-08-25T12:38:46.566860+00:00",
+  "state": "PORTAL_LIMITED",
+  "pages_processed": 1,
+  "fields_detected": 0,
+  "fields_filled": 0,
+  "documents_uploaded": 0,
+  "exceptions": [],
+  "navigation_actions": [],
+  "final_review_detected": false,
+  "final_submit_detected": false,
+  "redirect_chain": [
+    "https://databricks.com/company/careers/open-positions/job?gh_jid=8604614002",
+    "https://www.databricks.com/company/careers/finance/accounting-manager-8604614002?gh_jid=8604614002"
+  ],
+  "page_purpose": "LOGIN",
+  "safe_navigation_detected": false,
+  "field_snapshot": [],
+  "documents": [],
+  "application_submitted": false,
+  "tracker_updated": false,
+  "gmail_sent": false,
+  "page_fingerprints": [
+    "d6df59dc536da78d5b8b2ac2f91c970ead780baaed39e2caadc5e765b88f4118"
+  ]
+}

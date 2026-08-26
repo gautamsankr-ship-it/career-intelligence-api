@@ -1022,7 +1022,7 @@ class ResumeGenerator:
         )
 
         company = self.job.get(
-            "company_name",
+            "company",
             ""
         )
 

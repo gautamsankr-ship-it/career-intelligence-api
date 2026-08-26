@@ -1,14 +1,18 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from app.models.job_request import JobRequest
 
-from app.services.ai_service import analyze_job
-from app.services.profile_service import load_candidate_profile
-from app.services.employer_service import EmployerService
-from app.services.career_engine import CareerDecisionEngine
+def validate_job_description(description: str):
+    if not description or not description.strip() or description.strip().lower() == "string" or len(description.strip()) < 50:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please provide a valid job description."
+        )
+
 from app.services.application_service import ApplicationService
+from app.config import SCREENING_AUTO_APPLY
 
 app = FastAPI(
     title="Career Intelligence Platform Document Service",
@@ -41,26 +45,12 @@ def health():
 
 @app.post("/analyze-job")
 def analyze_job_endpoint(request: JobRequest):
-
-    candidate = load_candidate_profile()
-
-    job = analyze_job(
-        request.job_description
-    )
-
-    employer = EmployerService().analyze(
-        job
-    )
-
-    decision = CareerDecisionEngine().evaluate(
-        candidate,
-        job,
-        employer
-    )
+    evaluation = ApplicationService().evaluate_job(request.job_description)
+    decision = evaluation.career_decision
 
     return {
 
-        "job_analysis": job,
+        "job_analysis": evaluation.job_analysis,
 
         "career_report": {
 
@@ -90,8 +80,9 @@ def analyze_job_endpoint(request: JobRequest):
 
             ],
 
-            "recommendations": decision.recommendations
-
+            "recommendations": decision.recommendations,
+            "ats_result": evaluation.ats_result,
+            "screening_decision": evaluation.screening_decision,
         }
 
     }
@@ -99,26 +90,62 @@ def analyze_job_endpoint(request: JobRequest):
 
 @app.post("/generate-resume")
 def generate_resume(request: JobRequest):
-    result = ApplicationService().generate_documents(request.job_description)
+    validate_job_description(request.job_description)
+    service = ApplicationService()
+    evaluation = service.evaluate_job(request.job_description)
+    if evaluation.screening_decision != SCREENING_AUTO_APPLY:
+        return {
+            "success": True,
+            "documents_generated": False,
+            "job_analysis": evaluation.job_analysis,
+            "match_score": evaluation.career_decision.overall_score,
+            "decision": evaluation.screening_decision,
+        }
+    result = service.generate_application_documents(evaluation)
 
-    return {
+    response = {
         "success": True,
-        "markdown_file": result.markdown_path,
-        "filename": result.docx_path,
+        "documents_generated": True,
+        "markdown_path": result.markdown_path,
+        "docx_path": result.docx_path,
+        "cover_letter_markdown_path": result.cover_letter_markdown_path,
+        "cover_letter_docx_path": result.cover_letter_docx_path,
         "match_score": result.career_decision.overall_score,
         "decision": result.career_decision.decision,
     }
+    if not result.job_analysis.get("company"):
+        response["warnings"] = ["Company name could not be extracted from the job description."]
+    
+    return response
 
 
 @app.post("/apply")
 def apply(request: JobRequest):
-    result = ApplicationService().generate_documents(request.job_description)
+    validate_job_description(request.job_description)
+    service = ApplicationService()
+    evaluation = service.evaluate_job(request.job_description)
+    if evaluation.screening_decision != SCREENING_AUTO_APPLY:
+        return {
+            "success": True,
+            "documents_generated": False,
+            "job_analysis": evaluation.job_analysis,
+            "match_score": evaluation.career_decision.overall_score,
+            "decision": evaluation.screening_decision,
+        }
+    result = service.generate_application_documents(evaluation)
 
-    return {
+    response = {
         "success": True,
+        "documents_generated": True,
         "job_analysis": result.job_analysis,
-        "markdown_file": result.markdown_path,
-        "docx_file": result.docx_path,
+        "markdown_path": result.markdown_path,
+        "docx_path": result.docx_path,
+        "cover_letter_markdown_path": result.cover_letter_markdown_path,
+        "cover_letter_docx_path": result.cover_letter_docx_path,
         "match_score": result.career_decision.overall_score,
         "decision": result.career_decision.decision,
     }
+    if not result.job_analysis.get("company"):
+        response["warnings"] = ["Company name could not be extracted from the job description."]
+        
+    return response

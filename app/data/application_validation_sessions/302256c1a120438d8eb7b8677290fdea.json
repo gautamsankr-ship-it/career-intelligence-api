@@ -1,0 +1,47 @@
+{
+  "session_id": "302256c1a120438d8eb7b8677290fdea",
+  "mode": "LIVE_VALIDATION",
+  "tracker_id": null,
+  "application_lifecycle_enabled": false,
+  "submission_enabled": false,
+  "source_url": "https://jobs.lever.co/palantir/ac978161-6f46-4f6b-ad9e-a258e642751c/apply",
+  "final_url": "https://jobs.lever.co/palantir/ac978161-6f46-4f6b-ad9e-a258e642751c/apply",
+  "portal": "LEVER",
+  "market": "united_kingdom",
+  "profile": "SYNTHETIC",
+  "started_at": "2026-08-25T17:09:52.601586+00:00",
+  "updated_at": "2026-08-25T17:09:53.024369+00:00",
+  "state": "CAPTCHA_REQUIRED",
+  "pages_processed": 1,
+  "fields_detected": 0,
+  "fields_filled": 0,
+  "documents_uploaded": 0,
+  "exceptions": [],
+  "navigation_actions": [],
+  "final_review_detected": false,
+  "final_submit_detected": false,
+  "redirect_chain": [
+    "https://jobs.lever.co/palantir/ac978161-6f46-4f6b-ad9e-a258e642751c/apply"
+  ],
+  "wrapper_url": "",
+  "page_purpose": "CAPTCHA",
+  "safe_navigation_detected": false,
+  "portal_evidence": {
+    "portal": "LEVER",
+    "confidence": "HIGH",
+    "signals": [
+      "LEVER_HOST_OR_DOM"
+    ],
+    "wrapper_detected": false
+  },
+  "wrapper_detected": false,
+  "application_surface": "MAIN_DOCUMENT",
+  "field_snapshot": [],
+  "documents": [],
+  "application_submitted": false,
+  "tracker_updated": false,
+  "gmail_sent": false,
+  "page_fingerprints": [
+    "3ebf0944e5a342ba6b610a29bb920d0631aae1f947ebb2140b379e707f0b429c"
+  ]
+}

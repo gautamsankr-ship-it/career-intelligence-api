@@ -1,0 +1,33 @@
+{
+  "package_id": "pkg-33-a8eb470e62b4",
+  "tracker_id": 33,
+  "company": "Jobs Ai",
+  "job_title": "Finance Manager (Remote)",
+  "market": "united_kingdom",
+  "career_track": "",
+  "career_score": 82.0,
+  "ats_score": 86.9,
+  "application_url": "https://uk.linkedin.com/jobs/view/finance-manager-remote-at-jobs-ai-4458580282?position=1&pageNum=0&refId=QUuAfz%2FMNK1Agw4fjIIUiQ%3D%3D&trackingId=MZB99wFczFPvJMetn06qwQ%3D%3D",
+  "application_portal": "UNKNOWN",
+  "route_confidence": "LOW",
+  "resume_path": "applications\\Unknown Company_Finance Manager\\Resume.docx",
+  "resume_status": "READY",
+  "resume_generated_at": "2026-08-25T17:30:32.177958+00:00",
+  "resume_vacancy_identity": "a8eb470e62b4f6bd6aef1f8a161c2a098156efd8e10cf33d4e1d4c4273689b7f",
+  "cover_letter_path": "applications\\Unknown Company_Finance Manager\\CoverLetter.docx",
+  "cover_letter_status": "READY",
+  "answer_vault_status": "ANSWER_VAULT_READY",
+  "answer_counts": {
+    "AUTO_FILL": 15,
+    "AUTO_FILL_WITH_RULES": 14,
+    "MANUAL_REVIEW": 5
+  },
+  "manual_answer_count": 5,
+  "portal_capability": "MANUAL_WEB",
+  "application_method": "WEB",
+  "readiness": "MANUAL_WEB_REQUIRED",
+  "blocking_reasons": [],
+  "vacancy_identity": "a8eb470e62b4f6bd6aef1f8a161c2a098156efd8e10cf33d4e1d4c4273689b7f",
+  "created_at": "2026-08-25T17:30:08.216446+00:00",
+  "updated_at": "2026-08-25T17:30:32.178066+00:00"
+}

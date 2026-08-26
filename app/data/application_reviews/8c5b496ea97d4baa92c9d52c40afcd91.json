@@ -1,0 +1,48 @@
+{
+  "review_id": "8c5b496ea97d4baa92c9d52c40afcd91",
+  "tracker_id": 33,
+  "package_id": "pkg-33-a8eb470e62b4",
+  "execution_id": "e13ae9985799464a8caf9d132631aee3",
+  "company": "Jobs Ai",
+  "job_title": "Finance Manager (Remote)",
+  "market": "united_kingdom",
+  "career_track": "",
+  "application_url": "https://uk.linkedin.com/jobs/view/finance-manager-remote-at-jobs-ai-4458580282?position=1&pageNum=0&refId=QUuAfz%2FMNK1Agw4fjIIUiQ%3D%3D&trackingId=MZB99wFczFPvJMetn06qwQ%3D%3D",
+  "application_portal": "UNKNOWN",
+  "execution_status": "DIRECT_ROUTE_REQUIRED",
+  "review_status": "NOT_READY",
+  "fields_detected": 0,
+  "fields_filled": 0,
+  "fields_skipped": 0,
+  "manual_review_fields": 0,
+  "unknown_required_fields": 0,
+  "resume_path": "applications\\Unknown Company_Finance Manager\\Resume.docx",
+  "resume_uploaded": false,
+  "cover_letter_path": "applications\\Unknown Company_Finance Manager\\CoverLetter.docx",
+  "cover_letter_uploaded": false,
+  "answer_summary": {
+    "work_authorization": "NOT_PRESENT",
+    "sponsorship": "NOT_PRESENT",
+    "notice_period": "NOT_PRESENT",
+    "earliest_start_date": "NOT_PRESENT",
+    "salary": "NOT_PRESENT"
+  },
+  "legal_confirmations": [],
+  "pending_manual_actions": [],
+  "final_submit_detected": false,
+  "final_submit_label": "",
+  "blocking_reasons": [
+    "DIRECT_ROUTE_REQUIRED",
+    "FINAL_SUBMIT_NOT_DETECTED"
+  ],
+  "fingerprint": "f416e08058cb76ab6651e8c23e9bdaa5d95761a74b74c4ffc136d51e96786b87",
+  "created_at": "2026-08-26T02:45:54.317177+00:00",
+  "updated_at": "2026-08-26T02:45:54.317856+00:00",
+  "reviewed_at": "",
+  "audit": [
+    {
+      "at": "2026-08-26T02:45:54.317665+00:00",
+      "action": "FINAL_REVIEW_CREATED"
+    }
+  ]
+}
