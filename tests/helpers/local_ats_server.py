@@ -168,6 +168,40 @@ class LocalGreenhouseIframeWrapper:
         self.server.shutdown(); self.thread.join(); self.server.server_close()
 
 
+class LocalGreenhouseIframeEmployer:
+    """Employer wrapper page embedding a full multi-stage LocalATS instance as a
+    trusted cross-origin iframe, alongside one unrelated iframe.
+
+    Unlike LocalGreenhouseIframeWrapper (Task 21.8C.2's single-stage selection
+    fixture), this reuses the existing LocalATS server verbatim as the iframe
+    content source so the Task 21.8C.3 E2E test exercises the real multi-page
+    Greenhouse fixture through a real trusted Frame.
+    """
+    def __init__(self, ats_url):
+        self.ats_url=ats_url
+        self.data={"visits":[]}
+
+    def start(self):
+        outer=self
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self,*args): pass
+            def do_GET(self):
+                path=urlparse(self.path).path
+                outer.data["visits"].append(path)
+                if path == "/careers":
+                    body=f'<main><h1>Test Company — Finance Manager</h1><iframe src="/ad"></iframe><iframe src="{outer.ats_url}"></iframe></main>'
+                elif path == "/ad":
+                    body='<main><p>Ad content</p></main>'
+                else:
+                    self.send_response(404); self.end_headers(); return
+                self.send_response(200); self.send_header("Content-Type","text/html; charset=utf-8"); self.end_headers(); self.wfile.write(body.encode())
+        self.server=ThreadingHTTPServer(("127.0.0.1",0),Handler); self.thread=threading.Thread(target=self.server.serve_forever,daemon=True); self.thread.start()
+        return f"http://127.0.0.1:{self.server.server_port}/careers"
+
+    def close(self):
+        self.server.shutdown(); self.thread.join(); self.server.server_close()
+
+
 class LocalFrameSurface:
     """Tiny localhost Page/Frame smoke fixture; it is not an ATS topology."""
     def __init__(self):

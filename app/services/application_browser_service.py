@@ -168,8 +168,12 @@ class ApplicationBrowserService:
         body = re.sub(r"\s+", " ", html).lower()
         plan.page_purpose = self.page_purpose(url, html)
         # Preserve the final-submit boundary even on a review page that is not
-        # otherwise parsed as an application form.
-        plan.final_submit_detected = bool(FINAL_BUTTON.search(body))
+        # otherwise parsed as an application form. Strip tags first so a
+        # routine type="submit" attribute on an intermediate Continue/Next
+        # control can never masquerade as a final submit; only genuine
+        # visible text can.
+        visible_text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html)).lower()
+        plan.final_submit_detected = bool(FINAL_BUTTON.search(visible_text))
         plan.authentication = "AUTH_REQUIRED" if re.search(r"sign in|log in|login", body) else "NO"
         plan.mfa = "MFA_REQUIRED" if re.search(r"one.time password|verification code|multi.factor|\bmfa\b", body) else "NO"
         plan.captcha = "CAPTCHA_REQUIRED" if re.search(r"captcha|recaptcha|hcaptcha", body) else "NO"
@@ -471,27 +475,33 @@ class ApplicationBrowserService:
             browser=await api.chromium.launch(headless=not headed); context=await browser.new_context(); page=await context.new_page()
             try:
                 await page.goto(url, wait_until="domcontentloaded", timeout=APPLICATION_BROWSER_TIMEOUT_MS)
-                for _ in range(max_pages):
-                    html=await page.content(); plan=self.preview_html(html, page.url, vacancy, tracker_id, application_date, persist=False); plans.append(plan)
-                    parser=_FormParser(); parser.feed(html)
-                    fingerprint=hashlib.sha256((page.url+"|"+plan.portal+"|"+plan.page_purpose+"|"+"|".join(f"{f.concept}:{f.field_type}:{f.required}" for f in plan.fields)+"|"+"|".join(text for text,_ in parser.buttons)).encode()).hexdigest()
-                    if fingerprint in fingerprints: status="LOOP_DETECTED"; break
-                    fingerprints.add(fingerprint)
-                    if plan.page_purpose == "APPLICATION_SUCCESS": status="UNEXPECTED_APPLICATION_SUCCESS"; break
-                    if plan.readiness in {"CAPTCHA_REQUIRED","AUTH_REQUIRED","MFA_REQUIRED"}: status=plan.readiness; break
-                    if plan.page_purpose == "ACCOUNT_CREATION": status="ACCOUNT_CREATION_REQUIRED"; break
-                    if plan.page_purpose == "APPLICATION_REVIEW" or plan.final_submit_detected:
-                        status="PREPARED_FOR_FINAL_REVIEW"; break
-                    if plan.portal not in {"GREENHOUSE","LEVER"}: status="UNSUPPORTED_PORTAL"; break
-                    if any(f.required and f.action == "REVIEW" for f in plan.fields) or any(d["required"] and d["action"] == "DOCUMENT_NOT_READY" for d in plan.document_requirements): status="MANUAL_INPUT_REQUIRED"; break
-                    await self._fill_supported(page, plan)
-                    safe=[text for text,_ in parser.buttons if SAFE_BUTTON.match(text.strip())]
-                    if len(safe) != 1: status="NAVIGATION_UNCERTAIN"; break
-                    if actions >= max_navigation_actions: status="MAX_NAVIGATION_ACTIONS_EXCEEDED"; break
-                    await self._click_safe_navigation(page, html); actions += 1
-                    try: await page.wait_for_load_state("domcontentloaded", timeout=APPLICATION_BROWSER_TIMEOUT_MS)
-                    except Exception: status="TIMEOUT"; break
-                else: status="MAX_PAGES_EXCEEDED"
+                selection=await self.select_application_surface(page, "GREENHOUSE")
+                if selection["status"] == "APPLICATION_SURFACE_AMBIGUOUS":
+                    status="APPLICATION_SURFACE_AMBIGUOUS"
+                else:
+                    surface=selection["surface"] or page
+                    for _ in range(max_pages):
+                        html=await self._surface_content(surface); surface_url=self._surface_url(surface); plan=self.preview_html(html, surface_url, vacancy, tracker_id, application_date, persist=False); plans.append(plan)
+                        parser=_FormParser(); parser.feed(html)
+                        fingerprint=hashlib.sha256((surface_url+"|"+plan.portal+"|"+plan.page_purpose+"|"+"|".join(f"{f.concept}:{f.field_type}:{f.required}" for f in plan.fields)+"|"+"|".join(text for text,_ in parser.buttons)).encode()).hexdigest()
+                        if fingerprint in fingerprints: status="LOOP_DETECTED"; break
+                        fingerprints.add(fingerprint)
+                        if plan.page_purpose == "APPLICATION_SUCCESS": status="UNEXPECTED_APPLICATION_SUCCESS"; break
+                        if plan.readiness in {"CAPTCHA_REQUIRED","AUTH_REQUIRED","MFA_REQUIRED"}: status=plan.readiness; break
+                        if plan.page_purpose == "ACCOUNT_CREATION": status="ACCOUNT_CREATION_REQUIRED"; break
+                        if plan.page_purpose == "APPLICATION_REVIEW" or plan.final_submit_detected:
+                            status="PREPARED_FOR_FINAL_REVIEW"; break
+                        if plan.portal not in {"GREENHOUSE","LEVER"}: status="UNSUPPORTED_PORTAL"; break
+                        if any(f.required and f.action == "REVIEW" for f in plan.fields) or any(d["required"] and d["action"] == "DOCUMENT_NOT_READY" for d in plan.document_requirements): status="MANUAL_INPUT_REQUIRED"; break
+                        await self._fill_supported(surface, plan)
+                        safe=[text for text,_ in parser.buttons if SAFE_BUTTON.match(text.strip())]
+                        if len(safe) != 1: status="NAVIGATION_UNCERTAIN"; break
+                        if actions >= max_navigation_actions: status="MAX_NAVIGATION_ACTIONS_EXCEEDED"; break
+                        before_url=surface_url; before_fingerprint=self._page_fingerprint(html)
+                        await self._click_safe_navigation(surface, html); actions += 1
+                        try: await self._wait_for_meaningful_transition(surface, before_url, before_fingerprint)
+                        except Exception: status="TIMEOUT"; break
+                    else: status="MAX_PAGES_EXCEEDED"
             finally:
                 await context.close(); await browser.close()
         return {"plans":plans,"status":status,"navigation_actions":actions}
