@@ -52,7 +52,7 @@ def _wrapper_transport(tmp_path, variant="matching", network_events=None):
     execution.update({"package_id":pkg.package_id,"application_url":wrapper_url,"portal":"GREENHOUSE"})
     (tmp_path/"executions"/"exec.json").write_text(json.dumps(execution))
     review=reviews.create(42); review.review_status="APPROVED_FOR_SUBMISSION"; reviews._save(review)
-    browser=ApplicationBrowserService(answer_engine=SyntheticAnswerEngine(),package_service=reviews.package_service,review_service=reviews,allowed_hosts={"127.0.0.1","localhost"},network_events=network_events)
+    browser=ApplicationBrowserService(answer_engine=SyntheticAnswerEngine(),package_service=reviews.package_service,review_service=reviews,allowed_hosts={"127.0.0.1","localhost"},network_events=network_events,preview_folder=tmp_path)
     context=SubmissionContext(review.review_id,42,pkg.package_id,"exec","GREENHOUSE",wrapper_url,review.fingerprint)
     return ats,wrapper,browser,context,review,record
 

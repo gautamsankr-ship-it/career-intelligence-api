@@ -1,14 +1,21 @@
-"""Regression for Task 21.8D.1 / 21.8D.2 test-isolation hazards.
+"""Regression for Task 21.8D.1 / 21.8D.2 / 21.8D.3 test-isolation hazards.
 
 tests/test_career_agent.py used to be a bare script that constructed
 CareerAgent() and called dashboard_summary() at *module import time*, which
 meant pytest collection alone mutated the production tracker DB (and, it was
 later discovered, generated real resume/cover-letter documents on disk).
-Five sibling scripts with the same defect were found during the same audit:
-test_apify.py (live paid Apify scrape), test_employer.py and
-test_career_engine.py (live OpenAI calls), test_discovery.py (production
-cache read) and test_resume_improvement.py (no production/network access,
-but still not a real assertion-bearing test). All six were relocated out of
+21 sibling scripts with the same defect were found across three audits:
+live OpenAI calls (test_employer.py, test_career_engine.py, test_ai.py,
+test_cover_letter.py), a live paid Apify scrape (test_apify.py), real
+document/file generation into production output directories
+(test_docx.py, test_resume_generator.py), real candidate-profile reads
+(test_career_engine.py, test_cover_letter.py, test_experience.py,
+test_industry.py, test_master_profile.py, test_profile.py, test_skills.py),
+a production cache read (test_discovery.py), and several with no
+production/network access at all but zero assertions
+(test_resume_improvement.py, test_match.py, test_opportunity.py,
+test_queue.py, test_resume_optimizer.py, test_scraper.py,
+test_url_builder.py, test_evidence_engine.py). All 22 were relocated out of
 tests/ to repo-root scripts named outside pytest's test_*.py collection glob,
 with their executable bodies wrapped in main() / `if __name__ == "__main__":`.
 
@@ -38,6 +45,22 @@ RELOCATED_SCRIPTS = {
     "test_career_engine.py": "career_engine_decision_demo.py",
     "test_discovery.py": "job_discovery_dashboard.py",
     "test_resume_improvement.py": "resume_improvement_demo.py",
+    "test_ai.py": "ai_job_analysis_demo.py",
+    "test_cover_letter.py": "cover_letter_demo.py",
+    "test_docx.py": "docx_resume_demo.py",
+    "test_evidence_engine.py": "evidence_engine_demo.py",
+    "test_experience.py": "experience_score_demo.py",
+    "test_industry.py": "industry_score_demo.py",
+    "test_master_profile.py": "master_profile_demo.py",
+    "test_match.py": "match_score_demo.py",
+    "test_opportunity.py": "opportunity_timeline_demo.py",
+    "test_profile.py": "profile_intelligence_demo.py",
+    "test_queue.py": "application_queue_demo.py",
+    "test_resume_generator.py": "resume_generator_demo.py",
+    "test_resume_optimizer.py": "resume_optimizer_demo.py",
+    "test_scraper.py": "scraper_normalize_demo.py",
+    "test_skills.py": "skills_score_demo.py",
+    "test_url_builder.py": "linkedin_url_builder_demo.py",
 }
 
 
@@ -154,22 +177,14 @@ def test_importing_dashboard_script_never_constructs_careeragent():
 # added later under tests/ will fail this test immediately on collection
 # rather than silently mutating production state.
 #
-# A small number of pre-existing files are already known to violate this and
-# are tracked explicitly below rather than silently skipped:
-#   - PENDING_HERMETIC_FIX: pure demo/debug scripts (zero `def test_*`
-#     functions) discovered during the Task 21.8D.2 whole-repo audit that
-#     follow the exact same hazard pattern already fixed for the six files
-#     above, but are NOT fixed by this task (out of its authorized scope).
-#     Tracked as xfail so fixing one of them turns into a visible XPASS,
-#     forcing this registry to be kept honest.
+# As of Task 21.8D.3 there are no known pending exceptions: every
+# tests/test_*.py file must pass this check outright. If a future file
+# needs a temporary, explicitly-reviewed exception, add it to
+# PENDING_HERMETIC_FIX below with a comment explaining why — do not use
+# skip/ignore to silently hide an unresolved hazard.
 # ---------------------------------------------------------------------------
 
-PENDING_HERMETIC_FIX = {
-    "test_ai.py", "test_cover_letter.py", "test_docx.py", "test_evidence_engine.py",
-    "test_experience.py", "test_industry.py", "test_master_profile.py", "test_match.py",
-    "test_opportunity.py", "test_profile.py", "test_queue.py", "test_resume_generator.py",
-    "test_resume_optimizer.py", "test_scraper.py", "test_skills.py", "test_url_builder.py",
-}
+PENDING_HERMETIC_FIX: set[str] = set()
 
 
 def _all_test_files():
@@ -181,7 +196,7 @@ def test_no_module_level_production_or_network_calls(filename):
     if filename in PENDING_HERMETIC_FIX:
         pytest.xfail(
             f"{filename}: known pre-existing demo-script hazard, tracked for a "
-            "dedicated follow-up task, not in scope for Task 21.8D.2"
+            "dedicated follow-up task"
         )
     source = (TESTS_DIR / filename).read_text(encoding="utf-8")
     tree = ast.parse(source)

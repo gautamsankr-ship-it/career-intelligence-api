@@ -16,7 +16,7 @@ def _run_surface_smoke(tmp_path, use_frame):
         from playwright.async_api import async_playwright
         fixture=LocalFrameSurface(); outer_url=fixture.start()
         resume=_pdf(tmp_path / "Synthetic_Frame_Resume.pdf")
-        browser_service=ApplicationBrowserService(answer_engine=SyntheticAnswerEngine())
+        browser_service=ApplicationBrowserService(answer_engine=SyntheticAnswerEngine(), preview_folder=tmp_path/"previews")
         try:
             async with async_playwright() as api:
                 chromium=await api.chromium.launch(headless=True); context=await chromium.new_context(); page=await context.new_page()
@@ -52,7 +52,7 @@ def test_shared_surface_primitives_work_on_real_frame(tmp_path):
 def test_shared_transition_fails_closed_when_real_frame_detaches(tmp_path):
     async def run():
         from playwright.async_api import async_playwright
-        fixture=LocalFrameSurface(); outer_url=fixture.start(); browser_service=ApplicationBrowserService()
+        fixture=LocalFrameSurface(); outer_url=fixture.start(); browser_service=ApplicationBrowserService(answer_engine=SyntheticAnswerEngine(), preview_folder=tmp_path)
         try:
             async with async_playwright() as api:
                 chromium=await api.chromium.launch(headless=True); context=await chromium.new_context(); page=await context.new_page()

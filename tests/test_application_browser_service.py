@@ -1,8 +1,20 @@
 from __future__ import annotations
 
 from app.config import APPLICATION_AUTO_SUBMIT, APPLICATION_DRY_RUN
+from app.services.application_answer_engine import ApplicationAnswerEngine
+from app.services.application_answer_vault import ApplicationAnswerVault
 from app.services.application_browser_service import ApplicationBrowserService
 from app.services.application_route_resolver import ApplicationRouteResolver
+
+
+def _isolated_service(tmp_path, **kwargs):
+    # Real (non-synthetic) answer engine backed by a fresh, isolated vault --
+    # these tests assert on real seeded answer content (e.g. candidate email),
+    # so a brand-new tmp_path vault (which seeds identically to production's
+    # original seed data) preserves behavior without ever touching
+    # app/data/application_answer_vault.json.
+    vault = ApplicationAnswerVault(tmp_path / "vault.json")
+    return ApplicationBrowserService(preview_folder=tmp_path, answer_engine=ApplicationAnswerEngine(vault), **kwargs)
 
 
 GREENHOUSE = '''<html><body class="greenhouse"><form id="application_form">
@@ -22,7 +34,7 @@ GREENHOUSE = '''<html><body class="greenhouse"><form id="application_form">
 
 
 def test_portal_detection_and_safe_plan(tmp_path):
-    service = ApplicationBrowserService(preview_folder=tmp_path)
+    service = _isolated_service(tmp_path)
     plan = service.preview_html(GREENHOUSE, "https://boards.greenhouse.io/example/jobs/1", {"market": "united_kingdom", "company": "Example", "job_title": "Finance Manager"}, application_date="2026-09-10")
     fields = {field.label: field for field in plan.fields}
     assert plan.portal == "GREENHOUSE" and plan.final_submit_detected
@@ -40,7 +52,7 @@ def test_portal_detection_and_safe_plan(tmp_path):
 
 
 def test_lever_workday_generic_and_unknown_detection(tmp_path):
-    service = ApplicationBrowserService(preview_folder=tmp_path)
+    service = _isolated_service(tmp_path)
     assert service.detect_portal("https://jobs.lever.co/company/x", "<form></form>") == "LEVER"
     assert service.detect_portal("https://tenant.myworkdayjobs.com/x", "<form></form>") == "WORKDAY"
     assert service.detect_portal("https://jobs.smartrecruiters.com/x", "<form></form>") == "SMARTRECRUITERS"
@@ -52,7 +64,7 @@ def test_lever_workday_generic_and_unknown_detection(tmp_path):
 
 
 def test_auth_mfa_captcha_and_submit_are_detected_not_actioned(tmp_path):
-    service = ApplicationBrowserService(preview_folder=tmp_path)
+    service = _isolated_service(tmp_path)
     for html, expected in (("<form>Log in<button>Apply</button></form>", "AUTH_REQUIRED"), ("<form>Enter verification code MFA</form>", "MFA_REQUIRED"), ("<form>reCAPTCHA</form>", "CAPTCHA_REQUIRED")):
         plan = service.preview_html(html, vacancy={"market": "united_kingdom"})
         assert plan.readiness == expected and plan.application_submitted is False
@@ -61,7 +73,7 @@ def test_auth_mfa_captcha_and_submit_are_detected_not_actioned(tmp_path):
 
 
 def test_required_optional_and_url_safety(tmp_path):
-    service = ApplicationBrowserService(preview_folder=tmp_path)
+    service = _isolated_service(tmp_path)
     plan = service.preview_html('<form><label for="a">Unknown required answer</label><input id="a" required><label for="b">Optional mystery</label><input id="b"></form>')
     assert plan.fields[0].action == "REVIEW" and plan.fields[1].action == "SKIP"
     import pytest
@@ -75,14 +87,14 @@ def test_route_classification_and_linkedin_listing_suppression(tmp_path):
     assert resolver.classify_url("https://boards.greenhouse.io/example/jobs/1") == "ATS_URL"
     external = resolver.resolve({"job_url": "https://uk.linkedin.com/jobs/view/123"}, '<html><a href="https://boards.greenhouse.io/example/jobs/1" aria-label="Apply on employer career site">Apply externally</a></html>')
     assert external.resolution_status == "RESOLVED" and external.portal == "GREENHOUSE"
-    service = ApplicationBrowserService(preview_folder=tmp_path)
+    service = _isolated_service(tmp_path)
     listing = service.preview_html('<html><form><input type="email"><input type="password"><input name="search">Sign in reCAPTCHA</form></html>', "https://uk.linkedin.com/jobs/view/123", {"job_url": "https://uk.linkedin.com/jobs/view/123"})
     assert listing.page_purpose == "CAPTCHA" and listing.fields == []
     assert listing.readiness == "CAPTCHA_REQUIRED"
 
 
 def test_final_action_labels_never_change_submission_state(tmp_path):
-    service = ApplicationBrowserService(preview_folder=tmp_path)
+    service = _isolated_service(tmp_path)
     html = "<form>" + "".join(f"<button>{label}</button>" for label in ("Submit", "Submit Application", "Finish", "Complete Application", "Send Application", "Apply Now")) + "</form>"
     plan = service.preview_html(html)
     assert plan.final_submit_detected is True
@@ -90,7 +102,7 @@ def test_final_action_labels_never_change_submission_state(tmp_path):
 
 
 def test_document_preparation_uses_only_exact_existing_vacancy_documents(tmp_path):
-    service = ApplicationBrowserService(preview_folder=tmp_path)
+    service = _isolated_service(tmp_path)
     resume = tmp_path / "Resume.docx"; resume.write_bytes(b"fixture")
     cover = tmp_path / "Cover.docx"; cover.write_bytes(b"fixture")
     plan = service.preview_html(GREENHOUSE, vacancy={"market": "united_kingdom", "resume_path": str(resume), "cover_letter_path": str(cover)})

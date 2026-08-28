@@ -7,6 +7,7 @@ import pytest
 from app.models.application_package import ApplicationPackage
 from app.services.application_browser_service import ApplicationBrowserService
 from app.services.application_execution_orchestrator import ApplicationExecutionOrchestrator
+from helpers.synthetic_answer_engine import SyntheticAnswerEngine
 
 
 SAFE_FORM = '''<form class="greenhouse"><label for="email">Email address</label><input id="email" type="email" required><label for="notice">What is your notice period?</label><input id="notice" required><label for="cv">Resume/CV</label><input id="cv" type="file" required><label for="cover">Cover letter</label><input id="cover" type="file"><button>Next</button><button>Submit Application</button></form>'''
@@ -28,7 +29,7 @@ class Packages:
 
 class Browser:
     def __init__(self, html): self.html=html; self.preview_calls=0; self.prepare_calls=0; self.route_calls=0
-    def _plan(self, url, vacancy, tracker_id): return ApplicationBrowserService(preview_folder=Path(".")).preview_html(self.html, url, vacancy, tracker_id, persist=False)
+    def _plan(self, url, vacancy, tracker_id): return ApplicationBrowserService(preview_folder=Path("."), answer_engine=SyntheticAnswerEngine()).preview_html(self.html, url, vacancy, tracker_id, persist=False)
     def preview_url(self, url, vacancy, tracker_id, headed, application_date):
         self.preview_calls += 1; return self._plan(url, vacancy, tracker_id)
     def fill_preview_url(self, url, vacancy, tracker_id, headed, application_date):
@@ -45,7 +46,7 @@ class ProgressBrowser(Browser):
     def progress_url(self, url, vacancy, tracker_id, headed, application_date):
         plans=[]
         for page in self.pages:
-            plan=self._plan(url, vacancy, tracker_id) if page == self.pages[0] else ApplicationBrowserService(preview_folder=Path(".")).preview_html(page, url, vacancy, tracker_id, persist=False)
+            plan=self._plan(url, vacancy, tracker_id) if page == self.pages[0] else ApplicationBrowserService(preview_folder=Path("."), answer_engine=SyntheticAnswerEngine()).preview_html(page, url, vacancy, tracker_id, persist=False)
             plan.fields_filled=sum(field.action == "FILL" for field in plan.fields)
             for doc in plan.document_requirements:
                 if doc["action"] == "READY_FOR_UPLOAD" and doc["kind"] in {"RESUME","COVER_LETTER"}: doc["action"]="UPLOADED_IN_FILL_PREVIEW"

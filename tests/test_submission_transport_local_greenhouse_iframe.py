@@ -42,7 +42,7 @@ def _prepared_iframe_transport(tmp_path, review_variant="matching", network_even
     execution.update({"package_id":pkg.package_id,"application_url":wrapper_url,"portal":"GREENHOUSE"})
     (tmp_path / "executions" / "exec.json").write_text(json.dumps(execution))
     review=reviews.create(42); review.review_status="APPROVED_FOR_SUBMISSION"; reviews._save(review)
-    browser=ApplicationBrowserService(answer_engine=SyntheticAnswerEngine(),package_service=reviews.package_service,review_service=reviews,allowed_hosts={"127.0.0.1","localhost"},network_events=network_events)
+    browser=ApplicationBrowserService(answer_engine=SyntheticAnswerEngine(),package_service=reviews.package_service,review_service=reviews,allowed_hosts={"127.0.0.1","localhost"},network_events=network_events,preview_folder=tmp_path)
     context=SubmissionContext(review.review_id,42,pkg.package_id,"exec","GREENHOUSE",wrapper_url,review.fingerprint)
     return browser,context,review,ats,employer,pkg
 
@@ -165,7 +165,7 @@ def test_n_detached_trusted_frame_is_excluded_not_silently_selected(tmp_path):
         from playwright.async_api import async_playwright
         ats=LocalATS(); ats_url=ats.start()
         employer=LocalGreenhouseIframeEmployer(ats_url); wrapper_url=employer.start()
-        browser_service=ApplicationBrowserService()
+        browser_service=ApplicationBrowserService(answer_engine=SyntheticAnswerEngine(), preview_folder=tmp_path)
         try:
             async with async_playwright() as api:
                 chromium=await api.chromium.launch(headless=True); context=await chromium.new_context(); page=await context.new_page()

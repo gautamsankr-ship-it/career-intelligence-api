@@ -3,7 +3,23 @@ from pathlib import Path
 
 import pytest
 
+from app.services.application_answer_vault import ApplicationAnswerVault
+from app.services.application_browser_service import ApplicationBrowserService
 from app.services.application_live_validation import LiveValidationService
+
+
+@pytest.fixture(autouse=True)
+def _isolated_production_defaults(tmp_path, monkeypatch):
+    """LiveValidationService(session_dir=tmp_path) deliberately leaves `browser`
+    at its true default (test_real_profile_is_explicit_opt_in below depends on
+    the real, non-synthetic answer engine that default wires up). Rather than
+    letting that default chain reach the real production vault/preview paths,
+    redirect the bound __init__ defaults themselves -- for this test module
+    only -- to isolated tmp_path locations. Behavior is identical; nothing
+    production is ever read or written.
+    """
+    monkeypatch.setattr(ApplicationAnswerVault.__init__, "__defaults__", (tmp_path / "vault.json",))
+    monkeypatch.setattr(ApplicationBrowserService.__init__, "__defaults__", (None, tmp_path / "previews", None, None, None, None, None))
 
 
 GREENHOUSE = '''<html><body><form id="application_form"><label for="first">First name</label><input id="first" required><label for="email">Email address</label><input id="email" type="email" required><label for="phone">Phone number</label><input id="phone" type="tel"><label for="notice">What is your notice period?</label><input id="notice"><label for="legal">I certify that this is accurate</label><input id="legal" type="checkbox" required><label for="cv">Resume/CV</label><input id="cv" type="file"><button type="button">Next</button><button>Submit Application</button></form></body></html>'''

@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 import pytest
 from app.models.application_package import ApplicationPackage
+from app.services.application_answer_engine import ApplicationAnswerEngine
+from app.services.application_answer_vault import ApplicationAnswerVault
 from app.services.final_review_service import FinalReviewService
 
 class History:
@@ -21,7 +23,12 @@ def setup(tmp_path, status="PREPARED_FOR_FINAL_REVIEW", **changes):
  record.update(changes.pop('record',{}));
  for k,v in changes.pop('package',{}).items(): setattr(pkg,k,v)
  execution.update(changes.pop('execution',{})); exe=tmp_path/'executions'; exe.mkdir(); (exe/'exec.json').write_text(json.dumps(execution))
- return FinalReviewService(Packages(record,pkg),tmp_path/'reviews',execution_dir=exe),record,pkg,execution
+ # Real (non-synthetic) answer engine backed by a fresh, isolated vault --
+ # a brand-new tmp_path vault seeds identically to production's original
+ # seed data, so behavior is unchanged while never touching the real
+ # app/data/application_answer_vault.json.
+ answers=ApplicationAnswerEngine(ApplicationAnswerVault(tmp_path/'vault.json'))
+ return FinalReviewService(Packages(record,pkg),tmp_path/'reviews',answer_engine=answers,execution_dir=exe),record,pkg,execution
 
 def test_happy_path_review_is_idempotent_and_approval_is_metadata_only(tmp_path):
  service,record,pkg,execution=setup(tmp_path)
