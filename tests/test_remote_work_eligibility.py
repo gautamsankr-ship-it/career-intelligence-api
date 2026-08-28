@@ -23,9 +23,47 @@ def remote(description, market="united_kingdom"):
     ("International contractors accepted; contractors may work from any country.", ELIGIBLE),
     ("This is a fully remote role.", MANUAL_REVIEW),
     ("Global company with a global remote company culture. UK residents only.", INELIGIBLE),
+    ("Remote | UK-Based | Gaming Industry", INELIGIBLE),
+    ("Fully remote role with flexibility to be based anywhere in the UK", INELIGIBLE),
+    ("Remote | UK-BASED | Gaming Industry", INELIGIBLE),
+    ("Remote | uk-based | Gaming Industry", INELIGIBLE),
+    ("Fully remote role with flexibility to be Based Anywhere In The UK", INELIGIBLE),
 ])
 def test_vacancy_level_eligibility_evidence(text, expected):
     assert RemoteWorkEligibilityClassifier().classify(remote(text)).decision == expected
+
+
+@pytest.mark.parametrize("text", [
+    "Remote | UK-Based | Gaming Industry",
+    "Fully remote role with flexibility to be based anywhere in the UK",
+])
+def test_uk_based_formulations_use_existing_uk_only_remote_taxonomy(text):
+    result = RemoteWorkEligibilityClassifier().classify(remote(text))
+    assert result.decision == INELIGIBLE
+    assert result.scope == "REMOTE_COUNTRY_RESTRICTED"
+    assert result.reason == "UK-only remote"
+
+
+def test_tracker_34_style_synthetic_regression():
+    """Synthetic fixture mirroring the real vacancy text that previously fell through
+    to MANUAL_REVIEW; does not read or mutate production tracker data."""
+    synthetic_job_title = "Finance Accounting Manager"
+    synthetic_job_description = (
+        "Client Accounting Manager\n"
+        "Remote | UK-Based | Gaming Industry\n\n"
+        "What's on Offer?\n"
+        "- Fully remote role with flexibility to be based anywhere in the UK\n"
+    )
+    opportunity = CareerOpportunity(
+        job_title=synthetic_job_title,
+        job_description=synthetic_job_description,
+        work_arrangement="REMOTE",
+        remote_status=True,
+        market="united_kingdom",
+    )
+    result = RemoteWorkEligibilityClassifier().classify(opportunity)
+    assert result.decision == INELIGIBLE
+    assert result.reason == "UK-only remote"
 
 
 def test_search_market_and_employer_location_do_not_create_false_restrictions():

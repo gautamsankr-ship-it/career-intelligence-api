@@ -32,6 +32,7 @@ class RemoteWorkEligibilityClassifier:
             ("uk residents only", "UK residence required"), ("must be based in the uk", "UK residence required"),
             ("must reside in the united kingdom", "UK residence required"), ("remote - uk only", "UK-only remote"),
             ("remote in the uk only", "UK-only remote"), ("remote within the uk", "UK-only remote"),
+            ("uk-based", "UK-only remote"), ("based anywhere in the uk", "UK-only remote"),
             ("australia-based applicants only", "Australian residence required"), ("must reside in australia", "Australian residence required"),
             ("remote within australia", "Australia-only remote"), ("full australian working rights", "Australian work rights required"),
             ("us remote only", "US-only remote"), ("remote anywhere in the us", "US-only remote"),
