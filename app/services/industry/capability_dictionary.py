@@ -33,7 +33,8 @@ CAPABILITY_FAMILIES = {
         "Balance Sheet Reconciliation",
         "Cash Flow Management",
         "Financial Controls",
-        "Consolidation"
+        "Consolidation",
+        "Statutory Reporting"
 
     ],
 
@@ -84,7 +85,13 @@ CAPABILITY_FAMILIES = {
         "Capital Raising",
         "Investment Analysis",
         "Capital IQ",
-        "Pitchbook"
+        "Pitchbook",
+        "Business Advisory",
+        "Corporate Development",
+        "Deal Structuring",
+        "Private Equity",
+        "M&A Integration",
+        "Post-Merger Integration"
 
     ],
 
@@ -101,7 +108,8 @@ CAPABILITY_FAMILIES = {
         "Financial Planning",
         "FP&A",
         "Commercial Accounting",
-        "Commercial Finance"
+        "Commercial Finance",
+        "Financial Analysis"
 
     ],
 
@@ -148,7 +156,11 @@ CAPABILITY_FAMILIES = {
         "Data Analytics",
         "Dashboard Development",
         "Automation",
-        "Business Process Automation"
+        "Business Process Automation",
+        "Blockchain",
+        "Cryptocurrency",
+        "Digital Assets",
+        "Excel"
 
     ],
 
@@ -164,6 +176,69 @@ CAPABILITY_FAMILIES = {
         "Client Relationship Management",
         "Coaching",
         "Mentoring"
+
+    ],
+
+    # ==========================================================
+    # FORENSIC & INVESTIGATIONS
+    # ==========================================================
+    # Task 21.15E: real vacancies (forensic accounting, dispute resolution,
+    # litigation support) had no home family at all -- every such
+    # requirement fell back to an unmatchable singleton "family" regardless
+    # of whether a candidate genuinely has this experience.
+
+    "Forensic & Investigations": [
+
+        "Forensic Accounting",
+        "Investigations",
+        "Fraud Investigation",
+        "Litigation Support",
+        "Expert Witness",
+        "Dispute Resolution",
+        "Asset Tracing"
+
+    ],
+
+    # ==========================================================
+    # INSOLVENCY & RESTRUCTURING
+    # ==========================================================
+
+    "Insolvency & Restructuring": [
+
+        "Insolvency",
+        "Restructuring",
+        "Turnaround",
+        "Liquidation",
+        "Voluntary Administration",
+        "Receivership"
+
+    ],
+
+    # ==========================================================
+    # RISK & COMPLIANCE
+    # ==========================================================
+
+    "Risk & Compliance": [
+
+        "Transaction Monitoring",
+        "Anti-Money Laundering",
+        "Know Your Customer",
+        "Sanctions Screening",
+        "Regulatory Compliance",
+        "Financial Crime"
+
+    ],
+
+    # ==========================================================
+    # INSURANCE & CLAIMS
+    # ==========================================================
+
+    "Insurance & Claims": [
+
+        "Insurance",
+        "Claims Assessment",
+        "Loss Adjusting",
+        "Underwriting"
 
     ]
 

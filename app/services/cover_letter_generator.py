@@ -1,4 +1,5 @@
 from pathlib import Path
+from app.services.candidate_evidence_service import get_enriched_profile
 from app.services.cover_letter_service import generate_cover_letter
 from app.services.docx_service import generate_cover_letter_docx
 
@@ -16,9 +17,12 @@ class CoverLetterGenerator:
         Generates Markdown and DOCX cover letter.
         """
 
-        # 1. Generate text using AI
+        # 1. Generate text using AI, grounded in the career evidence library
+        # (Task 21.11 Addendum) -- only VERIFIED facts are ever merged in, so
+        # unconfirmed/conflicting claims never reach the AI prompt.
+        enriched_profile = get_enriched_profile(profile)
         cover_letter_text = generate_cover_letter(
-            profile,
+            enriched_profile,
             job_analysis,
             career_decision
         )

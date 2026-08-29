@@ -1,0 +1,143 @@
+{
+  "task": "21.15A Fix Opportunity Value Scale Calibration",
+  "generated_at": "2026-08-29",
+  "verified_score_contract": {
+    "employer_overall_score": "0-10 (native EmployerService/OpenAI output scale, no scale specified in prompt)",
+    "employer_career_growth_score": "0-10 (same)",
+    "evidence": [
+      "40/40 real vacancies in Task 21.15 produced employer.overall_score in [3, 9.75].",
+      "CareerDecisionEngine._score_employer/_score_career_growth (app/services/career_engine.py) clamp these fields against a scorecard weight of 10.",
+      "RecruiterReasoningService.evaluate() (app/services/recruiter_reasoning_service.py) computes recruiter.career_alignment = employer.career_growth_score * 10, clamped to 100.",
+      "The only real Employer(...) test fixture (tests/test_preview_evaluation_snapshots.py) uses innovation/culture/career_growth/financial_stability/overall_score = 8 for all five fields."
+    ]
+  },
+  "fix": {
+    "file": "app/services/job_intelligence_service.py",
+    "function_added": "_normalize_employer_score(value_0_to_10) -> float | None",
+    "boundary": "Applied only where employer.overall_score/employer.career_growth_score are read directly inside _opportunity_value(); NOT applied to the CareerDecisionEngine Industry scorecard percentage or the Career Growth scorecard fallback percentage (both already 0-100).",
+    "thresholds_changed": false
+  },
+  "tests": {
+    "new_tests_added": 12,
+    "file": "tests/test_job_intelligence_service.py",
+    "existing_tests_rescaled": 17,
+    "rescale_note": "17 pre-existing employer_score= test values were divided by 10 (e.g. 65.0->6.5) so they represent realistic 0-10-scale EmployerService input while preserving the exact same post-normalization tier each test originally exercised.",
+    "full_suite_result": "730 passed (718 pre-existing + 12 new), 0 failed, 0 regressions. Windows pytest temp-dir PermissionError (pre-existing, unrelated to this fix) reproduced and worked around via --basetemp for verification."
+  },
+  "benchmark_before": {
+    "funnel": {
+      "unique": 40,
+      "valid": 31,
+      "eligible": 20,
+      "competitive": 19,
+      "ab": 0
+    },
+    "priority_distribution": {
+      "C": 34,
+      "E": 4,
+      "D": 2
+    },
+    "opportunity_value_distribution": {
+      "LOW": 40
+    }
+  },
+  "benchmark_after": {
+    "funnel": {
+      "unique": 40,
+      "valid": 29,
+      "eligible": 18,
+      "competitive": 17,
+      "ab": 0
+    },
+    "priority_distribution": {
+      "C": 36,
+      "E": 3,
+      "D": 1
+    },
+    "opportunity_value_distribution": {
+      "MEDIUM": 22,
+      "HIGH": 10,
+      "LOW": 8
+    },
+    "top_blocking_reasons": [
+      {
+        "reason": "At least one mandatory factual requirement has no verified evidence either way (not proven absent, but not confirmed) -- requires human confirmation before automatic application preparation.",
+        "count": 32
+      },
+      {
+        "reason": "Hard eligibility is uncertain (geographic/work-authorization evidence is unclear) -- routed to human review; automatic application preparation must not proceed.",
+        "count": 12
+      },
+      {
+        "reason": "Vacancy validity is uncertain.",
+        "count": 9
+      },
+      {
+        "reason": "vacancy analysis is missing: company",
+        "count": 6
+      },
+      {
+        "reason": "vacancy analysis is missing: job title",
+        "count": 3
+      },
+      {
+        "reason": "Hard eligibility check failed -- candidate is not eligible for this vacancy.",
+        "count": 2
+      },
+      {
+        "reason": "Uncertain requirement: cross-functional collaboration -- no verified evidence matches this requirement's key terms",
+        "count": 2
+      },
+      {
+        "reason": "Uncertain requirement: CPA -- no verified evidence matches this requirement's key terms",
+        "count": 2
+      },
+      {
+        "reason": "Uncertain requirement: analytical skills -- no verified evidence matches this requirement's key terms",
+        "count": 2
+      },
+      {
+        "reason": "Uncertain requirement: insolvency -- no verified evidence matches this requirement's key terms",
+        "count": 2
+      }
+    ]
+  },
+  "priority_changes": [
+    {
+      "origin": "tracker",
+      "company": "CFS",
+      "job_title": "Senior Accountant",
+      "priority_before": "E",
+      "priority_after": "C",
+      "opportunity_value_before": "LOW",
+      "opportunity_value_after": "MEDIUM",
+      "screening_decision_before": "REVIEW",
+      "screening_decision_after": "AUTO_APPLY",
+      "vacancy_validity_before": "INVALID",
+      "vacancy_validity_after": "UNCERTAIN",
+      "attributable_to": "AI-call non-determinism in analyze_job()/employer.analyze() re-run (required_skills extraction and/or screening_decision differed), NOT the opportunity_value fix -- opportunity_value alone did not change the priority-tier outcome for this vacancy since a higher-precedence tier (validity/eligibility/requirement-evidence) already applied."
+    },
+    {
+      "origin": "arrangement_review_cache",
+      "company": "William Buck",
+      "job_title": "Graduate - Restructuring & Insolvency",
+      "priority_before": "D",
+      "priority_after": "C",
+      "opportunity_value_before": "LOW",
+      "opportunity_value_after": "LOW",
+      "screening_decision_before": "SKIP",
+      "screening_decision_after": "SKIP",
+      "vacancy_validity_before": "LIKELY_VALID",
+      "vacancy_validity_after": "LIKELY_VALID",
+      "attributable_to": "AI-call non-determinism in analyze_job()/employer.analyze() re-run (required_skills extraction and/or screening_decision differed), NOT the opportunity_value fix -- opportunity_value alone did not change the priority-tier outcome for this vacancy since a higher-precedence tier (validity/eligibility/requirement-evidence) already applied."
+    }
+  ],
+  "ab_still_unreached_root_cause": "opportunity_value is now correctly distributed (10 HIGH / 22 MEDIUM / 8 LOW across the 40 real vacancies, vs 40/40 LOW before the fix), and PRIORITY_APPLY is proven reachable in isolation (test_realistic_employer_score_makes_priority_apply_reachable). However A/B remains 0/40 in this real sample because a separate, higher-precedence, NOT-yet-fixed gate (Tier 2: 'at least one mandatory factual requirement has no verified evidence') fires on 32/40 (80%) of real vacancies and routes them to HUMAN_REVIEW before opportunity_value is ever consulted at Tier 5. This is Task 21.15's calibration finding #2 (incomplete behavioural-marker list), intentionally NOT touched in this task per its explicit scope.",
+  "measurement_caveat": "Re-running the real ApplicationService.evaluate_job() pipeline against the same 40 vacancies made fresh OpenAI calls (analyze_job + employer.analyze), which are not perfectly deterministic even at temperature=0. 14/40 (35%) vacancies show some drift in a dimension NOT touched by this fix (vacancy_validity, hard_eligibility inputs, candidate_competitiveness, screening_decision, or ats_grade) between the BEFORE and AFTER runs, and both of the 2 priority-level changes are attributable to this AI-call variance (confirmed by inspecting requirement_evidence_summary), not to the opportunity_value fix. The fix's effect is best isolated via the opportunity_value field itself (deterministically caused by this change) and via the dedicated unit tests.",
+  "production_mutation_check": {
+    "tracker_row_count_before": 40,
+    "tracker_row_count_after": 40,
+    "tracker_id_41_status": "DRAFTED (unchanged)",
+    "gmail_draft_r1968804358990478382": "DRAFT label, unchanged date/recipient"
+  }
+}

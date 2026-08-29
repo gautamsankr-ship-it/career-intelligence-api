@@ -14,8 +14,11 @@ class History:
 
 
 class Documents:
-    def __init__(self, directory): self.directory=Path(directory); self.calls=0
-    def evaluate_job(self, text): self.calls += 1; return SimpleNamespace()
+    def __init__(self, directory): self.directory=Path(directory); self.calls=0; self.last_hard_eligibility=None
+    def evaluate_job(self, text, opportunity=None, hard_eligibility=None):
+        self.calls += 1
+        self.last_hard_eligibility = hard_eligibility
+        return SimpleNamespace(hard_eligibility=hard_eligibility)
     def generate_application_documents(self, evaluation):
         resume=self.directory / "generated-resume.docx"; cover=self.directory / "generated-cover.docx"
         resume.write_text("resume", encoding="utf-8"); cover.write_text("cover", encoding="utf-8")
@@ -50,6 +53,8 @@ def test_eligible_auto_apply_generates_idempotent_browser_package(tmp_path):
 @pytest.mark.parametrize("change,expected", [
     ({"decision":"SKIP"}, "NOT_AUTO_APPLY"), ({"decision":"REVIEW"}, "NOT_AUTO_APPLY"),
     ({"remote_eligibility":"INELIGIBLE"}, "REMOTE_ELIGIBILITY_NOT_CONFIRMED"),
+    ({"remote_eligibility":"MANUAL_REVIEW"}, "REMOTE_ELIGIBILITY_NOT_CONFIRMED"),
+    ({"remote_eligibility":None}, "REMOTE_ELIGIBILITY_NOT_CONFIRMED"),
     ({"validation_only":True}, "VALIDATION_ONLY_REJECTED"),
 ])
 def test_production_gate_rejects_nonproduction_and_validation_only_records(tmp_path, change, expected):
@@ -57,6 +62,72 @@ def test_production_gate_rejects_nonproduction_and_validation_only_records(tmp_p
     package=orchestrator.prepare(1)
     assert package.readiness == "NOT_APPLICATION_ELIGIBLE" and package.blocking_reasons == [expected]
     assert orchestrator.document_service.calls == 0
+
+
+def test_not_applicable_remote_eligibility_is_not_blocked(tmp_path):
+    """Task 21.14B regression: a non-remote vacancy correctly resolves to
+    NOT_APPLICABLE (no known blocker), not "ELIGIBLE" -- the previous strict
+    `!= "ELIGIBLE"` check silently rejected every such vacancy."""
+    orchestrator = service(tmp_path, [record(remote_eligibility="NOT_APPLICABLE")])
+    package = orchestrator.prepare(1)
+    assert package.readiness != "NOT_APPLICATION_ELIGIBLE"
+    assert "REMOTE_ELIGIBILITY_NOT_CONFIRMED" not in package.blocking_reasons
+
+
+@pytest.mark.parametrize("priority,expected", [
+    ("E", "INTELLIGENCE_REJECTED"),
+    ("C", "INTELLIGENCE_HUMAN_REVIEW_REQUIRED"),
+    ("D", "INTELLIGENCE_WATCH"),
+])
+def test_intelligence_priority_is_authoritative_over_legacy_fields_when_present(tmp_path, priority, expected):
+    """Task 21.14E: intelligence_priority, when persisted, is the primary
+    gate -- even when the legacy decision/remote_eligibility fields would
+    otherwise have allowed the record through, a C/D/E priority still blocks."""
+    orchestrator = service(tmp_path, [record(
+        intelligence_priority=priority, decision="AUTO_APPLY", remote_eligibility="ELIGIBLE",
+    )])
+    package = orchestrator.prepare(1)
+    assert package.readiness == "NOT_APPLICATION_ELIGIBLE"
+    assert package.blocking_reasons == [expected]
+    assert orchestrator.document_service.calls == 0
+
+
+@pytest.mark.parametrize("priority", ["A", "B"])
+def test_intelligence_priority_a_or_b_proceeds_even_if_legacy_fields_would_have_blocked(tmp_path, priority):
+    """The inverse: A/B priority proceeds even when the legacy decision
+    field alone would have blocked it (e.g. a stale SKIP left over from an
+    earlier evaluation) -- intelligence_priority overrides, never the reverse."""
+    orchestrator = service(tmp_path, [record(intelligence_priority=priority, decision="SKIP", remote_eligibility="INELIGIBLE")])
+    package = orchestrator.prepare(1)
+    assert package.readiness != "NOT_APPLICATION_ELIGIBLE"
+    # Not blocked -> proceeds far enough to actually generate documents.
+    assert orchestrator.document_service.calls == 1
+
+
+def test_intelligence_priority_a_still_blocked_by_terminal_application_status(tmp_path):
+    """A terminal post-application status still blocks, even for a
+    ready (A/B) intelligence priority -- the terminal check is not bypassed."""
+    orchestrator = service(tmp_path, [record(intelligence_priority="A", status="APPLIED", application_status="APPLIED")])
+    package = orchestrator.prepare(1)
+    assert package.readiness == "NOT_APPLICATION_ELIGIBLE"
+    assert package.blocking_reasons == ["TERMINAL_APPLICATION_STATUS"]
+
+
+def test_generate_documents_reuses_tracker_recorded_eligibility_not_a_fresh_recomputation(tmp_path):
+    """Task 21.14B: the tracker's already-recorded remote_eligibility (the
+    same value _eligibility_reason() just gated on) must reach
+    ApplicationService.evaluate_job() directly, rather than being dropped in
+    favour of a fresh, weaker job_analysis-derived reclassification."""
+    orchestrator = service(tmp_path, [record(
+        remote_eligibility="ELIGIBLE", remote_eligibility_reason="Explicit worldwide remote eligibility",
+        remote_eligibility_evidence="work from anywhere",
+    )])
+    orchestrator.prepare(1)
+    passed = orchestrator.document_service.last_hard_eligibility
+    assert passed is not None
+    assert passed.decision == "ELIGIBLE"
+    assert passed.reason == "Explicit worldwide remote eligibility"
+    assert passed.evidence == "work from anywhere"
 
 
 def test_existing_same_tracker_documents_are_reused_and_wrong_prior_identity_is_not(tmp_path):

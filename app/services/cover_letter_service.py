@@ -30,15 +30,21 @@ Career Match Report:
 
 Write a professional cover letter.
 
+Structure:
+
+- Opening: the role and the candidate's strongest fit proposition
+- Evidence paragraph: the most vacancy-relevant experience
+- Achievement paragraph: 1-3 strong achievements, using only facts present in the Candidate Profile above
+- Employer-fit paragraph: why this candidate fits this employer/role, grounded in the Job Analysis above
+- Closing: a concise call to discuss further
+
 Requirements:
 
-- Maximum one page
-- Professional tone
-- Mention company name
-- Mention job title
-- Highlight matching experience
-- Mention key skills
-- Explain why the candidate is a strong fit
+- Target approximately 300-450 words (unless the Job Analysis states a different length requirement)
+- Professional, confident tone -- show evidence rather than asserting confidence (avoid lines like "I am confident I am the perfect candidate")
+- Mention the company name and job title
+- Do not state anything about the candidate that is not explicitly present in the Candidate Profile above -- never convert a Job Analysis requirement into a candidate claim
+- Do not invent, exaggerate, or add metrics/numbers not present in the Candidate Profile
 - End with a professional closing
 
 Return plain text only.

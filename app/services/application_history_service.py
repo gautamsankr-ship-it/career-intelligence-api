@@ -28,6 +28,15 @@ HISTORY_STATUSES = {
     "MANUAL_WEB_REQUIRED",
     "REMOTE_INELIGIBLE",
     "REMOTE_ELIGIBILITY_REVIEW",
+    # Task 21.14E: a JobIntelligence Priority.REJECT outcome NOT already
+    # covered by REMOTE_INELIGIBLE above (i.e. an invalid/stale vacancy or a
+    # proven hard requirement gap). Deliberately distinct from the existing
+    # post-application "REJECTED" (an employer outcome, grouped with
+    # APPLIED/INTERVIEW/OFFER/WITHDRAWN as a completed-lifecycle status) --
+    # reusing that value here would conflate "we never applied" with "we
+    # applied and were declined", losing a distinction future funnel
+    # reporting will want.
+    "INTELLIGENCE_REJECTED",
     "FAILED",
 }
 
@@ -174,6 +183,17 @@ class ApplicationHistoryService:
             "application_route_confidence": "TEXT",
             "application_route_resolved_at": "TEXT",
             "application_route_status": "TEXT",
+            # Task 21.14E: the authoritative JobIntelligence result, persisted
+            # so downstream consumers (ApplicationPackageOrchestrator, a
+            # future dashboard) can reuse it rather than recomputing a
+            # parallel decision. hard_eligibility and application_alignment
+            # are deliberately NOT duplicated here -- they already map onto
+            # the existing remote_eligibility* and ats_score columns above.
+            "intelligence_priority": "TEXT",
+            "intelligence_priority_reasons": "TEXT",
+            "vacancy_validity": "TEXT",
+            "opportunity_value": "TEXT",
+            "candidate_competitiveness": "TEXT",
         }
         existing = {row[1] for row in self.connection.execute("PRAGMA table_info(application_history)")}
         for column, definition in additions.items():
@@ -371,15 +391,31 @@ class ApplicationHistoryService:
         return [dict(row) for row in self.connection.execute(query, values).fetchall()]
 
     def list_ready_records(self):
-        """Return current, human-actionable vacancies without changing their lifecycle."""
-        terminal = {"APPLIED", "INTERVIEW", "OFFER", "REJECTED", "WITHDRAWN", "FAILED"}
+        """Return current, human-actionable vacancies without changing their
+        lifecycle. Task 21.14E: `intelligence_priority` (A/B = ready) is now
+        the authoritative gate when present; the previous raw decision/
+        remote_eligibility check is kept only as a fallback for records
+        persisted before this field existed, and never overrides
+        `intelligence_priority` when it's set."""
+        terminal = {"APPLIED", "INTERVIEW", "OFFER", "REJECTED", "WITHDRAWN", "FAILED", "INTELLIGENCE_REJECTED"}
         return [
             record for record in self.list_records()
-            if record.get("decision") == "AUTO_APPLY"
-            and record.get("remote_eligibility") == "ELIGIBLE"
+            if self._is_ready_for_preparation(record)
             and record.get("application_method") in {"EMAIL", "WEB"}
             and (record.get("application_status") or record.get("status")) not in terminal
         ]
+
+    @staticmethod
+    def _is_ready_for_preparation(record) -> bool:
+        priority = record.get("intelligence_priority")
+        if priority:
+            return priority in ("A", "B")
+        # Legacy fallback for records predating Task 21.14E's
+        # intelligence_priority field. NOT_APPLICABLE is included alongside
+        # ELIGIBLE (Task 21.14B: a non-remote vacancy is a "no blocker"
+        # state, not a rejection) for consistency with the same fix already
+        # applied to ApplicationPackageOrchestrator._eligibility_reason().
+        return record.get("decision") == "AUTO_APPLY" and record.get("remote_eligibility") in ("ELIGIBLE", "NOT_APPLICABLE")
 
     def set_manual_eligibility(self, record_id: int, eligibility: str, note: str) -> dict:
         """Persist an explicit human eligibility decision without rescoring."""

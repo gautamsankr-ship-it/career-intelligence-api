@@ -1,0 +1,304 @@
+{
+  "evidence_library_version": "2.0",
+  "note": "Normalized, provenance-tagged career evidence. Version 2.0 (Task 21.12) reconciles the conflicts raised in Task 21.11's CANDIDATE_FACT_RECONCILIATION_REPORT using the candidate's own explicit confirmations, dated 2026-08-28. Every fact still carries a status: VERIFIED (safe to use in employer-facing documents), NEEDS_CONFIRMATION (candidate must confirm before use), CONFLICTING (two sources disagree, unresolved), SUPERSEDED (an older, now-corrected value kept only for provenance -- never merged into generated documents). Historical/superseded values are preserved, never deleted, alongside each resolved fact.",
+  "sources": {
+    "STRUCTURED_PROFILE": "app/data/master_candidate_profile.json (existing authoritative, already-reconciled profile)",
+    "RESUME_PDF": "Resume_Shankar.pdf (Desktop) -- primary detailed CV document",
+    "COVER_LETTER_PDF": "SHANKAR_GAUTAM_-_Cover_Letter.pdf (Downloads) -- a single past tailored cover letter written for an 'Intermediate Accountant' application",
+    "USER_CONFIRMATION_2026-08-28": "Explicit candidate confirmations resolving the Task 21.11 CANDIDATE_FACT_RECONCILIATION_REPORT (Task 21.12)"
+  },
+
+  "years_of_experience": {
+    "value": 15,
+    "display": "15+ years",
+    "status": "VERIFIED",
+    "source": "USER_CONFIRMATION_2026-08-28",
+    "historical_values": [
+      {"value": "15+ years", "source": "STRUCTURED_PROFILE", "status": "SUPERSEDED_BY_SAME_VALUE"},
+      {"value": "over 17 years", "source": "COVER_LETTER_PDF", "status": "SUPERSEDED", "note": "Not corroborated by any resume date; user confirmed 15+ is authoritative."}
+    ]
+  },
+
+  "employment_history": [
+    {
+      "profile_company_alias": "Australian Accounting Firm",
+      "company": "Trident Financial Group, Chartered Accountants",
+      "position": "Offshore Team Manager",
+      "location": "Melbourne, Australia",
+      "period": {
+        "value": "July 2023 - October 2025", "status": "VERIFIED", "source": "RESUME_PDF",
+        "historical_values": [
+          {"value": "2024 - 2025", "source": "STRUCTURED_PROFILE", "status": "SUPERSEDED"}
+        ]
+      },
+      "team_size": {
+        "value": 12, "status": "VERIFIED", "source": "USER_CONFIRMATION_2026-08-28",
+        "note": "Belongs to Trident only -- must never be attributed to GSN Associates.",
+        "historical_values": [
+          {"value": 12, "source": "STRUCTURED_PROFILE", "status": "SUPERSEDED_BY_SAME_VALUE"},
+          {"value": 12, "source": "COVER_LETTER_PDF", "status": "SUPERSEDED_BY_SAME_VALUE", "note": "'scaled an offshore team from inception to 12 members'"}
+        ]
+      },
+      "extended_responsibilities": [
+        {"text": "Prepared and finalized year-end financial statements and income tax returns for a portfolio of SME, high-net-worth, expatriate, partnership, company, trust and SMSF clients, reviewing work performed by junior accountants.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Managed establishment of new client entities, including TFN, ABN, GST and PAYG withholding registration.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Executed ASIC compliance in CAS360, including annual reviews, company address/director/shareholder changes and share transfers.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Managed the full SMSF workflow: trust and trustee company establishment, Limited Recourse Borrowing Arrangement (LRBA) structures, annual accounting, audit coordination and tax compliance.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Prepared interim financial statements, budgets and cash flow projections.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Executed year-end tax planning strategies including trust and family trust distributions, bucket company structures and superannuation contributions via salary sacrifice.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Prepared and lodged BAS, IAS, FBT returns and GST returns for clients.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Identified and managed compliance for Division 7A, PSI, small business CGT concessions and FBT issues.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Hired, trained and supervised the offshore team of accountants and client service coordinators.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Set up accounting systems in Xero and QuickBooks, including direct bank feeds and payroll activation.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Reported to the director on weekly, monthly and quarterly targets, performance and revenue generated.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Prepared training manuals and videos for team members, documented on SharePoint.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Co-led Project Everest with a partner of Trident Financial Group.", "status": "VERIFIED", "source": "USER_CONFIRMATION_2026-08-28",
+          "note": "User confirmed this is genuine. No further scope, financial results, or client impact were provided -- none invented. Do not describe as sole-led."}
+      ],
+      "extended_technologies": [
+        {"text": "Xero", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "QuickBooks", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "CAS360", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "ATO Mate", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Simple Fund 360", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Now Infinity", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Karbon", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "SuiteFiles", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Microsoft 365", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "SharePoint", "status": "VERIFIED", "source": "RESUME_PDF"}
+      ],
+      "quantified_achievements": [
+        {"text": "Built Trident Financial Group's Nepal-based offshore accounting team from inception to 12 employees.", "status": "VERIFIED", "source": "STRUCTURED_PROFILE+COVER_LETTER_PDF+USER_CONFIRMATION_2026-08-28"},
+        {"text": "Achieved 145% of annual revenue target.", "status": "VERIFIED", "source": "USER_CONFIRMATION_2026-08-28",
+          "note": "Belongs to Trident only. User confirmed this figure as true.",
+          "historical_values": [{"value": "Achieved 145% of annual revenue targets.", "source": "COVER_LETTER_PDF", "status": "SUPERSEDED_BY_SAME_VALUE"}]},
+        {"text": "Improved tax filing compliance from 74% to 95%.", "status": "VERIFIED", "source": "USER_CONFIRMATION_2026-08-28",
+          "note": "Belongs to Trident only. User confirmed this figure as true.",
+          "historical_values": [{"value": "increasing tax compliance rates from 74% to 95%", "source": "COVER_LETTER_PDF", "status": "SUPERSEDED_BY_SAME_VALUE"}]}
+      ]
+    },
+    {
+      "profile_company_alias": "GSN Associates",
+      "company": "GSN Associates, Chartered Accountants",
+      "position": "Managing Partner",
+      "location": "Kathmandu, Nepal",
+      "period": {
+        "value": "April 2012 - July 2023", "status": "VERIFIED", "source": "USER_CONFIRMATION_2026-08-28",
+        "note": "The candidate then joined Trident Financial Group. This role is NOT current.",
+        "historical_values": [
+          {"value": "2022 - Present", "source": "STRUCTURED_PROFILE", "status": "SUPERSEDED", "note": "Incorrectly implied the role is ongoing."},
+          {"value": "April 2012 - June 2023", "source": "RESUME_PDF", "status": "SUPERSEDED", "note": "Resume said the role ended June 2023; user confirms July 2023 as the actual transition point to Trident."}
+        ]
+      },
+      "team_size": {
+        "value": 40, "status": "VERIFIED", "source": "USER_CONFIRMATION_2026-08-28",
+        "note": "Belongs to GSN Associates only -- must never be attributed to Trident. The structured profile's prior team_size:12 for this entry was a data-entry duplication of Trident's figure, now corrected.",
+        "historical_values": [
+          {"value": 12, "source": "STRUCTURED_PROFILE", "status": "SUPERSEDED", "note": "Was a copy-paste of Trident's team size, not an independently verified GSN figure."},
+          {"value": 40, "source": "COVER_LETTER_PDF", "status": "SUPERSEDED_BY_SAME_VALUE", "note": "'led a team of 40 professionals' -- now user-confirmed."}
+        ]
+      },
+      "extended_responsibilities": [
+        {"text": "Managed firm operations across advisory, auditing, business process outsourcing and tax verticals.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Reviewed and finalized statutory audit reports, internal audit reports and income tax returns for private companies, public companies, financial institutions, NGOs and INGOs.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Represented clients before statutory and regulatory authorities and financial institutions, negotiating business deals.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Prepared financial projections, capital budgeting, cash flows and financial models for mutual funds, hotels, hydropower, trading and manufacturing industries supporting debt financing, public issue and credit rating.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Chaired weekly training on tax, financial reporting and regulatory updates.", "status": "VERIFIED", "source": "RESUME_PDF"}
+      ],
+      "extended_technologies": [],
+      "quantified_achievements": [
+        {"text": "Led a team of 40 professionals at G.S.N. Associates.", "status": "VERIFIED", "source": "USER_CONFIRMATION_2026-08-28",
+          "note": "Belongs to GSN Associates only."}
+      ]
+    }
+  ],
+
+  "board_positions": [
+    {
+      "profile_organization_alias": "Prabhu Mahalaxmi Life Insurance Limited",
+      "organization": "Prabhu Mahalaxmi Life Insurance Limited",
+      "role": "Board of Directors",
+      "location": "Kathmandu, Nepal",
+      "period": {"value": "March 2022 - June 2025", "status": "VERIFIED", "source": "RESUME_PDF"},
+      "extended_responsibilities": [
+        {"text": "Participated in board meetings for strategic planning, policy formulation and regulatory compliance.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Led preparation of the annual budget with management and presented it to the Board for approval.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Reviewed investment proposals in the Investment Committee, chairing monthly reviews of portfolio performance and returns.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Held quarterly Audit Committee meetings with the internal auditor.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Recommended appointment of internal, external and information-system auditors and the actuary to the board.", "status": "VERIFIED", "source": "RESUME_PDF"}
+      ],
+      "quantified_achievements": [
+        {"text": "Managed and oversaw an approximately USD 140 million investment portfolio in a board/governance capacity.", "status": "VERIFIED", "source": "USER_CONFIRMATION_2026-08-28",
+          "note": "Presentation control: a board/governance-level oversight role, not an operational title (Chief Investment Officer / Portfolio Manager / Head of Investments) -- do not upgrade to an operational title without separate evidence. No performance/returns figures are claimed.",
+          "historical_values": [{"value": "managing a $140 million investment portfolio", "source": "COVER_LETTER_PDF", "status": "SUPERSEDED_BY_SAME_VALUE"}]},
+        {"text": "Participated in the transition of financial reporting to IFRS standards.", "status": "VERIFIED", "source": "USER_CONFIRMATION_2026-08-28",
+          "note": "Participation, not sole leadership -- do not strengthen to 'led' or 'single-handedly led'.",
+          "historical_values": [{"value": "transitioning financial reporting to IFRS standards", "source": "COVER_LETTER_PDF", "status": "SUPERSEDED"}]},
+        {"text": "Served as a key member in the merger of Prabhu Life Insurance and Mahalaxmi Life Insurance.", "status": "VERIFIED", "source": "USER_CONFIRMATION_2026-08-28",
+          "note": "A key member, not sole executor -- do not strengthen to 'executed' or 'led' the merger.",
+          "historical_values": [{"value": "successfully executing a merger that bolstered the company's capital position", "source": "COVER_LETTER_PDF", "status": "SUPERSEDED", "note": "Original phrasing implied sole execution; corrected to 'key member' per user confirmation."}]}
+      ]
+    }
+  ],
+
+  "ventures": [
+    {
+      "profile_company_alias": "Sewa360 ERP",
+      "company": "Sewa 360 Private Limited",
+      "role": "Co-Founder",
+      "period": {"value": "Jan 2021 - Current", "status": "VERIFIED", "source": "RESUME_PDF"},
+      "description": {
+        "text": "A SaaS practice-management platform for accounting firms and other professional-service firms -- conceptually comparable in purpose to practice-management systems such as Xero Practice Manager, with no affiliation, endorsement, integration, or identical functionality implied.",
+        "status": "VERIFIED", "source": "USER_CONFIRMATION_2026-08-28"
+      },
+      "extended_responsibilities": [
+        {"text": "Sales-pitched and demonstrated the product to partners of accounting/audit firms considering subscribing.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Participated in monthly co-founder meetings on sales, product bugs, customer feedback and growth strategy.", "status": "VERIFIED", "source": "RESUME_PDF"},
+        {"text": "Built product wireframes for the development team and validated output after each release.", "status": "VERIFIED", "source": "RESUME_PDF"}
+      ],
+      "quantified_achievements": [
+        {"text": "Co-founded Sewa 360, a SaaS practice-management platform for accounting and other professional-service firms, currently used by 14 firms.", "status": "VERIFIED", "source": "USER_CONFIRMATION_2026-08-28",
+          "note": "'Co-founded' matches the candidate's verified role (Co-Founder per the resume) -- not 'co-developed', since the verified role is business/co-founder, not a software-engineering role.",
+          "historical_values": [{"value": "Sewa360 implemented across 14 accounting/audit firms.", "source": "NOT_FOUND_IN_SUPPLIED_SOURCES", "status": "SUPERSEDED", "note": "Not traceable to either PDF at the time of the Task 21.11 addendum; now user-confirmed directly."}]}
+      ]
+    },
+    {
+      "profile_company_alias": null,
+      "company": "Liberty Holdings",
+      "role": "Co-Founder",
+      "period": {"value": null, "status": "VERIFIED", "source": "USER_CONFIRMATION_2026-08-28",
+        "note": "Involvement confirmed genuine. Dates not provided -- not invented."},
+      "description": {
+        "text": "Co-founded Liberty Holdings.",
+        "status": "VERIFIED", "source": "USER_CONFIRMATION_2026-08-28",
+        "note": "Only the fact of co-founding is confirmed. Ownership percentage, revenue, valuation, employee count and investment amount are NOT evidenced and must not be invented."
+      },
+      "extended_responsibilities": [],
+      "quantified_achievements": []
+    }
+  ],
+
+  "education_and_certifications": [
+    {"text": "Diploma in International Financial Reporting Standards (Dip IFRS, ACCA, UK)", "status": "VERIFIED", "source": "RESUME_PDF", "category": "certification"},
+    {"text": "Master of Commerce Equivalency (Chartered Accountancy recognized as equivalent), Tribhuvan University, 2018", "status": "VERIFIED", "source": "RESUME_PDF", "category": "education"},
+    {"text": "Chartered Accountancy, The Institute of Chartered Accountants of India (ICAI), 2011", "status": "VERIFIED", "source": "RESUME_PDF", "category": "education"},
+    {"text": "Bachelor's degree in Business Studies (BBS), Tribhuvan University, 2009", "status": "VERIFIED", "source": "RESUME_PDF", "category": "education"},
+    {"text": "Member, Institute of Chartered Accountants of India (ICAI)", "status": "VERIFIED", "source": "RESUME_PDF", "category": "membership"},
+    {"text": "Member, Institute of Chartered Accountants of Nepal (ICAN)", "status": "VERIFIED", "source": "RESUME_PDF", "category": "membership"}
+  ],
+
+  "teaching": [
+    {"text": "Assistant Faculty (MBA lecturer, financial management and cost management), King's College (Westcliff University, USA affiliate), Nov 2017 - Feb 2019.", "status": "VERIFIED", "source": "RESUME_PDF"}
+  ],
+
+  "conflicts": [
+    {
+      "fact": "Total years of professional experience",
+      "status": "RESOLVED",
+      "historical_values": [
+        {"source": "STRUCTURED_PROFILE", "value": "15+ years"},
+        {"source": "COVER_LETTER_PDF", "value": "over 17 years"}
+      ],
+      "authoritative_value": "15+ years",
+      "resolution_source": "USER_CONFIRMATION_2026-08-28",
+      "confidence": "HIGH",
+      "requires_user_confirmation": false
+    },
+    {
+      "fact": "Trident Financial Group employment period",
+      "status": "RESOLVED",
+      "historical_values": [
+        {"source": "STRUCTURED_PROFILE", "value": "2024 - 2025"},
+        {"source": "RESUME_PDF", "value": "July 2023 - October 2025"}
+      ],
+      "authoritative_value": "July 2023 - October 2025",
+      "resolution_source": "RESUME_PDF",
+      "confidence": "HIGH",
+      "requires_user_confirmation": false
+    },
+    {
+      "fact": "GSN Associates: is the Managing Partner role current or ended?",
+      "status": "RESOLVED",
+      "historical_values": [
+        {"source": "STRUCTURED_PROFILE", "value": "2022 - Present (ongoing)"},
+        {"source": "RESUME_PDF", "value": "April 2012 - June 2023 (ended)"}
+      ],
+      "authoritative_value": "April 2012 - July 2023 (ended; candidate then joined Trident Financial Group)",
+      "resolution_source": "USER_CONFIRMATION_2026-08-28",
+      "confidence": "HIGH",
+      "requires_user_confirmation": false
+    },
+    {
+      "fact": "GSN Associates team size vs Trident team size",
+      "status": "RESOLVED",
+      "historical_values": [
+        {"source": "STRUCTURED_PROFILE", "value": "GSN: 12 (duplicated from Trident's figure)"},
+        {"source": "COVER_LETTER_PDF", "value": "GSN: 40 professionals"}
+      ],
+      "authoritative_value": "GSN Associates: 40. Trident Financial Group: 12. These are distinct employers and must never be conflated.",
+      "resolution_source": "USER_CONFIRMATION_2026-08-28",
+      "confidence": "HIGH",
+      "requires_user_confirmation": false
+    },
+    {
+      "fact": "Prabhu Mahalaxmi Life Insurance board tenure: portfolio value, IFRS transition, merger role",
+      "status": "RESOLVED",
+      "historical_values": [
+        {"source": "RESUME_PDF", "value": "No portfolio value, no IFRS-transition claim, no personal merger-role claim -- merger described as part of the company's formation"},
+        {"source": "COVER_LETTER_PDF", "value": "$140 million investment portfolio; transitioned financial reporting to IFRS; successfully executed a merger"}
+      ],
+      "authoritative_value": "Managed/oversaw an approximately USD 140 million investment portfolio in a board/governance capacity; participated (not led) in the IFRS transition; was a key member (not sole executor) of the Prabhu Life Insurance / Mahalaxmi Life Insurance merger.",
+      "resolution_source": "USER_CONFIRMATION_2026-08-28",
+      "confidence": "HIGH",
+      "requires_user_confirmation": false
+    },
+    {
+      "fact": "\"Project Everest\" initiative at Trident/Nepal offshore branch",
+      "status": "RESOLVED",
+      "historical_values": [
+        {"source": "RESUME_PDF", "value": "Not mentioned"},
+        {"source": "COVER_LETTER_PDF", "value": "Named strategic initiative, credited solely to the candidate"}
+      ],
+      "authoritative_value": "Genuine; the candidate co-led Project Everest with a partner of Trident Financial Group. No further scope, financial results, or client impact evidenced -- none invented.",
+      "resolution_source": "USER_CONFIRMATION_2026-08-28",
+      "confidence": "HIGH",
+      "requires_user_confirmation": false
+    },
+    {
+      "fact": "Quantified Trident achievements: 145% of revenue targets; tax compliance 74%->95%",
+      "status": "RESOLVED",
+      "historical_values": [
+        {"source": "RESUME_PDF", "value": "Not stated"},
+        {"source": "COVER_LETTER_PDF", "value": "145% of annual revenue targets; tax compliance improved from 74% to 95%"}
+      ],
+      "authoritative_value": "Both figures confirmed true by the candidate; belong to Trident Financial Group only.",
+      "resolution_source": "USER_CONFIRMATION_2026-08-28",
+      "confidence": "HIGH",
+      "requires_user_confirmation": false
+    },
+    {
+      "fact": "\"Liberty Holdings\" co-founded venture",
+      "status": "RESOLVED",
+      "historical_values": [
+        {"source": "STRUCTURED_PROFILE", "value": "Not present in entrepreneurship list"},
+        {"source": "COVER_LETTER_PDF", "value": "Co-founded ventures like Liberty Holdings and SEWA 360"}
+      ],
+      "authoritative_value": "Genuine involvement confirmed. Only the fact of co-founding is confirmed -- ownership percentage, revenue, valuation, employee count, dates and investment amount remain unevidenced and are not claimed.",
+      "resolution_source": "USER_CONFIRMATION_2026-08-28",
+      "confidence": "MEDIUM",
+      "requires_user_confirmation": false
+    },
+    {
+      "fact": "Sewa360 adoption scale (\"across 14 firms\") and product description",
+      "status": "RESOLVED",
+      "historical_values": [
+        {"source": "RESUME_PDF", "value": "Not stated (describes sales-pitching to interested firms, no adoption count)"},
+        {"source": "COVER_LETTER_PDF", "value": "Not stated either"}
+      ],
+      "authoritative_value": "Sewa360 is a SaaS practice-management platform for accounting/professional-service firms, currently used by 14 firms (no Xero affiliation/endorsement/integration implied).",
+      "resolution_source": "USER_CONFIRMATION_2026-08-28",
+      "confidence": "HIGH",
+      "requires_user_confirmation": false
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import re
 from difflib import SequenceMatcher
 
 from app.services.industry.capability_dictionary import CAPABILITY_FAMILIES
@@ -104,14 +105,23 @@ class IndustryNormalizer:
 
         }
 
+        # Task 21.15E: word-boundary-safe replacement -- a naive substring
+        # .replace() corrupted any longer word that merely CONTAINS a short
+        # alias, e.g. "ai" inside "detail" ("attention to detail" ->
+        # "attention to detartificial intelligencel"), "ar" inside "GAAP"
+        # ("GAAP" -> "gaaccounts payable"), "market research", "variance
+        # analysis", "board reporting", "capital markets" and 140+ other
+        # real requirement phrases across the frozen benchmark -- silently
+        # destroying capabilities that would otherwise have matched a known
+        # family. \b anchors each alias to a whole token/phrase boundary.
         for short, full in aliases.items():
 
-            capability = capability.replace(
+            pattern = r"\b" + re.escape(short) + r"\b"
 
-                short,
-
-                full
-
+            capability = re.sub(
+                pattern,
+                full,
+                capability,
             )
 
         # --------------------------------------------------

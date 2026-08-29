@@ -120,11 +120,11 @@
     "position": "Managing Partner",
     "country": "Nepal",
     "employment_type": "Full Time",
-    "period": "2022 - Present",
+    "period": "April 2012 - July 2023",
 
-    "summary": "Leading audit, taxation, advisory, outsourcing and AI transformation initiatives for SMEs and infrastructure projects.",
+    "summary": "Led audit, taxation, advisory, outsourcing and business process outsourcing for SMEs and infrastructure projects before joining Trident Financial Group.",
 
-    "team_size": 12,
+    "team_size": 40,
 
     "key_clients": [
       "SMEs",
@@ -161,7 +161,7 @@
     "country": "Australia",
     "employment_type": "Remote",
 
-    "period": "2024 - 2025",
+    "period": "July 2023 - October 2025",
 
     "summary": "Managed offshore accounting operations for Australian SMEs.",
 
@@ -473,13 +473,15 @@
 
   {
 
-    "organization": "Public Company",
+    "organization": "Prabhu Mahalaxmi Life Insurance Limited",
 
-    "role": "Board Director",
+    "role": "Board of Directors",
 
     "country": "Nepal",
 
-    "status": "Current",
+    "period": "March 2022 - June 2025",
+
+    "status": "Past",
 
     "responsibilities": [
 
@@ -540,6 +542,14 @@
       "Workflow Automation"
 
     ]
+
+  },
+
+  {
+
+    "venture": "Liberty Holdings",
+
+    "role": "Co-Founder"
 
   }
 

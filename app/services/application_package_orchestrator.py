@@ -7,13 +7,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.models.application_package import ApplicationPackage
+from app.models.job_intelligence import Priority
 from app.services.application_answer_vault import ApplicationAnswerVault
 from app.services.application_history_service import ApplicationHistoryService
 from app.services.application_route_resolver import ApplicationRouteResolver
 from app.services.application_service import ApplicationService
+from app.services.remote_work_eligibility import ELIGIBLE, NOT_APPLICABLE, RemoteEligibilityResult
 
 PACKAGE_DIR = Path("app/data/application_packages")
-TERMINAL = {"APPLIED", "INTERVIEW", "OFFER", "REJECTED", "WITHDRAWN", "FAILED"}
+TERMINAL = {"APPLIED", "INTERVIEW", "OFFER", "REJECTED", "WITHDRAWN", "FAILED", "INTELLIGENCE_REJECTED"}
 
 
 class ApplicationPackageOrchestrator:
@@ -85,10 +87,32 @@ class ApplicationPackageOrchestrator:
     def _eligibility_reason(record):
         if record.get("validation_only") is True:
             return "VALIDATION_ONLY_REJECTED"
-        if record.get("decision") != "AUTO_APPLY":
-            return "NOT_AUTO_APPLY"
-        if record.get("remote_eligibility") != "ELIGIBLE":
-            return "REMOTE_ELIGIBILITY_NOT_CONFIRMED"
+
+        # Task 21.14E: intelligence_priority (persisted by CareerAgent from
+        # the one authoritative JobIntelligenceService.evaluate() call) is
+        # now the primary gate, replacing the raw decision/remote_eligibility
+        # checks below -- which remain ONLY as a fallback for records
+        # persisted before this field existed, and never override it when set.
+        priority = record.get("intelligence_priority")
+        if priority:
+            if priority == Priority.REJECT.value:
+                return "INTELLIGENCE_REJECTED"
+            if priority == Priority.HUMAN_REVIEW.value:
+                return "INTELLIGENCE_HUMAN_REVIEW_REQUIRED"
+            if priority == Priority.WATCH.value:
+                return "INTELLIGENCE_WATCH"
+            # PRIORITY_APPLY or APPLY -- continue to the terminal-status check below.
+        else:
+            if record.get("decision") != "AUTO_APPLY":
+                return "NOT_AUTO_APPLY"
+            # Task 21.14B: NOT_APPLICABLE (a non-remote vacancy -- no known
+            # blocker, same as the Task 21.14A funnel gate treats it) was
+            # previously rejected here just like INELIGIBLE/unassessed, because
+            # this check required the literal string "ELIGIBLE". That silently
+            # blocked every legitimately non-remote vacancy.
+            if record.get("remote_eligibility") not in (ELIGIBLE, NOT_APPLICABLE):
+                return "REMOTE_ELIGIBILITY_NOT_CONFIRMED"
+
         if record.get("application_status") in TERMINAL or record.get("status") in TERMINAL:
             return "TERMINAL_APPLICATION_STATUS"
         return ""
@@ -146,8 +170,31 @@ class ApplicationPackageOrchestrator:
 
     def _generate_documents(self, record):
         # Delegates to the existing vacancy-specific CV/cover-letter pipeline.
-        evaluation = self.document_service.evaluate_job(record.get("job_description") or record.get("job_title") or "")
+        # Task 21.14B: reuse the tracker's already-recorded, authoritative
+        # remote_eligibility (the same value _eligibility_reason() above
+        # already gated on) rather than letting evaluate_job() silently
+        # recompute a weaker one from a job_analysis-derived shim, which
+        # has no access to the real discovery-layer opportunity object and
+        # would almost always resolve to NOT_APPLICABLE regardless of what
+        # was actually determined about this vacancy.
+        hard_eligibility = self._known_hard_eligibility(record)
+        evaluation = self.document_service.evaluate_job(
+            record.get("job_description") or record.get("job_title") or "",
+            hard_eligibility=hard_eligibility,
+        )
         return self.document_service.generate_application_documents(evaluation)
+
+    @staticmethod
+    def _known_hard_eligibility(record):
+        decision = record.get("remote_eligibility")
+        if not decision:
+            return None
+        return RemoteEligibilityResult(
+            decision=decision,
+            scope="",
+            reason=record.get("remote_eligibility_reason") or "",
+            evidence=record.get("remote_eligibility_evidence") or "",
+        )
 
     @staticmethod
     def _cover_requirement(record):

@@ -18,6 +18,7 @@ from app.config import (
     GMAIL_CREDENTIALS_PATH,
     GMAIL_DRY_RUN,
     GMAIL_SCOPES,
+    GMAIL_SENDER_ADDRESS,
     GMAIL_TOKEN_PATH,
 )
 
@@ -88,12 +89,19 @@ class GmailService:
         subject: str,
         body: str,
         attachments: Iterable[str | Path] = (),
+        sender: str | None = GMAIL_SENDER_ADDRESS,
     ) -> EmailMessage:
         recipient = (recipient or "").strip()
         if not recipient:
             raise ValueError("A recipient email address must be supplied explicitly.")
 
         message = EmailMessage()
+        # Without an explicit From, Gmail falls back to whichever "Send As"
+        # alias is currently marked default on the account -- which may not
+        # be the intended sender -- so this is always set explicitly rather
+        # than left to that account-level default.
+        if sender:
+            message["From"] = sender
         message["To"] = recipient
         message["Subject"] = subject
         message.set_content(body)
@@ -125,8 +133,9 @@ class GmailService:
         subject: str,
         body: str,
         attachments: Iterable[str | Path] = (),
+        sender: str | None = GMAIL_SENDER_ADDRESS,
     ) -> str:
-        message = self.build_mime_message(recipient, subject, body, attachments)
+        message = self.build_mime_message(recipient, subject, body, attachments, sender)
         response = (
             self.authenticate()
             .users()
@@ -139,19 +148,48 @@ class GmailService:
             raise RuntimeError("Gmail draft response did not include a draft ID.")
         return draft_id
 
+    def update_draft(
+        self,
+        draft_id: str,
+        recipient: str,
+        subject: str,
+        body: str,
+        attachments: Iterable[str | Path] = (),
+        sender: str | None = GMAIL_SENDER_ADDRESS,
+    ) -> str:
+        """Replace an existing draft's content in place. Never sends; the
+        Gmail drafts.update endpoint only ever creates/updates a draft."""
+        draft_id = (draft_id or "").strip()
+        if not draft_id:
+            raise ValueError("An existing draft ID must be supplied explicitly to update a draft.")
+
+        message = self.build_mime_message(recipient, subject, body, attachments, sender)
+        response = (
+            self.authenticate()
+            .users()
+            .drafts()
+            .update(userId="me", id=draft_id, body={"message": self.build_gmail_body(message)})
+            .execute()
+        )
+        updated_id = response.get("id") or response.get("message", {}).get("id")
+        if not updated_id:
+            raise RuntimeError("Gmail draft update response did not include a draft ID.")
+        return updated_id
+
     def send_message(
         self,
         recipient: str,
         subject: str,
         body: str,
         attachments: Iterable[str | Path] = (),
+        sender: str | None = GMAIL_SENDER_ADDRESS,
     ) -> str:
         if self.dry_run or not self.auto_send:
             raise RuntimeError(
                 "Gmail send is disabled. Keep GMAIL_DRY_RUN=True and "
                 "GMAIL_AUTO_SEND=False until explicitly enabled."
             )
-        message = self.build_mime_message(recipient, subject, body, attachments)
+        message = self.build_mime_message(recipient, subject, body, attachments, sender)
         response = (
             self.authenticate()
             .users()
@@ -172,10 +210,11 @@ class GmailService:
         subject: str,
         body: str,
         attachments: Iterable[str | Path] = (),
+        sender: str | None = GMAIL_SENDER_ADDRESS,
     ) -> str:
         """Create a draft and update the Task 3 history record safely."""
         try:
-            draft_id = self.create_draft(recipient, subject, body, attachments)
+            draft_id = self.create_draft(recipient, subject, body, attachments, sender)
         except Exception as exc:
             history.update_record(
                 job_fingerprint,

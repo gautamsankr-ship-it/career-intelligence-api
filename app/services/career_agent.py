@@ -1,5 +1,9 @@
+import json
+
 from app.services.application_service import ApplicationService
 from app.services.job_discovery_service import JobDiscoveryService
+from app.services.job_intelligence_service import JobIntelligenceService
+from app.models.job_intelligence import Priority
 from app.services.queue_service import QueueService
 from app.services.application_history_service import (
     ApplicationHistoryService,
@@ -9,18 +13,29 @@ from app.services.application_email_classifier import (
     ApplicationEmailClassifier,
     EmailClassification,
 )
+from app.services.remote_work_eligibility import INELIGIBLE, MANUAL_REVIEW
 from app.config import SCREENING_AUTO_APPLY, SCREENING_REVIEW, SCREENING_SKIP
 
 
 class CareerAgent:
-    """Batch workflow for discovery, application generation, and queueing."""
+    """Batch workflow for discovery, application generation, and queueing.
 
-    def __init__(self, history_service=None) -> None:
+    Task 21.14E: `JobIntelligenceService`'s Priority (A-E) is the single
+    authoritative gate for whether application documents are prepared --
+    computed once, right after `evaluate_job()`, and never recomputed or
+    second-guessed downstream. `screening_decision`/`hard_eligibility`
+    remain on `JobEvaluation` (other code, and JobIntelligenceService
+    itself, still reads them), but this method no longer branches on them
+    directly for the prepare/don't-prepare decision.
+    """
+
+    def __init__(self, history_service=None, intelligence_service=None) -> None:
         self.discovery = JobDiscoveryService()
         self.queue = QueueService()
         self.application_service = ApplicationService()
         self.history = history_service or ApplicationHistoryService()
         self.email_classifier = ApplicationEmailClassifier()
+        self.intelligence_service = intelligence_service or JobIntelligenceService()
 
     def discover_jobs(self):
         return self.discovery.discover_jobs()
@@ -54,7 +69,7 @@ class CareerAgent:
                     continue
 
                 evaluation = self.application_service.evaluate_job(
-                    opportunity.job_description
+                    opportunity.job_description, opportunity=opportunity,
                 )
                 recruiter = evaluation.recruiter
 
@@ -72,14 +87,40 @@ class CareerAgent:
                 queue_item = self.queue.add_application(opportunity)
                 opportunity.metadata["queue_status"] = queue_item.status
 
-                history_status = {
-                    SCREENING_SKIP: "SKIPPED",
-                    SCREENING_REVIEW: "REVIEW",
-                    SCREENING_AUTO_APPLY: "ELIGIBLE",
-                }[evaluation.screening_decision]
+                # Task 21.14E: JobIntelligenceService.evaluate() is the one
+                # authoritative decision for this vacancy -- computed once,
+                # right here, reusing the hard_eligibility already on
+                # `evaluation` (never reclassified) plus vacancy validity/
+                # opportunity value/requirement evidence/candidate
+                # competitiveness. Everything below routes off
+                # `intelligence.priority`, not off screening_decision or
+                # hard_eligibility directly.
+                intelligence = self.intelligence_service.evaluate(evaluation, opportunity=opportunity)
+                eligibility = evaluation.hard_eligibility
+                opportunity.intelligence = intelligence
+                opportunity.metadata["intelligence_priority"] = intelligence.priority.value
+                opportunity.metadata["intelligence_priority_reasons"] = list(intelligence.priority_reasons)
+
+                prepare_documents = intelligence.priority in (Priority.PRIORITY_APPLY, Priority.APPLY)
+
+                if intelligence.priority == Priority.REJECT:
+                    history_status = (
+                        "REMOTE_INELIGIBLE" if eligibility is not None and eligibility.decision == INELIGIBLE
+                        else "INTELLIGENCE_REJECTED"
+                    )
+                elif intelligence.priority == Priority.HUMAN_REVIEW:
+                    history_status = (
+                        "REMOTE_ELIGIBILITY_REVIEW" if eligibility is not None and eligibility.decision == MANUAL_REVIEW
+                        else "REVIEW"
+                    )
+                elif intelligence.priority == Priority.WATCH:
+                    history_status = "SKIPPED"
+                else:  # PRIORITY_APPLY or APPLY
+                    history_status = "ELIGIBLE"
+
                 application_method = None
                 recipient_email = None
-                if evaluation.screening_decision == SCREENING_AUTO_APPLY:
+                if prepare_documents:
                     email_result = self.email_classifier.classify_opportunity(
                         opportunity,
                         evaluation.job_analysis,
@@ -110,6 +151,9 @@ class CareerAgent:
                     history_status,
                     application_method=application_method,
                     recipient_email=recipient_email,
+                    remote_eligibility=eligibility.decision if eligibility is not None else None,
+                    remote_eligibility_reason=eligibility.reason if eligibility is not None else None,
+                    remote_eligibility_evidence=eligibility.evidence if eligibility is not None else None,
                 )
                 if not accepted:
                     opportunity.metadata["history_status"] = "DUPLICATE"
@@ -118,8 +162,21 @@ class CareerAgent:
                 opportunity.metadata["job_fingerprint"] = fingerprint
                 opportunity.status = history_status
 
+                # Task 21.14E: persist the authoritative intelligence result
+                # (minimum metadata for future monitoring/dashboard use --
+                # hard_eligibility/application_alignment are not duplicated,
+                # they already map onto remote_eligibility*/ats_score above).
+                self.history.update_record(
+                    fingerprint,
+                    intelligence_priority=intelligence.priority.value,
+                    intelligence_priority_reasons=json.dumps(list(intelligence.priority_reasons)),
+                    vacancy_validity=intelligence.vacancy_validity.value,
+                    opportunity_value=intelligence.opportunity_value.value,
+                    candidate_competitiveness=intelligence.candidate_competitiveness.value,
+                )
+
                 result = None
-                if evaluation.screening_decision == SCREENING_AUTO_APPLY:
+                if prepare_documents:
                     result = self.application_service.generate_application_documents(
                         evaluation
                     )
@@ -170,8 +227,8 @@ class CareerAgent:
                     for item in result.resume_strategy["keywords_missing"][:5]:
                         print(f"  - {item}")
                 else:
-                    print("Documents         : Not generated; screening decision is "
-                          f"{evaluation.screening_decision}")
+                    print("Documents         : Not generated; intelligence priority is "
+                          f"{intelligence.priority.value} ({intelligence.priority.name})")
 
                 print()
                 print("Strengths")

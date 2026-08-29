@@ -88,6 +88,11 @@ GMAIL_AUTO_SEND = False
 GMAIL_CREDENTIALS_PATH = "credentials.json"
 GMAIL_TOKEN_PATH = "token.json"
 GMAIL_SCOPES = ("https://www.googleapis.com/auth/gmail.compose",)
+# The authenticated account's own primary address. Without an explicit From
+# header, drafts/sends fall back to whichever "Send As" alias is currently
+# marked default in the account's own Gmail settings, which may not be this
+# address -- so application email must always set From explicitly.
+GMAIL_SENDER_ADDRESS = "gautamsankr@gmail.com"
 
 # Browser application preview is deliberately read-only in Task 21.
 APPLICATION_DRY_RUN = True

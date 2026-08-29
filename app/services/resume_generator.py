@@ -28,10 +28,17 @@ class ResumeGenerator:
         self,
         composition: dict,
         job_analysis: dict,
+        include_ats_summary: bool = False,
     ) -> str:
 
         """
         Main entry point.
+
+        `include_ats_summary` is opt-in and False by default: ATS score,
+        grade, interview probability, keyword coverage and keyword
+        diagnostics are internal recruiter/screening information and must
+        never appear in employer-facing output. Pass True only for an
+        explicitly internal-use rendering.
         """
 
         self.lines = []
@@ -50,7 +57,9 @@ class ResumeGenerator:
         self._render_experience()
         self._render_projects()
         self._render_education()
-        self._render_ats_summary()
+
+        if include_ats_summary:
+            self._render_ats_summary()
 
         # ------------------------------------------------------
         # Save Markdown
@@ -151,19 +160,8 @@ class ResumeGenerator:
             {}
         )
 
-        self.lines.append("## Professional Summary")
+        self.lines.append("## Professional Profile")
         self.lines.append("")
-
-        headline = summary.get(
-            "headline",
-            ""
-        )
-
-        if headline:
-            self.lines.append(
-                f"**Target Position:** {headline}"
-            )
-            self.lines.append("")
 
         executive_summary = summary.get(
             "executive_summary",
@@ -172,20 +170,6 @@ class ResumeGenerator:
 
         if executive_summary:
             self.lines.append(executive_summary)
-            self.lines.append("")
-
-        focus_areas = summary.get(
-            "focus_areas",
-            []
-        )
-
-        if focus_areas:
-
-            self.lines.append("**Core Focus Areas**")
-
-            for area in focus_areas:
-                self.lines.append(f"- {area}")
-
             self.lines.append("")
 
     # ==========================================================
@@ -205,13 +189,23 @@ class ResumeGenerator:
         self.lines.append("## Core Competencies")
         self.lines.append("")
 
-        sections = [
+        core = skills.get("core", [])
+        if isinstance(core, list) and core:
+            self.lines.append(", ".join(core))
+            self.lines.append("")
+        elif core:
+            self.lines.append(str(core))
+            self.lines.append("")
 
-            ("Core Skills", skills.get("core", [])),
+        # "Technical Skills" is kept as a defensive fallback for any caller
+        # that still supplies a separate technical-skills value; the normal
+        # ResumeComposer path folds this into the single "core" list above
+        # (Task 21.13) so it stays empty and renders nothing in practice.
+        sections = [
 
             ("Technical Skills", skills.get("technical", [])),
 
-            ("Software", skills.get("software", []))
+            ("Systems & Technology", skills.get("software", []))
 
         ]
 
@@ -227,6 +221,23 @@ class ResumeGenerator:
                 self.lines.append(
                     ", ".join(values)
                 )
+
+            elif isinstance(values, dict):
+
+                for category, items in values.items():
+
+                    if isinstance(items, list):
+
+                        self.lines.append(
+                            f"- **{category}:** "
+                            + ", ".join(items)
+                        )
+
+                    else:
+
+                        self.lines.append(
+                            f"- **{category}:** {items}"
+                        )
 
             else:
 
@@ -300,7 +311,7 @@ class ResumeGenerator:
             []
         ):
 
-            title = job.get("title", "")
+            title = job.get("title") or job.get("position") or ""
             company = job.get("company", "")
             period = job.get("period", "")
             location = job.get("location", "")
@@ -416,7 +427,8 @@ class ResumeGenerator:
                     x for x in [role, client] if x
                 )
 
-                self.lines.append(f"### {heading}")
+                if heading:
+                    self.lines.append(f"### {heading}")
 
                 if period:
                     self.lines.append(period)
@@ -460,9 +472,10 @@ class ResumeGenerator:
 
             for role in board:
 
-                designation = role.get(
-                    "designation",
-                    ""
+                designation = (
+                    role.get("designation")
+                    or role.get("role")
+                    or ""
                 )
 
                 organization = role.get(
@@ -475,9 +488,12 @@ class ResumeGenerator:
                     ""
                 )
 
-                self.lines.append(
-                    f"### {designation} | {organization}"
+                heading = " | ".join(
+                    x for x in [designation, organization] if x
                 )
+
+                if heading:
+                    self.lines.append(f"### {heading}")
 
                 if period:
                     self.lines.append(period)
@@ -512,9 +528,10 @@ class ResumeGenerator:
 
             for venture in ventures:
 
-                company = venture.get(
-                    "company",
-                    ""
+                company = (
+                    venture.get("company")
+                    or venture.get("venture")
+                    or ""
                 )
 
                 role = venture.get(
@@ -532,9 +549,12 @@ class ResumeGenerator:
                     ""
                 )
 
-                self.lines.append(
-                    f"### {role} | {company}"
+                heading = " | ".join(
+                    x for x in [role, company] if x
                 )
+
+                if heading:
+                    self.lines.append(f"### {heading}")
 
                 meta = " | ".join(
                     x for x in [period, status] if x
@@ -730,9 +750,10 @@ class ResumeGenerator:
             []
         ):
 
-            degree = qualification.get(
-                "degree",
-                ""
+            degree = (
+                qualification.get("degree")
+                or qualification.get("qualification")
+                or ""
             )
 
             institution = qualification.get(
@@ -750,9 +771,10 @@ class ResumeGenerator:
                 ""
             )
 
-            self.lines.append(
-                f"### {degree}"
-            )
+            if degree:
+                self.lines.append(
+                    f"### {degree}"
+                )
 
             meta = " | ".join(
                 x for x in [
