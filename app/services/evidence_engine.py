@@ -41,9 +41,53 @@ class EvidenceEngine:
     # Candidate Knowledge
     # =====================================================
 
+    # Task 21.15J: bounded, deterministic clause splitter for long
+    # multi-clause prose fields ONLY (professional_summary.headline/
+    # career_direction/value_proposition) -- these are the sole "long
+    # narrative" fields in the profile that pack several distinct facts into
+    # one sentence (e.g. "...accounting, taxation, audit, ..., Australian
+    # public practice, ..."). Every other profile field (skills, technology,
+    # experience.*, responsibilities.*, education, project fields) is
+    # already a short label or a single-fact-per-item list and is
+    # deliberately left untouched. Splitting only on comma/semicolon/" and "/
+    # " & " -- structural list-joiners, not arbitrary substring generation --
+    # keeps every derived segment an exact, traceable substring of the
+    # original verified sentence; no new fact is invented.
+    _CLAUSE_SPLIT_PATTERN = re.compile(r",|;| and | & ")
+
+    def _segment_long_text(self, text):
+        segments = []
+
+        for raw in self._CLAUSE_SPLIT_PATTERN.split(text):
+
+            clause = raw.strip().strip(".").strip()
+
+            # Bare single- or two-word clauses (e.g. "taxation", "Data
+            # Analytics") are dropped. Two words is still short enough for a
+            # single shared generic word (e.g. "analytics") to dominate the
+            # word-overlap ratio against an unrelated specialized query
+            # (e.g. "blockchain analytics") -- confirmed empirically during
+            # Task 21.15J's false-positive testing, where a 2-word "Data
+            # Analytics" segment gave "blockchain analytics" partial credit
+            # it should not have. Requiring 3+ words keeps the target fix
+            # ("Australian public practice") while removing that risk, and
+            # further limits false-positive surface area generally.
+            if clause and len(clause.split()) >= 3:
+
+                segments.append(clause)
+
+        return segments
+
     def _build_candidate_terms(self):
 
         evidence = {}
+
+        # Task 21.15J: provenance for every long-text-derived segment --
+        # keyed by the segment's own normalized form, so evidence_score()
+        # can report exactly which source field/sentence a match came from.
+        # Short atomic terms (the overwhelming majority) carry no entry here
+        # and are unaffected.
+        self._term_provenance = {}
 
         def add(term, weight):
 
@@ -56,6 +100,31 @@ class EvidenceEngine:
                 return
 
             evidence[term] = evidence.get(term, 0) + weight
+
+        def add_long_text(text, weight, source_field):
+            """Adds the field's full original text as a candidate term
+            (unchanged existing behaviour), PLUS its clause-level segments
+            as additional, separately retrievable candidate terms. Purely
+            additive -- the original atomic term is never removed."""
+
+            add(text, weight)
+
+            if not text:
+                return
+
+            for segment in self._segment_long_text(text):
+
+                add(segment, weight)
+
+                normalized_segment = self._normalize(segment)
+
+                if normalized_segment:
+
+                    self._term_provenance[normalized_segment] = {
+                        "source_field": source_field,
+                        "source_text": text,
+                        "derived_segment": segment,
+                    }
 
         # -------------------------------------------------
         # Skills
@@ -149,11 +218,11 @@ class EvidenceEngine:
 
         summary = self.profile.get("professional_summary", {})
 
-        add(summary.get("headline", ""), 5)
+        add_long_text(summary.get("headline", ""), 5, "professional_summary.headline")
 
-        add(summary.get("career_direction", ""), 4)
+        add_long_text(summary.get("career_direction", ""), 4, "professional_summary.career_direction")
 
-        add(summary.get("value_proposition", ""), 4)
+        add_long_text(summary.get("value_proposition", ""), 4, "professional_summary.value_proposition")
 
         return evidence
 
@@ -366,4 +435,8 @@ class EvidenceEngine:
             "confidence": round(best_similarity * 100, 1),
             "matched": best_match,
             "weight": best_weight,
+            # Task 21.15J: present only when `matched` is a long-text-derived
+            # segment (e.g. professional_summary.headline); None for every
+            # pre-existing short atomic term.
+            "provenance": self._term_provenance.get(best_match),
         }
