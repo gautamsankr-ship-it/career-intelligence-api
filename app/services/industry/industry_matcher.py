@@ -36,17 +36,33 @@ class IndustryMatcher:
 
         matched_families = set()
 
-        requested_families = set()
+        classified_families = set()
+
+        unclassified_capabilities = set()
 
         total_confidence = 0
 
         confidence_count = 0
 
+        total_requested = 0
+
+        classified_count = 0
+
         # ------------------------------------------------------
-        # Determine requested families
+        # Task 21.15I: classify each requested capability into a genuine
+        # CAPABILITY_FAMILIES family, or preserve it as an unclassified/
+        # orphan capability. An unrecognized capability must never become a
+        # fake, permanently-unmatchable pseudo-family (IndustryNormalizer's
+        # own last-resort fallback returns a made-up title-cased name for
+        # anything it can't classify) -- doing so silently inflated the
+        # coverage denominator below with families that had zero items to
+        # test evidence against, structurally capping the achievable score
+        # regardless of true domain fit (Task 21.15H root cause).
         # ------------------------------------------------------
 
         for capability in requested_capabilities:
+
+            total_requested += 1
 
             family = self.normalizer.normalize(
 
@@ -54,17 +70,21 @@ class IndustryMatcher:
 
             )
 
-            requested_families.add(
+            if family in CAPABILITY_FAMILIES:
 
-                family
+                classified_families.add(family)
 
-            )
+                classified_count += 1
+
+            else:
+
+                unclassified_capabilities.add(capability.strip())
 
         # ------------------------------------------------------
-        # Evaluate each family once
+        # Evaluate each classified family once
         # ------------------------------------------------------
 
-        for family in requested_families:
+        for family in classified_families:
 
             family_items = CAPABILITY_FAMILIES.get(
 
@@ -130,7 +150,15 @@ class IndustryMatcher:
         # Coverage
         # ------------------------------------------------------
 
-        if requested_families:
+        # Task 21.15I: the denominator now contains ONLY genuine
+        # CAPABILITY_FAMILIES families (orphan capabilities were already
+        # excluded above) -- a genuinely requested-but-unmatched real family
+        # (e.g. Insolvency & Restructuring with no candidate evidence) still
+        # counts fully against coverage; only orphan noise is excluded. When
+        # NO real family could be identified at all, coverage is 0 (never
+        # treated as perfect fit by default).
+
+        if classified_families:
 
             coverage = (
 
@@ -138,13 +166,31 @@ class IndustryMatcher:
 
                 /
 
-                len(requested_families)
+                len(classified_families)
 
             )
 
         else:
 
-            coverage = 1
+            coverage = 0
+
+        unmatched_families = classified_families - matched_families
+
+        # Task 21.15I: classification_coverage guards against reading "every
+        # classified family matched" as proof of overall domain fit when a
+        # large share of the vacancy's own capability list was never
+        # classified into any family at all (e.g. a niche specialty the
+        # taxonomy doesn't yet cover) -- see IndustryScorer.score(), which
+        # applies this as a confidence-safeguard multiplier on the final
+        # score rather than folding it into `coverage` itself, so `coverage`
+        # keeps its existing, narrower meaning (fit among classified
+        # families only).
+
+        classification_coverage = (
+
+            classified_count / total_requested
+
+        ) if total_requested else 1.0
 
         if confidence_count:
 
@@ -165,6 +211,14 @@ class IndustryMatcher:
         return {
 
             "coverage": coverage,
+
+            "classification_coverage": round(
+
+                classification_coverage,
+
+                3
+
+            ),
 
             "confidence": round(
 
@@ -208,9 +262,21 @@ class IndustryMatcher:
 
             ),
 
+            "unmatched_families": sorted(
+
+                unmatched_families
+
+            ),
+
             "requested_families": sorted(
 
-                requested_families
+                classified_families
+
+            ),
+
+            "unclassified_capabilities": sorted(
+
+                unclassified_capabilities
 
             )
 

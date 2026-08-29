@@ -98,6 +98,25 @@ class IndustryScorer:
         coverage = matched_families / total_families
 
         # ---------------------------------------------
+        # Classification-Coverage Safeguard (Task 21.15I)
+        # ---------------------------------------------
+
+        # `coverage` above only measures fit AMONG families the taxonomy
+        # actually recognized. It is not proof of overall domain fit when
+        # much of the vacancy's own capability list was never classified
+        # into any real family at all (e.g. a niche specialty -- crypto/AML
+        # investigations, blockchain forensics -- the taxonomy doesn't yet
+        # cover). classification_coverage is the fraction of the vacancy's
+        # raw requested capabilities that DID classify into a real family;
+        # multiplying it in prevents "every classified family matched" from
+        # reading as a false-perfect score when the taxonomy only understood
+        # a small generic subset of what the role actually asked for.
+        classification_coverage = result.get(
+            "classification_coverage",
+            1.0
+        )
+
+        # ---------------------------------------------
         # Confidence Boost
         # ---------------------------------------------
 
@@ -115,11 +134,37 @@ class IndustryScorer:
 
         score = round(
 
-            coverage * weight,
+            coverage * classification_coverage * weight,
 
             1
 
         )
+
+        reason = (
+
+            f"Covered "
+
+            f"{matched_families} of "
+
+            f"{total_families} "
+
+            f"classified industry capability families."
+
+        )
+
+        unclassified = result.get("unclassified_capabilities", [])
+
+        if unclassified:
+
+            reason += (
+
+                f" {len(unclassified)} requested capabilit"
+
+                f"{'y was' if len(unclassified) == 1 else 'ies were'} "
+
+                f"not recognized by the taxonomy."
+
+            )
 
         return {
 
@@ -131,16 +176,6 @@ class IndustryScorer:
 
             "missing": missing,
 
-            "reason": (
-
-                f"Covered "
-
-                f"{matched_families} of "
-
-                f"{total_families} "
-
-                f"industry capability families."
-
-            )
+            "reason": reason
 
         }

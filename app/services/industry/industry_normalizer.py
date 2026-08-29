@@ -47,6 +47,24 @@ class IndustryNormalizer:
         capability = capability.strip().lower()
 
         # --------------------------------------------------
+        # Exact Match (before alias expansion)
+        # --------------------------------------------------
+
+        # Task 21.15I: alias expansion below is a destructive rewrite (e.g.
+        # "m&a" -> "mergers and acquisitions") that can destroy an
+        # already-exact match. "M&A Integration" is a literal, correctly
+        # mapped CAPABILITY_FAMILIES item (self.lookup["m&a integration"] ==
+        # "Corporate Finance"), but alias substitution used to rewrite it to
+        # "mergers and acquisitions integration" *before* the exact-lookup
+        # check ever ran, so it fell through to the unmatchable orphan
+        # fallback below instead. Checking the raw (pre-alias) string first
+        # preserves every dictionary entry that already spells out its own
+        # abbreviation exactly as written (M&A Integration, FP&A, ERP, ...).
+        if capability in self.lookup:
+
+            return self.lookup[capability]
+
+        # --------------------------------------------------
         # Business Abbreviations / Aliases
         # --------------------------------------------------
 
@@ -125,7 +143,7 @@ class IndustryNormalizer:
             )
 
         # --------------------------------------------------
-        # Exact Match
+        # Exact Match (after alias expansion)
         # --------------------------------------------------
 
         if capability in self.lookup:

@@ -177,6 +177,121 @@ def test_industry_scoring_is_deterministic_across_repeated_calls():
 
 # --- Precedence unchanged: eligibility/criticality still override -----------
 
+# --- Task 21.15I: normalization ordering + orphan/family separation --------
+
+def test_ma_integration_maps_exactly_to_corporate_finance():
+    """The confirmed 21.15H bug: alias expansion of "m&a" rewrote "M&A
+    Integration" away from its own literal, correct dictionary mapping
+    before the exact-lookup check ever ran."""
+    normalizer = IndustryNormalizer()
+    assert normalizer.normalize("M&A Integration") == "Corporate Finance"
+    assert normalizer.normalize("M&A integration") == "Corporate Finance"
+
+
+def test_alias_normalization_still_works_for_standalone_abbreviations():
+    """Checking exact-lookup before alias expansion must not disable alias
+    expansion itself for a genuine abbreviation with no direct dictionary
+    entry of its own."""
+    normalizer = IndustryNormalizer()
+    assert normalizer.normalize("M&A") == "Corporate Finance"
+    assert normalizer.normalize("ERP") == "ERP"
+
+
+def test_orphan_capability_is_not_converted_into_a_fake_family():
+    matcher = IndustryMatcher()
+    result = matcher.match_all(["Elliptic Specialist Investigator Certification"])
+    assert result["requested_families"] == []
+    assert "Elliptic Specialist Investigator Certification" not in result["families"]
+
+
+def test_orphan_capability_remains_visible_diagnostically():
+    matcher = IndustryMatcher()
+    result = matcher.match_all([
+        "Elliptic Specialist Investigator Certification", "Financial Reporting",
+    ])
+    assert "Elliptic Specialist Investigator Certification" in result["unclassified_capabilities"]
+    assert "Accounting" in result["requested_families"]
+
+
+def test_genuine_unmatched_family_remains_a_denominator_penalty():
+    """Insolvency & Restructuring is a real family; with zero candidate
+    evidence it must still reduce coverage -- the fix must not treat a
+    genuine domain gap the same as denominator noise."""
+    matcher = IndustryMatcher()
+    result = matcher.match_all(["Insolvency", "Voluntary Administration", "Financial Reporting"])
+    assert "Insolvency & Restructuring" in result["requested_families"]
+    assert "Insolvency & Restructuring" in result["unmatched_families"]
+    assert result["coverage"] < 1.0
+
+
+def test_all_classified_families_matched_scores_full_weight():
+    result = _score({
+        "finance_domains": ["Financial Reporting", "Tax Compliance"],
+        "required_skills": [], "preferred_skills": [], "technologies": [],
+    })
+    assert result["score"] == 10.0
+
+
+def test_mixed_known_and_orphan_capabilities_orphans_excluded_from_denominator():
+    """Family fit must be measured only among classified families -- a large
+    number of unclassified free-text capabilities must not dilute it (the
+    21.15H Net at Work / Wipfli / Stress Free Accounts root cause) while
+    still damping the final score via classification_coverage (Fix 4)."""
+    job_analysis = {
+        "finance_domains": ["Financial Reporting", "Tax Compliance"],
+        "required_skills": [
+            "Building credibility across all levels",
+            "Influencing without direct authority",
+            "Managing multiple projects with competing priorities",
+        ],
+        "preferred_skills": [], "technologies": [],
+    }
+    matcher = IndustryMatcher()
+    capabilities = job_analysis["finance_domains"] + job_analysis["required_skills"]
+    result = matcher.match_all(capabilities)
+    assert result["coverage"] == 1.0  # family fit unaffected by orphan volume
+    assert len(result["unclassified_capabilities"]) == 3
+    scored = _score(job_analysis)
+    assert 0 < scored["score"] < 10.0  # damped by classification_coverage, not falsely perfect
+
+
+def test_high_orphan_ratio_does_not_produce_a_perfect_industry_score():
+    """A vacancy whose real signal is dominated by highly specific,
+    taxonomy-unrecognized terminology (the Circle / crypto-AML shape) must
+    not read as a perfect domain match merely because the few families the
+    taxonomy did recognize all happened to match."""
+    job_analysis = {
+        "finance_domains": [],
+        "required_skills": [
+            "Financial Reporting",
+            "KYC framework design", "Elliptic Specialist Investigator Certification",
+            "TRM Advanced Crypto Investigations (TRM-ACI)", "blockchain analytics tooling",
+            "blockchain forensic tools", "liaising with UAE regulators and law enforcement",
+            "subject matter expertise with virtual asset service providers",
+            "writing investigative reports and regulatory filings",
+        ],
+        "preferred_skills": [], "technologies": [],
+    }
+    result = _score(job_analysis)
+    assert result["score"] < 5.0
+
+
+def test_insolvency_vacancy_remains_penalized_without_insolvency_evidence():
+    result = _score({
+        "finance_domains": ["Insolvency", "Liquidation", "Receivership"],
+        "required_skills": [], "preferred_skills": [], "technologies": [],
+    })
+    assert result["score"] == 0.0
+
+
+def test_deterministic_replay_stable_with_new_diagnostic_fields():
+    capabilities = ["Financial Reporting", "Tax Compliance", "Excel", "PMP certification"]
+    matcher = IndustryMatcher()
+    first = matcher.match_all(capabilities)
+    second = matcher.match_all(capabilities)
+    assert first == second
+
+
 def test_hard_ineligibility_still_rejects_regardless_of_improved_industry_score():
     """The Industry-scoring fix must not weaken the funnel's precedence --
     an INELIGIBLE vacancy is still REJECT even with a genuinely strong,
