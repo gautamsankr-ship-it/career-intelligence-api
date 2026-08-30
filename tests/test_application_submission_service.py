@@ -1,4 +1,6 @@
-from app.services.application_submission_service import ApplicationSubmissionService
+import pytest
+from pathlib import Path
+from app.services.application_submission_service import ApplicationSubmissionService, RECEIPT_DIR, LOCK_DIR
 from test_final_review_service import setup
 
 class Browser:
@@ -24,3 +26,25 @@ def test_failed_and_uncertain_do_not_apply(tmp_path):
   reviews,record,pkg,exe=setup(tmp_path/outcome); record['job_fingerprint']='f'; reviews.history.update_record=lambda *a,**k: record.update(k)
   review=reviews.create(42); reviews.approve(review.review_id); r=ApplicationSubmissionService(reviews,Browser(outcome),tmp_path/outcome/'r',tmp_path/outcome/'l').submit(review.review_id,f'SUBMIT {review.review_id}')
   assert r.outcome==outcome and record['status']!='APPLIED'
+
+def test_bare_construction_without_paths_raises_instead_of_defaulting_to_production(tmp_path):
+ assert not RECEIPT_DIR.exists() and not LOCK_DIR.exists()
+ with pytest.raises(TypeError):
+  ApplicationSubmissionService()
+ assert not RECEIPT_DIR.exists() and not LOCK_DIR.exists()
+
+def test_partial_construction_missing_lock_dir_raises(tmp_path):
+ with pytest.raises(TypeError):
+  ApplicationSubmissionService(receipt_dir=tmp_path/'receipts')
+ assert not RECEIPT_DIR.exists() and not LOCK_DIR.exists()
+
+def test_partial_construction_missing_receipt_dir_raises(tmp_path):
+ with pytest.raises(TypeError):
+  ApplicationSubmissionService(lock_dir=tmp_path/'locks')
+ assert not RECEIPT_DIR.exists() and not LOCK_DIR.exists()
+
+def test_explicit_isolated_construction_still_works_and_uses_only_isolated_paths(tmp_path):
+ reviews,record,pkg,exe=setup(tmp_path)
+ service=ApplicationSubmissionService(reviews,Browser('SUBMISSION_CONFIRMED'),tmp_path/'receipts',tmp_path/'locks')
+ assert service.receipt_dir==tmp_path/'receipts' and service.lock_dir==tmp_path/'locks'
+ assert not RECEIPT_DIR.exists() and not LOCK_DIR.exists()

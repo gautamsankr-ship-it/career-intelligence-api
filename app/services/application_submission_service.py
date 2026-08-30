@@ -10,7 +10,8 @@ from app.models.submission import SubmissionContext
 
 RECEIPT_DIR=Path("app/data/application_submissions"); LOCK_DIR=Path("app/data/application_submission_locks"); TTL=timedelta(minutes=15)
 class ApplicationSubmissionService:
- def __init__(self, review_service=None,browser=None,receipt_dir=RECEIPT_DIR,lock_dir=LOCK_DIR):
+ def __init__(self, review_service=None,browser=None,receipt_dir=None,lock_dir=None):
+  if receipt_dir is None or lock_dir is None: raise TypeError("ApplicationSubmissionService requires explicit receipt_dir and lock_dir (no production-path defaults); pass RECEIPT_DIR/LOCK_DIR explicitly for intentional production use.")
   self.reviews=review_service or FinalReviewService(); self.history=self.reviews.history; self.browser=browser or ApplicationBrowserService(); self.receipt_dir=Path(receipt_dir); self.lock_dir=Path(lock_dir)
  def inspect(self,review_id):
   review=self.reviews.show(review_id); reason=self._gate(review)

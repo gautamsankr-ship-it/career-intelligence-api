@@ -1,13 +1,13 @@
 """Per-review explicit submission command; no bulk submission flags exist."""
 from __future__ import annotations
 import argparse
-from app.services.application_submission_service import ApplicationSubmissionService
+from app.services.application_submission_service import ApplicationSubmissionService, RECEIPT_DIR, LOCK_DIR
 def main():
  p=argparse.ArgumentParser(); s=p.add_subparsers(dest='cmd',required=True)
  for x in ('inspect','simulate','submit'):
   q=s.add_parser(x); q.add_argument('--review-id',required=True)
   if x=='submit': q.add_argument('--confirm')
- a=p.parse_args(); service=ApplicationSubmissionService()
+ a=p.parse_args(); service=ApplicationSubmissionService(receipt_dir=RECEIPT_DIR,lock_dir=LOCK_DIR)
  try:
   if a.cmd=='inspect': result=service.inspect(a.review_id); print(result['status'],result['reason'])
   elif a.cmd=='simulate': result=service.simulate(a.review_id); print(result['status'],result['reason'])

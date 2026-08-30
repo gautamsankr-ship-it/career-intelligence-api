@@ -76,6 +76,49 @@ def test_priority_a_is_authorized_same_as_b_at_final_review(tmp_path):
     assert service.create(42).review_status == "READY_FOR_HUMAN_REVIEW"
 
 
+@pytest.mark.parametrize("priority", ["C", "D", "E"])
+def test_intelligence_ineligible_with_document_deficiency_reports_not_ready(tmp_path, priority):
+    """Task 21.18A P2: NOT_APPLICATION_ELIGIBLE must take precedence over
+    document-readiness reasons -- a C/D/E vacancy that also lacks a ready
+    document must still report NOT_READY, never CHANGES_REQUIRED (which
+    would wrongly imply the vacancy is otherwise fixable by documents alone)."""
+    service, record, pkg, execution = setup(tmp_path / priority, record={"intelligence_priority": priority}, package={"resume_vacancy_identity": "wrong"})
+    review = service.create(42)
+    assert review.review_status == "NOT_READY"
+    assert "NOT_APPLICATION_ELIGIBLE" in review.blocking_reasons and "PACKAGE_REFRESH_REQUIRED" in review.blocking_reasons
+
+
+def test_missing_intelligence_priority_with_document_deficiency_reports_not_ready(tmp_path):
+    service, record, pkg, execution = setup(tmp_path, package={"resume_vacancy_identity": "wrong"})
+    del record["intelligence_priority"]
+    review = service.create(42)
+    assert review.review_status == "NOT_READY"
+    assert "NOT_APPLICATION_ELIGIBLE" in review.blocking_reasons
+
+
+def test_validation_only_with_document_deficiency_reports_not_ready(tmp_path):
+    service, record, pkg, execution = setup(tmp_path, record={"validation_only": True}, package={"resume_vacancy_identity": "wrong"})
+    review = service.create(42)
+    assert review.review_status == "NOT_READY"
+    assert "VALIDATION_ONLY_REJECTED" in review.blocking_reasons
+
+
+def test_terminal_status_with_document_deficiency_reports_not_ready(tmp_path):
+    service, record, pkg, execution = setup(tmp_path, record={"status": "APPLIED"}, package={"resume_vacancy_identity": "wrong"})
+    review = service.create(42)
+    assert review.review_status == "NOT_READY"
+    assert "TERMINAL_APPLICATION_STATUS" in review.blocking_reasons
+
+
+def test_document_deficiency_alone_on_eligible_vacancy_still_reports_changes_required(tmp_path):
+    """Unchanged A/B behavior: an otherwise-eligible vacancy with only a
+    document-readiness problem still reports the fixable CHANGES_REQUIRED."""
+    service, record, pkg, execution = setup(tmp_path, package={"resume_vacancy_identity": "wrong"})
+    review = service.create(42)
+    assert review.review_status == "CHANGES_REQUIRED"
+    assert review.blocking_reasons == ["PACKAGE_REFRESH_REQUIRED"]
+
+
 def test_review_storage_has_no_browser_secrets(tmp_path):
  service,_,_,_=setup(tmp_path); review=service.create(42); text=(tmp_path/'reviews'/f'{review.review_id}.json').read_text().lower()
  assert all(word not in text for word in ('cookie','password','csrf','otp','validitytoken'))

@@ -72,7 +72,17 @@ class FinalReviewService:
         if not Path(package.resume_path).is_file() or (package.cover_letter_status == "READY" and not Path(package.cover_letter_path).is_file()): reasons.append("DOCUMENT_NOT_READY")
         if package.resume_vacancy_identity != package.vacancy_identity: reasons.append("PACKAGE_REFRESH_REQUIRED")
         review.blocking_reasons=reasons
-        review.review_status="READY_FOR_HUMAN_REVIEW" if not reasons else ("CHANGES_REQUIRED" if any(x in reasons for x in {"UNKNOWN_REQUIRED_FIELDS","DOCUMENT_NOT_READY","PACKAGE_REFRESH_REQUIRED"}) else "NOT_READY")
+        # Task 21.18A: hard-blocking reasons (validation-only rejection,
+        # intelligence-ineligibility, terminal tracker status) take precedence
+        # over document-readiness reasons -- a C/D/E (or missing/malformed
+        # priority) vacancy must report NOT_READY even if it also happens to
+        # lack ready documents, since CHANGES_REQUIRED implies "fixable via
+        # documents alone" which is false when the vacancy itself is blocked.
+        hard_blockers={"VALIDATION_ONLY_REJECTED","NOT_APPLICATION_ELIGIBLE","TERMINAL_APPLICATION_STATUS"}
+        if not reasons: review.review_status="READY_FOR_HUMAN_REVIEW"
+        elif any(x in reasons for x in hard_blockers): review.review_status="NOT_READY"
+        elif any(x in reasons for x in {"UNKNOWN_REQUIRED_FIELDS","DOCUMENT_NOT_READY","PACKAGE_REFRESH_REQUIRED"}): review.review_status="CHANGES_REQUIRED"
+        else: review.review_status="NOT_READY"
         review.fingerprint=self._fingerprint(record,package,execution); return review
 
     def _answers(self, labels, market):
