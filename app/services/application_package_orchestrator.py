@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.models.application_package import ApplicationPackage
+from app.models.employer import Employer
 from app.services.application_answer_vault import ApplicationAnswerVault
 from app.services.application_eligibility_policy import (
     INTELLIGENCE_PRIORITY_MISSING,
@@ -156,7 +157,7 @@ class ApplicationPackageOrchestrator:
         if resume and (package.cover_letter_status in {"READY", "OPTIONAL", "NOT_NEEDED"}):
             return
         try:
-            generated = self._generate_documents(record)
+            generated = self._generate_documents(package, record)
         except Exception as exc:
             package.blocking_reasons.append(f"DOCUMENT_GENERATION_FAILED:{type(exc).__name__}")
             return
@@ -167,8 +168,7 @@ class ApplicationPackageOrchestrator:
         package.resume_vacancy_identity = package.vacancy_identity if package.resume_path else ""
         package.cover_letter_status = "READY" if package.cover_letter_path else self._cover_requirement(record)
 
-    def _generate_documents(self, record):
-        # Delegates to the existing vacancy-specific CV/cover-letter pipeline.
+    def _generate_documents(self, package, record):
         # Task 21.14B: reuse the tracker's already-recorded, authoritative
         # remote_eligibility (the same value _eligibility_reason() above
         # already gated on) rather than letting evaluate_job() silently
@@ -177,11 +177,51 @@ class ApplicationPackageOrchestrator:
         # would almost always resolve to NOT_APPLICABLE regardless of what
         # was actually determined about this vacancy.
         hard_eligibility = self._known_hard_eligibility(record)
-        evaluation = self.document_service.evaluate_job(
-            record.get("job_description") or record.get("job_title") or "",
-            hard_eligibility=hard_eligibility,
-        )
+        job_description = record.get("job_description") or record.get("job_title") or ""
+
+        # Task 21.17D: reuse the persisted evaluation snapshot (job_analysis
+        # + employer, both OpenAI-derived, captured once by CareerAgent
+        # alongside intelligence_priority) when available -- deterministic,
+        # no new OpenAI call, and cannot drift from the decision that already
+        # gated this call. A missing or unparseable snapshot (a record from
+        # before this field existed, or corrupted data) falls back to a
+        # fresh evaluate_job() call -- explicit and reported via
+        # package.evaluation_source, never silent, and never able to change
+        # the already-persisted, authoritative intelligence_priority.
+        snapshot = self._load_snapshot(record)
+        if snapshot is not None:
+            job_analysis, employer = snapshot
+            evaluation = self.document_service.evaluate_from_snapshot(
+                job_description, job_analysis, employer, hard_eligibility=hard_eligibility,
+            )
+            package.evaluation_source = "PERSISTED_SNAPSHOT"
+        else:
+            evaluation = self.document_service.evaluate_job(
+                job_description, hard_eligibility=hard_eligibility,
+            )
+            package.evaluation_source = "FRESH_EVALUATION_FALLBACK"
         return self.document_service.generate_application_documents(evaluation)
+
+    @staticmethod
+    def _load_snapshot(record):
+        """Returns (job_analysis, employer) reconstructed from the persisted
+        evaluation_snapshot column, or None if absent/unparseable/invalid --
+        fails safe to the fresh-evaluation fallback rather than raising or
+        fabricating a partial evaluation. The snapshot is read directly off
+        the already-fetched tracker record for this exact tracker_id, so it
+        can never belong to a different vacancy."""
+        raw = record.get("evaluation_snapshot")
+        if not raw:
+            return None
+        try:
+            data = json.loads(raw)
+            job_analysis = data["job_analysis"]
+            employer = Employer(**data["employer"])
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            return None
+        if not isinstance(job_analysis, dict):
+            return None
+        return job_analysis, employer
 
     @staticmethod
     def _known_hard_eligibility(record):

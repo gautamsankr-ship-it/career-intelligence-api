@@ -1,4 +1,5 @@
 import json
+from dataclasses import asdict, is_dataclass
 
 from app.services.application_service import ApplicationService
 from app.services.job_discovery_service import JobDiscoveryService
@@ -166,6 +167,21 @@ class CareerAgent:
                 # (minimum metadata for future monitoring/dashboard use --
                 # hard_eligibility/application_alignment are not duplicated,
                 # they already map onto remote_eligibility*/ats_score above).
+                #
+                # Task 21.17D: also persist the two OpenAI-derived artifacts
+                # from this SAME evaluate_job() call (job_analysis, employer)
+                # so ApplicationPackageOrchestrator can later deterministically
+                # reconstruct this exact evaluation for document generation
+                # without a second, non-deterministic OpenAI call. Written in
+                # the same update_record() call as intelligence_priority --
+                # same fingerprint, same row, same instant -- so the snapshot
+                # can never belong to a different vacancy than the priority
+                # it was computed alongside.
+                employer_dict = asdict(evaluation.employer) if is_dataclass(evaluation.employer) else None
+                evaluation_snapshot = (
+                    json.dumps({"job_analysis": evaluation.job_analysis, "employer": employer_dict})
+                    if employer_dict is not None else None
+                )
                 self.history.update_record(
                     fingerprint,
                     intelligence_priority=intelligence.priority.value,
@@ -173,6 +189,7 @@ class CareerAgent:
                     vacancy_validity=intelligence.vacancy_validity.value,
                     opportunity_value=intelligence.opportunity_value.value,
                     candidate_competitiveness=intelligence.candidate_competitiveness.value,
+                    evaluation_snapshot=evaluation_snapshot,
                 )
 
                 result = None

@@ -194,6 +194,18 @@ class ApplicationHistoryService:
             "vacancy_validity": "TEXT",
             "opportunity_value": "TEXT",
             "candidate_competitiveness": "TEXT",
+            # Task 21.17D: the two genuinely OpenAI-derived artifacts
+            # (job_analysis, employer) from the ONE evaluate_job() call that
+            # also produced intelligence_priority above -- persisted as a
+            # single JSON blob so ApplicationPackageOrchestrator can
+            # deterministically reconstruct the SAME JobEvaluation for
+            # document generation (career_decision/ats_result/recruiter are
+            # pure local recomputations of these two fields, never persisted
+            # themselves) instead of making a second, non-deterministic
+            # OpenAI call. Contains no secrets, cookies, session state, or
+            # browser data -- only the same structured vacancy/employer
+            # analysis fields already used throughout this table.
+            "evaluation_snapshot": "TEXT",
         }
         existing = {row[1] for row in self.connection.execute("PRAGMA table_info(application_history)")}
         for column, definition in additions.items():

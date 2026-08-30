@@ -32,6 +32,14 @@ class ApplicationPackage:
     readiness: str = "NOT_APPLICATION_ELIGIBLE"
     blocking_reasons: list[str] = field(default_factory=list)
     vacancy_identity: str = ""
+    # Task 21.17D: diagnostic-only record of how the resume/cover-letter
+    # documents (if generated this call) were produced -- "PERSISTED_SNAPSHOT"
+    # (deterministic, no new OpenAI call), "FRESH_EVALUATION_FALLBACK" (a
+    # legacy record with no persisted snapshot, or one that failed to parse),
+    # or "" when no document generation was attempted this call at all
+    # (e.g. an already-ready resume was reused). Never affects readiness/
+    # eligibility -- purely observability.
+    evaluation_source: str = ""
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 

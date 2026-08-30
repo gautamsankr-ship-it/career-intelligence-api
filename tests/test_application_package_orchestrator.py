@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -14,11 +15,19 @@ class History:
 
 
 class Documents:
-    def __init__(self, directory): self.directory=Path(directory); self.calls=0; self.last_hard_eligibility=None
+    def __init__(self, directory):
+        self.directory=Path(directory); self.calls=0; self.snapshot_calls=0
+        self.last_hard_eligibility=None; self.last_job_analysis=None; self.last_employer=None
     def evaluate_job(self, text, opportunity=None, hard_eligibility=None):
         self.calls += 1
         self.last_hard_eligibility = hard_eligibility
         return SimpleNamespace(hard_eligibility=hard_eligibility)
+    def evaluate_from_snapshot(self, text, job_analysis, employer, opportunity=None, hard_eligibility=None):
+        self.snapshot_calls += 1
+        self.last_hard_eligibility = hard_eligibility
+        self.last_job_analysis = job_analysis
+        self.last_employer = employer
+        return SimpleNamespace(hard_eligibility=hard_eligibility, job_analysis=job_analysis, employer=employer)
     def generate_application_documents(self, evaluation):
         resume=self.directory / "generated-resume.docx"; cover=self.directory / "generated-cover.docx"
         resume.write_text("resume", encoding="utf-8"); cover.write_text("cover", encoding="utf-8")
@@ -164,3 +173,75 @@ def test_prepare_ready_excludes_validation_only_and_never_marks_applied(tmp_path
     packages=orchestrator.prepare_ready(5)
     assert [package.tracker_id for package in packages] == [1]
     assert all(value["status"] != "APPLIED" for value in orchestrator.history.records.values())
+
+
+# --- Task 21.17D: persisted evaluation snapshot reuse ------------------------
+
+EMPLOYER_DICT = {
+    "company": "Example", "industry": "Finance", "company_size": "51-200",
+    "remote_friendly": True, "innovation_score": 7, "culture_score": 7,
+    "career_growth_score": 8, "financial_stability_score": 7, "overall_score": 7.5,
+    "strengths": [], "risks": [], "recommendation": "Apply", "reason": "",
+}
+
+
+def _snapshot(job_analysis=None, employer=None):
+    return json.dumps({
+        "job_analysis": job_analysis if job_analysis is not None else {"company": "Example", "job_title": "Finance Manager"},
+        "employer": employer if employer is not None else EMPLOYER_DICT,
+    })
+
+
+def test_package_generation_reuses_persisted_snapshot_and_makes_no_fresh_evaluate_job_call(tmp_path):
+    orchestrator = service(tmp_path, [record(evaluation_snapshot=_snapshot())])
+    package = orchestrator.prepare(1)
+    assert orchestrator.document_service.snapshot_calls == 1
+    assert orchestrator.document_service.calls == 0
+    assert package.evaluation_source == "PERSISTED_SNAPSHOT"
+    assert orchestrator.document_service.last_job_analysis == {"company": "Example", "job_title": "Finance Manager"}
+    assert orchestrator.document_service.last_employer.overall_score == 7.5
+
+
+def test_package_generation_falls_back_to_fresh_evaluation_when_no_snapshot_persisted(tmp_path):
+    """Legacy/pre-21.17D records with no evaluation_snapshot column value."""
+    orchestrator = service(tmp_path, [record()])
+    package = orchestrator.prepare(1)
+    assert orchestrator.document_service.calls == 1
+    assert orchestrator.document_service.snapshot_calls == 0
+    assert package.evaluation_source == "FRESH_EVALUATION_FALLBACK"
+
+
+@pytest.mark.parametrize("bad_snapshot", [
+    "not valid json",
+    json.dumps({"job_analysis": {"company": "Example"}}),  # missing employer key
+    json.dumps({"job_analysis": "not a dict", "employer": EMPLOYER_DICT}),
+    json.dumps({"job_analysis": {"company": "Example"}, "employer": {"unexpected_field": 1}}),  # Employer(**...) fails
+])
+def test_corrupt_or_mismatched_snapshot_falls_back_safely(tmp_path, bad_snapshot):
+    orchestrator = service(tmp_path, [record(evaluation_snapshot=bad_snapshot)])
+    package = orchestrator.prepare(1)
+    assert orchestrator.document_service.calls == 1
+    assert orchestrator.document_service.snapshot_calls == 0
+    assert package.evaluation_source == "FRESH_EVALUATION_FALLBACK"
+    assert package.readiness != "NOT_APPLICATION_ELIGIBLE"
+
+
+def test_snapshot_reuse_never_touches_persisted_intelligence_priority(tmp_path):
+    orchestrator = service(tmp_path, [record(intelligence_priority="B", evaluation_snapshot=_snapshot())])
+    orchestrator.prepare(1)
+    assert orchestrator.history.records[1]["intelligence_priority"] == "B"
+
+
+def test_each_tracker_consumes_only_its_own_snapshot(tmp_path):
+    """Two records with distinct snapshots -- proves a package can never
+    accidentally consume another vacancy's persisted evaluation, since the
+    snapshot is read directly off the already-fetched record for that exact
+    tracker_id."""
+    orchestrator = service(tmp_path, [
+        record(1, evaluation_snapshot=_snapshot(job_analysis={"company": "Alpha Corp", "job_title": "Role A"})),
+        record(2, evaluation_snapshot=_snapshot(job_analysis={"company": "Beta Corp", "job_title": "Role B"})),
+    ])
+    orchestrator.prepare(1)
+    assert orchestrator.document_service.last_job_analysis["company"] == "Alpha Corp"
+    orchestrator.prepare(2)
+    assert orchestrator.document_service.last_job_analysis["company"] == "Beta Corp"

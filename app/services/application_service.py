@@ -162,6 +162,62 @@ class ApplicationService:
             hard_eligibility=hard_eligibility,
         )
 
+    def evaluate_from_snapshot(
+        self,
+        job_description: str,
+        job_analysis: dict[str, Any],
+        employer: Any,
+        opportunity: Any = None,
+        hard_eligibility: Any = None,
+    ) -> JobEvaluation:
+        """Task 21.17D: deterministic reconstruction of a JobEvaluation from
+        an already-persisted job_analysis/employer snapshot -- the two
+        genuinely OpenAI-derived artifacts from a PRIOR evaluate_job() call,
+        captured once by CareerAgent alongside the intelligence_priority they
+        produced. career_decision/ats_result/recruiter are pure, local,
+        deterministic functions of profile+job_analysis+employer (no OpenAI
+        call), so they are always recomputed fresh here rather than also
+        persisted -- this reuses the SAME engines evaluate_job() uses, just
+        skipping analyze_job()/employer_analyzer.analyze() (the only two
+        network calls) since their outputs are already known.
+
+        Recomputing career_decision/ats_result is safe, not a source of
+        drift: given the same job_analysis/employer/profile inputs, these
+        engines are deterministic. The only way this can legitimately differ
+        from the original evaluation is if the candidate's own profile
+        changed since -- which SHOULD affect scoring, exactly as it would for
+        a fresh evaluate_job() call. The persisted intelligence_priority
+        (computed once, by CareerAgent, from the original evaluation) remains
+        authoritative for application permission regardless."""
+        profile = self.profile_loader.get_profile()
+        career_decision = self.career_engine.evaluate(
+            profile,
+            job_analysis,
+            employer,
+        )
+        ats_result = self.ats_engine.analyze(job_analysis)
+        recruiter = self.recruiter_reasoning.evaluate(
+            profile,
+            job_analysis,
+            employer,
+            career_decision,
+        )
+        if hard_eligibility is None:
+            eligibility_subject = opportunity or opportunity_shim_from_job_analysis(job_analysis, job_description)
+            hard_eligibility = self.eligibility_classifier.classify(eligibility_subject)
+
+        return JobEvaluation(
+            profile=profile,
+            job_analysis=job_analysis,
+            employer=employer,
+            career_decision=career_decision,
+            ats_result=ats_result,
+            screening_decision=career_decision.decision,
+            recruiter=recruiter,
+            job_description=job_description,
+            hard_eligibility=hard_eligibility,
+        )
+
     def generate_application_documents(
         self,
         evaluation: JobEvaluation,

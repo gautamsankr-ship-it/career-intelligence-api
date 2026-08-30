@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from app.models.final_review import FinalReviewArtifact
 from app.services.application_answer_engine import ApplicationAnswerEngine
+from app.services.application_eligibility_policy import intelligence_priority_gate
 from app.services.application_package_orchestrator import ApplicationPackageOrchestrator, TERMINAL
 
 REVIEW_DIR=Path("app/data/application_reviews")
@@ -56,7 +57,14 @@ class FinalReviewService:
         review.answer_summary=self._answers(labels, package.market)
         reasons=[]
         if record.get("validation_only") is True: reasons.append("VALIDATION_ONLY_REJECTED")
-        if record.get("decision") != "AUTO_APPLY" or record.get("remote_eligibility") != "ELIGIBLE": reasons.append("NOT_APPLICATION_ELIGIBLE")
+        # Task 21.17D: intelligence_priority is the sole authorization signal
+        # here, via the same shared policy package preparation and execution
+        # use (application_eligibility_policy.py). Unlike package preparation,
+        # final review -- like execution -- never falls back to the legacy
+        # decision/remote_eligibility fields as authorization: a missing or
+        # unrecognized intelligence_priority fails closed. Those legacy
+        # fields remain on the record for informational/audit purposes only.
+        if intelligence_priority_gate(record): reasons.append("NOT_APPLICATION_ELIGIBLE")
         if record.get("status") in TERMINAL or record.get("application_status") in TERMINAL: reasons.append("TERMINAL_APPLICATION_STATUS")
         if review.execution_status not in COMPATIBLE: reasons.append(review.execution_status or "EXECUTION_NOT_READY")
         if review.unknown_required_fields: reasons.append("UNKNOWN_REQUIRED_FIELDS")

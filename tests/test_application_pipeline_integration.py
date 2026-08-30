@@ -32,12 +32,14 @@ Also proves the Task 21.17C negative controls: C/D/E priorities and a
 missing/malformed intelligence_priority all fail closed at both the package
 and execution boundary, and APPLIED is never written anywhere in this file.
 """
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from app.models.career_opportunity import CareerOpportunity
+from app.models.employer import Employer
 from app.services.application_answer_engine import ApplicationAnswerEngine
 from app.services.application_answer_vault import ApplicationAnswerVault
 from app.services.application_browser_service import ApplicationBrowserService
@@ -108,18 +110,25 @@ class FakeApplicationService:
         self.ats_grade = ats_grade
         self.job_analysis_overrides = job_analysis_overrides or {}
         self.docs = 0
+        self.evaluate_job_calls = 0
+        self.snapshot_calls = 0
+        self.last_job_analysis = None
+        self.last_employer = None
 
-    def evaluate_job(self, job_description, opportunity=None):
+    def _job_analysis(self):
         job_analysis = {
             "company": "Acme Partners", "job_title": "Senior Accountant",
             "required_skills": [], "education": [], "preferred_skills": [],
         }
         job_analysis.update(self.job_analysis_overrides)
+        return job_analysis
+
+    def _evaluation(self, job_description, job_analysis, employer):
         return SimpleNamespace(
             profile={"experience": {"years": 15}},
             job_analysis=job_analysis,
             job_description=job_description,
-            employer=SimpleNamespace(overall_score=8.0, career_growth_score=8.0),
+            employer=employer,
             career_decision=SimpleNamespace(
                 overall_score=self.career_score, confidence=90.0, priority="HIGH",
                 automation_level="FULL", scorecards=[],
@@ -138,6 +147,32 @@ class FakeApplicationService:
                 reason="Explicit worldwide remote eligibility", evidence="work from anywhere",
             ),
         )
+
+    def evaluate_job(self, job_description, opportunity=None, hard_eligibility=None):
+        self.evaluate_job_calls += 1
+        # A real Employer dataclass (not SimpleNamespace) -- CareerAgent's
+        # snapshot persistence (Task 21.17D) only serializes a genuine
+        # dataclass instance via dataclasses.asdict(), exactly like the real
+        # EmployerService.analyze() output.
+        employer = Employer(
+            company="Acme Partners", industry="Finance", company_size="51-200",
+            remote_friendly=True, innovation_score=7, culture_score=7,
+            career_growth_score=8, financial_stability_score=7, overall_score=8.0,
+            strengths=[], risks=[], recommendation="Apply", reason="",
+        )
+        evaluation = self._evaluation(job_description, self._job_analysis(), employer)
+        if hard_eligibility is not None:
+            evaluation.hard_eligibility = hard_eligibility
+        return evaluation
+
+    def evaluate_from_snapshot(self, job_description, job_analysis, employer, opportunity=None, hard_eligibility=None):
+        self.snapshot_calls += 1
+        self.last_job_analysis = job_analysis
+        self.last_employer = employer
+        evaluation = self._evaluation(job_description, job_analysis, employer)
+        if hard_eligibility is not None:
+            evaluation.hard_eligibility = hard_eligibility
+        return evaluation
 
     def generate_application_documents(self, evaluation):
         self.docs += 1
@@ -370,4 +405,69 @@ def test_missing_intelligence_priority_fails_closed_in_the_real_execution_orches
     # Execution, however, must fail closed regardless.
     execution = execution_service.execute(tracker_id, "PREPARE")
     assert execution.status == "NOT_APPLICATION_ELIGIBLE"
+    assert history.get_record_by_id(tracker_id)["status"] != "APPLIED"
+
+
+def test_one_consistent_evaluation_snapshot_flows_from_career_agent_through_final_review(tmp_path):
+    """Task 21.17D: CareerAgent's ONE evaluate_job() call persists both
+    intelligence_priority and the evaluation snapshot (job_analysis +
+    employer) together, on the same tracker row. When package generation is
+    later needed again (e.g. the original documents are no longer present),
+    ApplicationPackageOrchestrator must reuse that SAME persisted snapshot --
+    proven here by asserting no second evaluate_job() call occurs, the
+    reused job_analysis/employer are byte-for-byte the ones CareerAgent
+    itself produced, and intelligence_priority is never overwritten -- all
+    the way through to FinalReviewService."""
+    history = ApplicationHistoryService(tmp_path / "history.db")
+    resume, cover = _documents(tmp_path / "docs")
+    opportunity = _opportunity("job-snapshot-consistency")
+    application_service = FakeApplicationService(resume, cover)
+    agent = _agent(application_service, opportunity, history)
+
+    agent.process_jobs()
+
+    record = history.get_record(fingerprint_for_opportunity(opportunity))
+    assert record["intelligence_priority"] == "B"
+    assert application_service.evaluate_job_calls == 1
+    snapshot = json.loads(record["evaluation_snapshot"])
+    assert snapshot["job_analysis"]["company"] == "Acme Partners"
+    assert snapshot["employer"]["overall_score"] == 8.0
+    tracker_id = record["id"]
+
+    # Simulate document generation being needed again (e.g. the original
+    # files were cleaned up) -- this forces ApplicationPackageOrchestrator
+    # to call _generate_documents() a second time.
+    history.update_record(fingerprint_for_opportunity(opportunity), resume_path="", cover_letter_path="")
+
+    package_service = ApplicationPackageOrchestrator(
+        history=history, document_service=application_service, vault=_vault(tmp_path),
+        package_dir=tmp_path / "packages",
+    )
+    package = package_service.prepare(tracker_id)
+
+    # The persisted snapshot was reused -- no second evaluate_job() call.
+    assert application_service.evaluate_job_calls == 1
+    assert application_service.snapshot_calls == 1
+    assert package.evaluation_source == "PERSISTED_SNAPSHOT"
+    assert application_service.last_job_analysis == snapshot["job_analysis"]
+    assert application_service.last_employer.overall_score == snapshot["employer"]["overall_score"]
+    assert package.readiness in {"READY_FOR_BROWSER_PREPARATION", "READY_FOR_APPLICATION"}
+
+    # intelligence_priority was never touched by this second prepare() call.
+    record_after = history.get_record_by_id(tracker_id)
+    assert record_after["intelligence_priority"] == "B"
+
+    execution_service = ApplicationExecutionOrchestrator(
+        package_service=package_service, browser=FakeBrowser(tmp_path / "previews"), execution_dir=tmp_path / "executions",
+    )
+    execution = execution_service.execute(tracker_id, "PREPARE")
+    assert execution.status == "PREPARED_FOR_FINAL_REVIEW"
+
+    review_service = FinalReviewService(
+        package_service=package_service, review_dir=tmp_path / "reviews", execution_dir=tmp_path / "executions",
+        answer_engine=ApplicationAnswerEngine(package_service.vault),
+    )
+    review = review_service.create(tracker_id)
+    assert review.review_status == "READY_FOR_HUMAN_REVIEW"
+
     assert history.get_record_by_id(tracker_id)["status"] != "APPLIED"
