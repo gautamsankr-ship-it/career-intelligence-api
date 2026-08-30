@@ -9,14 +9,18 @@ from app.services.application_package_orchestrator import ApplicationPackageOrch
 
 
 class History:
-    def __init__(self, records): self.records = {record["id"]: dict(record) for record in records}
+    def __init__(self, records): self.records = {record["id"]: dict(record) for record in records}; self.update_calls=[]
     def get_record_by_id(self, tracker_id): return self.records.get(tracker_id)
     def list_ready_records(self): return list(self.records.values())
+    def update_record(self, job_fingerprint_value, **fields):
+        self.update_calls.append((job_fingerprint_value, dict(fields)))
+        target = next((r for r in self.records.values() if r["job_fingerprint"] == job_fingerprint_value), None)
+        if target is not None: target.update(fields)
 
 
 class Documents:
-    def __init__(self, directory):
-        self.directory=Path(directory); self.calls=0; self.snapshot_calls=0
+    def __init__(self, directory, fail=False):
+        self.directory=Path(directory); self.calls=0; self.snapshot_calls=0; self.fail=fail
         self.last_hard_eligibility=None; self.last_job_analysis=None; self.last_employer=None
     def evaluate_job(self, text, opportunity=None, hard_eligibility=None):
         self.calls += 1
@@ -29,6 +33,7 @@ class Documents:
         self.last_employer = employer
         return SimpleNamespace(hard_eligibility=hard_eligibility, job_analysis=job_analysis, employer=employer)
     def generate_application_documents(self, evaluation):
+        if self.fail: raise RuntimeError("document generation failed")
         resume=self.directory / "generated-resume.docx"; cover=self.directory / "generated-cover.docx"
         resume.write_text("resume", encoding="utf-8"); cover.write_text("cover", encoding="utf-8")
         return SimpleNamespace(docx_path=str(resume), cover_letter_docx_path=str(cover))
@@ -43,8 +48,8 @@ def record(identifier=1, **extra):
             "application_route_confidence":"HIGH", "application_url_type":"ATS_URL", "source_listing_url":"https://boards.greenhouse.io/example/jobs/1", **extra}
 
 
-def service(tmp_path, records):
-    return ApplicationPackageOrchestrator(History(records), Documents(tmp_path), ApplicationAnswerVault(tmp_path / "vault.json"), tmp_path / "packages")
+def service(tmp_path, records, fail_documents=False):
+    return ApplicationPackageOrchestrator(History(records), Documents(tmp_path, fail=fail_documents), ApplicationAnswerVault(tmp_path / "vault.json"), tmp_path / "packages")
 
 
 def test_eligible_auto_apply_generates_idempotent_browser_package(tmp_path):
@@ -245,3 +250,54 @@ def test_each_tracker_consumes_only_its_own_snapshot(tmp_path):
     assert orchestrator.document_service.last_job_analysis["company"] == "Alpha Corp"
     orchestrator.prepare(2)
     assert orchestrator.document_service.last_job_analysis["company"] == "Beta Corp"
+
+
+# --- Task 21.19A: package -> tracker document-path synchronization ----------
+
+def test_successful_generation_syncs_resume_and_cover_letter_paths_to_tracker(tmp_path):
+    orchestrator = service(tmp_path, [record()])
+    assert orchestrator.history.records[1].get("resume_path") is None
+    package = orchestrator.prepare(1)
+    assert orchestrator.history.records[1]["resume_path"] == package.resume_path
+    assert orchestrator.history.records[1]["cover_letter_path"] == package.cover_letter_path
+    assert len(orchestrator.history.update_calls) == 1
+    assert orchestrator.history.update_calls[0][0] == "fingerprint-1"
+    assert set(orchestrator.history.update_calls[0][1]) == {"resume_path", "cover_letter_path"}
+
+
+def test_reprepare_with_already_synced_paths_does_not_rewrite_identical_values(tmp_path):
+    orchestrator = service(tmp_path, [record()])
+    orchestrator.prepare(1)
+    assert len(orchestrator.history.update_calls) == 1
+    orchestrator.prepare(1)
+    assert len(orchestrator.history.update_calls) == 1  # unchanged -- no redundant write
+    assert orchestrator.document_service.calls == 1  # documents reused, not regenerated
+
+
+def test_failed_document_generation_does_not_write_blank_paths_to_tracker(tmp_path):
+    orchestrator = service(tmp_path, [record()], fail_documents=True)
+    package = orchestrator.prepare(1)
+    assert "DOCUMENT_GENERATION_FAILED:RuntimeError" in package.blocking_reasons
+    assert orchestrator.history.records[1].get("resume_path") is None
+    assert orchestrator.history.records[1].get("cover_letter_path") is None
+    assert orchestrator.history.update_calls == []
+
+
+def test_sync_never_touches_intelligence_priority_or_snapshot_or_status(tmp_path):
+    orchestrator = service(tmp_path, [record(
+        intelligence_priority="B", evaluation_snapshot=_snapshot(), status="MANUAL_WEB_REQUIRED",
+    )])
+    orchestrator.prepare(1)
+    written_fields = {key for _, fields in orchestrator.history.update_calls for key in fields}
+    assert written_fields == {"resume_path", "cover_letter_path"}
+    assert orchestrator.history.records[1]["intelligence_priority"] == "B"
+    assert orchestrator.history.records[1]["status"] == "MANUAL_WEB_REQUIRED"
+    assert orchestrator.history.records[1]["evaluation_snapshot"] == _snapshot()
+
+
+def test_sync_only_updates_the_targeted_tracker_row(tmp_path):
+    orchestrator = service(tmp_path, [record(1), record(2)])
+    orchestrator.prepare(1)
+    assert orchestrator.history.records[1]["resume_path"]
+    assert orchestrator.history.records[2].get("resume_path") is None
+    assert all(fp == "fingerprint-1" for fp, _ in orchestrator.history.update_calls)

@@ -46,6 +46,7 @@ class ApplicationPackageOrchestrator:
         self._apply_route(package, record, route)
         self._apply_answers(package)
         self._apply_documents(package, record, prior)
+        self._sync_documents_to_tracker(record, package)
         self._apply_readiness(package)
         return self._save(package)
 
@@ -167,6 +168,27 @@ class ApplicationPackageOrchestrator:
         package.resume_generated_at = self._now() if package.resume_path else ""
         package.resume_vacancy_identity = package.vacancy_identity if package.resume_path else ""
         package.cover_letter_status = "READY" if package.cover_letter_path else self._cover_requirement(record)
+
+    def _sync_documents_to_tracker(self, record, package):
+        # Task 21.19A: `_apply_documents` above computes the package's own
+        # resume/cover-letter path+status, but nothing previously mirrored a
+        # freshly-generated path back onto the tracker row itself -- only
+        # CareerAgent's own discovery flow did that (career_agent.py). A
+        # package prepared via this orchestrator directly (as the real 21.19
+        # pilot did) left the tracker's resume_path/cover_letter_path NULL
+        # even though real, ready documents existed. Only ever write a path
+        # that is actually READY and actually different from what's already
+        # on the record, so a failed/incomplete generation this run can never
+        # blank out a good prior value, and an untouched field is never
+        # rewritten to the same value for no reason.
+        updates = {}
+        if package.resume_status == "READY" and package.resume_path and package.resume_path != record.get("resume_path"):
+            updates["resume_path"] = package.resume_path
+        if package.cover_letter_status == "READY" and package.cover_letter_path and package.cover_letter_path != record.get("cover_letter_path"):
+            updates["cover_letter_path"] = package.cover_letter_path
+        if updates:
+            self.history.update_record(record["job_fingerprint"], **updates)
+            record.update(updates)
 
     def _generate_documents(self, package, record):
         # Task 21.14B: reuse the tracker's already-recorded, authoritative
