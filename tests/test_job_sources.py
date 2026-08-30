@@ -15,7 +15,7 @@ from app.services.job_sources import (
     MultiSourceJobDiscovery,
     normalize_job_item,
 )
-from app.config import JOB_SOURCES, JOB_SOURCE_STATUS, OPTIONAL_JOB_SOURCES
+from app.config import JOB_SOURCES, JOB_SOURCE_STATUS, OPTIONAL_JOB_SOURCES, SEEK_SEARCH_URLS
 from app.services.job_search_config import DISCOVERY_QUERY_CYCLE
 from refresh_jobs import resolve_sources
 
@@ -108,6 +108,19 @@ def test_default_sources_include_only_verified_daily_sources():
         "robert_half": "UNRELIABLE",
     }
     assert set(OPTIONAL_JOB_SOURCES) == {"robert_half", "seek", "hays"}
+
+
+def test_seek_search_url_uses_the_actors_documented_domain_and_path_shape():
+    """Task 21.17A: the configured Apify actor scrapes a SEEK listing page
+    directly; it does not run a search query. A live bounded test confirmed
+    the old "www.seek.com.au/jobs?keywords=finance" URL returned 0 items on
+    this actor -- it is the wrong domain/path shape for a listing-page
+    scraper. The actor's own documented example uses the au.seek.com
+    category-listing convention (e.g. ".../software-engineer-jobs/in-All-
+    Sydney-NSW"); "jobs-in-accounting" is SEEK's own real category slug."""
+    for url in SEEK_SEARCH_URLS:
+        assert url.startswith("https://au.seek.com/")
+        assert "?keywords=" not in url
 
 
 def test_seek_remains_explicitly_requestable_without_default_execution():
@@ -282,6 +295,147 @@ def test_robert_half_normalization_preserves_structured_public_listing_fields():
     assert job.application_url == ""
     assert job.remote_status is True
     assert "security@example.com" in job.metadata["RH Contact Email"]
+
+
+def test_robert_half_lowercase_jobtitle_field_normalizes_correctly():
+    """Task 21.17A: a live bounded Robert Half run confirmed the actor's real
+    raw schema uses a lowercase, unspaced `jobtitle` key -- not `title`,
+    `jobTitle`, or `Job Title`, all of which normalize_job_item already
+    checked. This is a generic fallback addition (any source's raw item
+    using this key benefits), not a Robert-Half-specific branch."""
+    job = normalize_job_item(
+        {
+            "google_job_id": "60090-0013477391-auen",
+            "unique_job_number": "60090-0013477391-auen",
+            "jobtitle": "Accountant",
+            "description": "I'm currently recruiting for an experienced Accountant...",
+            "date_posted": "2026-08-29",
+        },
+        "Robert Half",
+    )
+
+    assert job.job_title == "Accountant"
+    assert job.id == "60090-0013477391-auen"
+
+
+def test_existing_title_field_names_remain_unchanged_after_jobtitle_addition():
+    """Regression guard: adding the `jobtitle` fallback must not change
+    resolution order or behaviour for any already-supported field name."""
+    assert normalize_job_item({"title": "A"}, "X").job_title == "A"
+    assert normalize_job_item({"jobTitle": "B"}, "X").job_title == "B"
+    assert normalize_job_item({"Job Title": "C"}, "X").job_title == "C"
+    # `title` still wins over `jobtitle` when both are present -- unchanged
+    # precedence, `jobtitle` is appended after the pre-existing names.
+    assert normalize_job_item({"title": "A", "jobtitle": "B"}, "X").job_title == "A"
+
+
+def test_robert_half_date_posted_field_normalizes_to_posted_date():
+    """Task 21.17A.1: the real Robert Half raw schema uses `date_posted`
+    (confirmed via the captured live payload), which the existing
+    posted_date fallback did not check."""
+    job = normalize_job_item(
+        {"unique_job_number": "06800-0013495214-auen", "jobtitle": "Senior Financial Accountant",
+         "description": "...", "date_posted": "2026-08-29"},
+        "Robert Half",
+    )
+    assert job.posted_date == "2026-08-29"
+
+
+def test_existing_posted_date_field_names_remain_unchanged_after_date_posted_addition():
+    assert normalize_job_item({"postedAt": "2026-08-01"}, "X").posted_date == "2026-08-01"
+    assert normalize_job_item({"posted_date": "2026-08-02"}, "X").posted_date == "2026-08-02"
+    assert normalize_job_item({"datePosted": "2026-08-03"}, "X").posted_date == "2026-08-03"
+    # postedAt still wins over date_posted when both present -- unchanged
+    # precedence, date_posted is appended after posted_date.
+    assert normalize_job_item({"postedAt": "2026-08-01", "date_posted": "2026-08-02"}, "X").posted_date == "2026-08-01"
+
+
+def test_robert_half_stable_id_prefers_unique_job_number_over_google_job_id():
+    """The real payload carries both fields; unique_job_number is the
+    already-supported, already-correct fallback (confirmed live in Task
+    21.17A) and must keep taking precedence over the unmapped google_job_id."""
+    job = normalize_job_item(
+        {"google_job_id": "DIFFERENT-GOOGLE-ID", "unique_job_number": "06800-0013495214-auen",
+         "jobtitle": "Senior Financial Accountant", "description": "..."},
+        "Robert Half",
+    )
+    assert job.id == "06800-0013495214-auen"
+
+
+def test_robert_half_location_and_url_stay_empty_not_invented():
+    """Confirmed via two independent live captures: this actor's raw schema
+    has no location or URL field at all. Nothing should be fabricated."""
+    job = normalize_job_item(
+        {"unique_job_number": "06800-0013495214-auen", "jobtitle": "Senior Financial Accountant",
+         "description": "...", "date_posted": "2026-08-29"},
+        "Robert Half",
+    )
+    assert job.location == ""
+    assert job.job_url == ""
+    assert job.source_listing_url == ""
+
+
+def test_generic_source_field_does_not_become_the_end_employer():
+    """Task 21.17A.1: "Source" names the platform a listing came from, not
+    the end employer -- it must never populate `company`. The recruiter/
+    platform identity is preserved separately via `source`, never invented
+    as the employer."""
+    job = normalize_job_item(
+        {"Source": "Robert Half", "Job Title": "Financial Accountant", "Description": "..."},
+        "Robert Half",
+    )
+    assert job.company == ""
+    assert job.source == "Robert Half"
+
+
+def test_legitimate_company_fields_still_normalize_correctly_after_source_removal():
+    assert normalize_job_item({"companyName": "Acme Pty Ltd"}, "X").company == "Acme Pty Ltd"
+    assert normalize_job_item({"company": "Acme Pty Ltd"}, "X").company == "Acme Pty Ltd"
+    assert normalize_job_item({"employer": "Acme Pty Ltd"}, "X").company == "Acme Pty Ltd"
+    assert normalize_job_item({"Company": "Acme Pty Ltd"}, "X").company == "Acme Pty Ltd"
+
+
+def test_seek_remains_unreliable_and_not_a_production_default_after_url_correction():
+    """The SEEK URL was corrected to match the actor's documented schema,
+    but a live bounded test still returned 0 items -- SEEK must not be
+    reclassified as reliable or added to production defaults on the
+    strength of the URL fix alone."""
+    assert JOB_SOURCE_STATUS["seek"] == "UNRELIABLE"
+    assert "seek" not in JOB_SOURCES
+    assert "seek" in OPTIONAL_JOB_SOURCES
+
+
+def test_robert_half_missing_company_is_not_fabricated_from_client_blinded_payload():
+    """Task 21.17A Part C: the real Robert Half raw schema has no company/
+    employer field at all (client-blinded recruiter listing). company must
+    stay empty -- never silently substituted with the recruiter's own name
+    (Robert Half) or any other field's value."""
+    job = normalize_job_item(
+        {
+            "google_job_id": "06800-0013494738-auen",
+            "unique_job_number": "06800-0013494738-auen",
+            "jobtitle": "Financial Accountant",
+            "description": "Our client is a leading Australian sustainability organisation...",
+            "date_posted": "2026-08-29",
+        },
+        "Robert Half",
+    )
+
+    assert job.company == ""
+
+
+def test_normalize_job_item_is_deterministic_for_robert_half_shaped_payload():
+    payload = {
+        "google_job_id": "06800-0013495214-auen",
+        "unique_job_number": "06800-0013495214-auen",
+        "jobtitle": "Senior Financial Accountant",
+        "description": "An exciting opportunity has arisen...",
+        "date_posted": "2026-08-29",
+    }
+    first = normalize_job_item(dict(payload), "Robert Half")
+    second = normalize_job_item(dict(payload), "Robert Half")
+    assert first.job_title == second.job_title == "Senior Financial Accountant"
+    assert first.company == second.company == ""
 
 
 def test_source_email_metadata_does_not_authorize_an_application_recipient():

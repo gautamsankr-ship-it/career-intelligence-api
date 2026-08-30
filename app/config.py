@@ -44,7 +44,18 @@ INDEED_APIFY_ACTOR_ID = "agentx/indeed-jobs-scraper"
 INDEED_COUNTRY = "Australia"
 INDEED_LOCATION = ""
 SEEK_APIFY_ACTOR_ID = "soft_alexist/seek-jobs-search-scraper"
-SEEK_SEARCH_URLS = ("https://www.seek.com.au/jobs?keywords=finance",)
+# Task 21.17A: the configured actor's own documented input schema scrapes a
+# SEEK listing-page URL directly (it does not run a query against SEEK's
+# search API) and expects SEEK's alternate `au.seek.com` category-listing
+# domain/path convention (e.g. "https://au.seek.com/software-engineer-jobs/
+# in-All-Sydney-NSW"), not the consumer-facing "www.seek.com.au/jobs?keywords="
+# query-string search this was previously pointed at. The old URL was on the
+# wrong domain/path shape for this actor and returned 0 items every run
+# (confirmed via a live bounded test, not assumed). "jobs-in-accounting" is
+# SEEK's own real category slug for accounting vacancies nationwide (verified
+# to exist and list real content), matching the candidate's core target
+# domain without narrowing to one city/state.
+SEEK_SEARCH_URLS = ("https://au.seek.com/jobs-in-accounting",)
 # No maintained Hays-specific actor was identified. Set this to an approved
 # Apify actor ID before enabling live Hays runs; an empty value fails safely.
 HAYS_APIFY_ACTOR_ID = ""

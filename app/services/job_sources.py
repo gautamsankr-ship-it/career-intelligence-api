@@ -148,12 +148,19 @@ def normalize_job_item(item: dict[str, Any], source: str) -> CareerOpportunity:
     return CareerOpportunity(
         id=_text(_first(item, "id", "jobId", "job_id", "positionId", "jobKey", "Unique Job Number", "unique_job_number")),
         source=source,
-        job_title=_text(_first(item, "title", "jobTitle", "positionName", "position", "name", "Job Title")),
-        company=_text(_first(item, "companyName", "company", "company_name", "employer", "Company", "Source")),
+        job_title=_text(_first(item, "title", "jobTitle", "jobtitle", "positionName", "position", "name", "Job Title")),
+        # Task 21.17A.1: "Source" was removed from this fallback -- it names
+        # the platform/recruiter a listing came from, not the end employer,
+        # and could otherwise silently misattribute a client-blinded
+        # recruiter listing (e.g. Robert Half) to the recruiter itself. No
+        # currently proven adapter schema relies on "Source" resolving to a
+        # real company; the recruiter/platform identity is already carried
+        # separately via CareerOpportunity.source.
+        company=_text(_first(item, "companyName", "company", "company_name", "employer", "Company")),
         location=_text(_first(item, "location", "jobLocation", "locationName", "Location")),
         employment_type=_text(_first(item, "employmentType", "jobType", "workType", "Employment Type")),
         salary=_text(_first(item, "salary", "salaryText", "salaryDisplay")),
-        posted_date=_text(_first(item, "postedAt", "postingDateParsed", "posted_date", "datePosted", "Date Posted")),
+        posted_date=_text(_first(item, "postedAt", "postingDateParsed", "posted_date", "date_posted", "datePosted", "Date Posted")),
         job_description=_text(_first(item, "descriptionText", "description", "jobDescription", "descriptionHtml", "Description")),
         job_url=source_listing_url,
         source_listing_url=source_listing_url,
