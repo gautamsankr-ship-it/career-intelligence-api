@@ -43,6 +43,20 @@ class ApplicationSurface(Protocol):
 
 FINAL_BUTTON = re.compile(r"\b(submit( application)?|send application|finish( application)?|complete application|apply now|apply)\b", re.I)
 SAFE_BUTTON = re.compile(r"^(next|continue|save and continue|next step|continue application|review)$", re.I)
+_SCRIPT_STYLE = re.compile(r"<(script|style)\b[^>]*>.*?</\1>", re.I | re.S)
+
+
+def _visible_text(html: str) -> str:
+    """Genuinely visible page text: script/style content and all tags removed.
+
+    CAPTCHA/MFA/login classification must never fire on invisible boilerplate
+    (a reCAPTCHA-v3 site key embedded in a <script> config blob, a
+    ``.grecaptcha-badge``/``.h-captcha`` CSS selector in a <style> block) --
+    that boilerplate is present on virtually every real Greenhouse/Lever page
+    regardless of whether a human is ever actually challenged. Only text a
+    person would actually see may trigger these checks.
+    """
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", _SCRIPT_STYLE.sub(" ", html))).lower()
 
 
 class _FormParser(HTMLParser):
@@ -147,13 +161,14 @@ class ApplicationBrowserService:
 
     def page_purpose(self, url: str, html: str) -> str:
         body = re.sub(r"\s+", " ", html).lower(); host = urlparse(url).netloc.lower()
-        if re.search(r"captcha|recaptcha|hcaptcha", body): return "CAPTCHA"
-        if re.search(r"one.time password|verification code|multi.factor|\bmfa\b", body): return "MFA"
-        if re.search(r"create (an )?account|sign up", body): return "ACCOUNT_CREATION"
-        if re.search(r"sign in|log in|login", body): return "LOGIN"
+        visible = _visible_text(html)
+        if re.search(r"captcha|recaptcha|hcaptcha", visible): return "CAPTCHA"
+        if re.search(r"one.time password|verification code|multi.factor|\bmfa\b", visible): return "MFA"
+        if re.search(r"create (an )?account|sign up", visible): return "ACCOUNT_CREATION"
+        if re.search(r"sign in|log in|login", visible): return "LOGIN"
         if any(board in host for board in ("linkedin.com", "indeed.com")) and "/jobs/" in urlparse(url).path.lower(): return "JOB_LISTING"
-        if re.search(r"application (submitted|complete|success|received)|thank you for applying", body): return "APPLICATION_SUCCESS"
-        if re.search(r"review (your )?application", body): return "APPLICATION_REVIEW"
+        if re.search(r"application (submitted|complete|success|received)|thank you for applying", visible): return "APPLICATION_SUCCESS"
+        if re.search(r"review (your )?application", visible): return "APPLICATION_REVIEW"
         if "<form" in body: return "APPLICATION_FORM"
         return "NON_APPLICATION"
 
@@ -168,15 +183,16 @@ class ApplicationBrowserService:
         body = re.sub(r"\s+", " ", html).lower()
         plan.page_purpose = self.page_purpose(url, html)
         # Preserve the final-submit boundary even on a review page that is not
-        # otherwise parsed as an application form. Strip tags first so a
-        # routine type="submit" attribute on an intermediate Continue/Next
-        # control can never masquerade as a final submit; only genuine
-        # visible text can.
-        visible_text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html)).lower()
+        # otherwise parsed as an application form. Strip script/style content
+        # and tags first so a routine type="submit" attribute on an
+        # intermediate Continue/Next control, or invisible JS/CSS
+        # boilerplate, can never masquerade as a final submit or a
+        # CAPTCHA/auth challenge; only genuine visible text can.
+        visible_text = _visible_text(html)
         plan.final_submit_detected = bool(FINAL_BUTTON.search(visible_text))
-        plan.authentication = "AUTH_REQUIRED" if re.search(r"sign in|log in|login", body) else "NO"
-        plan.mfa = "MFA_REQUIRED" if re.search(r"one.time password|verification code|multi.factor|\bmfa\b", body) else "NO"
-        plan.captcha = "CAPTCHA_REQUIRED" if re.search(r"captcha|recaptcha|hcaptcha", body) else "NO"
+        plan.authentication = "AUTH_REQUIRED" if re.search(r"sign in|log in|login", visible_text) else "NO"
+        plan.mfa = "MFA_REQUIRED" if re.search(r"one.time password|verification code|multi.factor|\bmfa\b", visible_text) else "NO"
+        plan.captcha = "CAPTCHA_REQUIRED" if re.search(r"captcha|recaptcha|hcaptcha", visible_text) else "NO"
         if plan.page_purpose != "APPLICATION_FORM":
             if plan.page_purpose == "LOGIN": plan.readiness = "AUTH_REQUIRED"
             elif plan.page_purpose == "MFA": plan.readiness = "MFA_REQUIRED"

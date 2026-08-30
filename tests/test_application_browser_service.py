@@ -101,6 +101,95 @@ def test_final_action_labels_never_change_submission_state(tmp_path):
     assert plan.application_submitted is False and plan.fields_filled == 0
 
 
+GREENHOUSE_INVISIBLE_RECAPTCHA_BOILERPLATE = '''<html><head>
+<style>.grecaptcha-badge{visibility:hidden;}.page-full-width{width:100%;}</style>
+<script>window.gon = {"google_recaptcha_invisible_key":"6LfmCbCpAAAAACHntbHUshzUoAmJ_wY9lQivLFx0","dropbox_chooser_api_key":"x"};</script>
+</head><body class="greenhouse"><form id="application_form">
+<label for="email">Email</label><input id="email" type="email" required>
+<button type="submit">Submit Application</button>
+</form></body></html>'''
+
+LEVER_INVISIBLE_HCAPTCHA_BOILERPLATE = '''<html><head>
+<style>.page-centered,.g-recaptcha div,.h-captcha-spacing{display:block;margin:0 auto;}.linkedin-login-success{display:none;}</style>
+<script type="text/javascript" src="https://js.hcaptcha.com/1/secure-api.js?host=jobs.lever.co&onload=onload" async defer></script>
+</head><body><form id="application-form" action="/apply">
+<label for="email">Email</label><input id="email" type="email" required>
+<button type="submit">Submit Application</button>
+</form></body></html>'''
+
+GENUINE_VISIBLE_CAPTCHA = '''<html><body><form>
+<label for="email">Email</label><input id="email" type="email" required>
+<div class="challenge">Please complete the CAPTCHA below to continue.</div>
+<button type="submit">Submit Application</button>
+</form></body></html>'''
+
+GENUINE_VISIBLE_LOGIN_MFA = '''<html><body>
+<h1>Sign in to continue</h1>
+<p>Enter the verification code (MFA) sent to your phone to access this application.</p>
+<form><input type="password"><button>Log in</button></form>
+</body></html>'''
+
+
+def test_invisible_recaptcha_boilerplate_does_not_false_positive_greenhouse(tmp_path):
+    """Task 21.18C regression A: ordinary Greenhouse page carrying invisible
+    reCAPTCHA-v3 JS config + CSS badge boilerplate (present on virtually every
+    real Greenhouse page) must not be classified as CAPTCHA."""
+    service = _isolated_service(tmp_path)
+    plan = service.preview_html(GREENHOUSE_INVISIBLE_RECAPTCHA_BOILERPLATE, "https://boards.greenhouse.io/example/jobs/1", {"market": "united_kingdom"})
+    assert plan.page_purpose == "APPLICATION_FORM"
+    assert plan.readiness not in {"CAPTCHA_REQUIRED", "AUTH_REQUIRED", "MFA_REQUIRED"}
+    assert plan.captcha == "NO" and plan.fields
+
+
+def test_invisible_hcaptcha_boilerplate_does_not_false_positive_lever(tmp_path):
+    """Task 21.18C regression B: ordinary Lever page carrying invisible
+    hCaptcha script tag + CSS selector boilerplate must not be classified as
+    CAPTCHA, and unrelated CSS class names containing "login" must not
+    trigger LOGIN classification either."""
+    service = _isolated_service(tmp_path)
+    plan = service.preview_html(LEVER_INVISIBLE_HCAPTCHA_BOILERPLATE, "https://jobs.lever.co/company/x/apply", {"market": "united_kingdom"})
+    assert plan.page_purpose == "APPLICATION_FORM"
+    assert plan.readiness not in {"CAPTCHA_REQUIRED", "AUTH_REQUIRED", "MFA_REQUIRED"}
+    assert plan.captcha == "NO" and plan.authentication == "NO" and plan.fields
+
+
+def test_genuinely_visible_captcha_still_fails_closed(tmp_path):
+    """Task 21.18C regression C: real, human-visible CAPTCHA text must still
+    block -- the fix must not weaken real protection."""
+    service = _isolated_service(tmp_path)
+    plan = service.preview_html(GENUINE_VISIBLE_CAPTCHA, "https://boards.greenhouse.io/example/jobs/1", {"market": "united_kingdom"})
+    assert plan.page_purpose == "CAPTCHA" and plan.readiness == "CAPTCHA_REQUIRED"
+
+
+def test_genuinely_visible_login_mfa_still_fails_closed(tmp_path):
+    """Task 21.18C regression D: real, human-visible login/MFA text must
+    still block."""
+    service = _isolated_service(tmp_path)
+    plan = service.preview_html(GENUINE_VISIBLE_LOGIN_MFA, "https://example.test/apply", {"market": "united_kingdom"})
+    assert plan.page_purpose in {"LOGIN", "MFA"} and plan.readiness in {"AUTH_REQUIRED", "MFA_REQUIRED"}
+
+
+def test_lever_apply_route_resolution():
+    resolver = ApplicationRouteResolver()
+    # Base JD URL (no /apply) resolves to the /apply form.
+    route = resolver.resolve({"application_url": "https://jobs.lever.co/nava/f6acbe27-62e4-42de-820f-6ae8c0dadcd8"})
+    assert route.resolution_status == "RESOLVED"
+    assert route.application_url == "https://jobs.lever.co/nava/f6acbe27-62e4-42de-820f-6ae8c0dadcd8/apply"
+    assert route.portal == "LEVER"
+
+    # A URL that already points at the apply form is kept unchanged.
+    route = resolver.resolve({"application_url": "https://jobs.lever.co/nava/f6acbe27-62e4-42de-820f-6ae8c0dadcd8/apply"})
+    assert route.application_url == "https://jobs.lever.co/nava/f6acbe27-62e4-42de-820f-6ae8c0dadcd8/apply"
+
+    # Trailing slash on the base URL is handled without double-appending.
+    route = resolver.resolve({"application_url": "https://jobs.lever.co/nava/f6acbe27-62e4-42de-820f-6ae8c0dadcd8/"})
+    assert route.application_url == "https://jobs.lever.co/nava/f6acbe27-62e4-42de-820f-6ae8c0dadcd8/apply"
+
+    # Non-Lever ATS hosts are never touched by the Lever-specific suffix.
+    route = resolver.resolve({"application_url": "https://boards.greenhouse.io/example/jobs/1"})
+    assert route.application_url == "https://boards.greenhouse.io/example/jobs/1"
+
+
 def test_document_preparation_uses_only_exact_existing_vacancy_documents(tmp_path):
     service = _isolated_service(tmp_path)
     resume = tmp_path / "Resume.docx"; resume.write_bytes(b"fixture")
