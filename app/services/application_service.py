@@ -254,6 +254,19 @@ class ApplicationService:
         read-only preparation, safe to run for review purposes regardless
         of screening decision. It never touches the tracker or Gmail --
         callers own the human-review/submission boundary.
+
+        LEGACY / NON-PRODUCTION (Task 21.17C audit + 21.17C wiring fix):
+        confirmed zero production callers -- only referenced by
+        tests/test_application_service_prepare_application.py and
+        tests/test_job_eligibility_gate.py, which exercise this method
+        directly as a unit, not as part of any live pipeline. Unlike the
+        real production paths (CareerAgent, ApplicationPackageOrchestrator /
+        ApplicationExecutionOrchestrator via application_eligibility_policy),
+        this method applies NO Job Intelligence priority gate of its own --
+        by original design, per the docstring above, the caller owns that
+        boundary. Do not wire this into an automated production path without
+        first adding an equivalent intelligence_priority check at the call
+        site; treat it as a manual/diagnostic preparation utility only.
         """
         profile = evaluation.profile
         job_analysis = evaluation.job_analysis

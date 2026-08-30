@@ -7,6 +7,7 @@ from pathlib import Path
 
 from app.models.application_execution import ApplicationExecutionResult
 from app.services.application_browser_service import ApplicationBrowserService
+from app.services.application_eligibility_policy import intelligence_priority_gate
 from app.services.application_package_orchestrator import ApplicationPackageOrchestrator, TERMINAL
 from app.services.application_route_resolver import ApplicationRouteResolver
 
@@ -142,9 +143,19 @@ class ApplicationExecutionOrchestrator:
 
     @staticmethod
     def _production_rejection(record):
+        # Task 21.17C: intelligence_priority is the sole authorization signal
+        # here, via the same shared policy ApplicationPackageOrchestrator uses
+        # (application_eligibility_policy.py) -- this used to check the
+        # legacy `decision`/`remote_eligibility` fields directly, which could
+        # diverge from the package-preparation gate's own (already-priority-
+        # based) policy. Unlike package preparation, execution is the closer-
+        # to-real-action boundary: it never falls back to the legacy fields
+        # as authorization, so a missing or unrecognized intelligence_priority
+        # fails closed (blocked) rather than being silently treated as
+        # implicit permission to proceed. The legacy fields remain on the
+        # record for informational/audit purposes only.
         if record.get("validation_only") is True: return "VALIDATION_ONLY_REJECTED"
-        if record.get("decision") != "AUTO_APPLY": return "NOT_APPLICATION_ELIGIBLE"
-        if record.get("remote_eligibility") != "ELIGIBLE": return "NOT_APPLICATION_ELIGIBLE"
+        if intelligence_priority_gate(record): return "NOT_APPLICATION_ELIGIBLE"
         if record.get("application_status") in TERMINAL or record.get("status") in TERMINAL: return "NOT_APPLICATION_ELIGIBLE"
         return ""
 

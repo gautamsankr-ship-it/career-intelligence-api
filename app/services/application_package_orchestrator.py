@@ -7,8 +7,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.models.application_package import ApplicationPackage
-from app.models.job_intelligence import Priority
 from app.services.application_answer_vault import ApplicationAnswerVault
+from app.services.application_eligibility_policy import (
+    INTELLIGENCE_PRIORITY_MISSING,
+    intelligence_priority_gate,
+)
 from app.services.application_history_service import ApplicationHistoryService
 from app.services.application_route_resolver import ApplicationRouteResolver
 from app.services.application_service import ApplicationService
@@ -88,21 +91,15 @@ class ApplicationPackageOrchestrator:
         if record.get("validation_only") is True:
             return "VALIDATION_ONLY_REJECTED"
 
-        # Task 21.14E: intelligence_priority (persisted by CareerAgent from
-        # the one authoritative JobIntelligenceService.evaluate() call) is
-        # now the primary gate, replacing the raw decision/remote_eligibility
-        # checks below -- which remain ONLY as a fallback for records
-        # persisted before this field existed, and never override it when set.
-        priority = record.get("intelligence_priority")
-        if priority:
-            if priority == Priority.REJECT.value:
-                return "INTELLIGENCE_REJECTED"
-            if priority == Priority.HUMAN_REVIEW.value:
-                return "INTELLIGENCE_HUMAN_REVIEW_REQUIRED"
-            if priority == Priority.WATCH.value:
-                return "INTELLIGENCE_WATCH"
-            # PRIORITY_APPLY or APPLY -- continue to the terminal-status check below.
-        else:
+        # Task 21.14E / 21.17C: intelligence_priority (persisted by CareerAgent
+        # from the one authoritative JobIntelligenceService.evaluate() call) is
+        # the primary gate, via the same shared policy ApplicationExecutionOrchestrator
+        # uses (application_eligibility_policy.py) so the two can never silently
+        # diverge. The raw decision/remote_eligibility checks below remain ONLY
+        # as a fallback for records persisted before intelligence_priority
+        # existed, and never override it when present.
+        gate_reason = intelligence_priority_gate(record)
+        if gate_reason == INTELLIGENCE_PRIORITY_MISSING:
             if record.get("decision") != "AUTO_APPLY":
                 return "NOT_AUTO_APPLY"
             # Task 21.14B: NOT_APPLICABLE (a non-remote vacancy -- no known
@@ -112,6 +109,8 @@ class ApplicationPackageOrchestrator:
             # blocked every legitimately non-remote vacancy.
             if record.get("remote_eligibility") not in (ELIGIBLE, NOT_APPLICABLE):
                 return "REMOTE_ELIGIBILITY_NOT_CONFIRMED"
+        elif gate_reason:
+            return gate_reason
 
         if record.get("application_status") in TERMINAL or record.get("status") in TERMINAL:
             return "TERMINAL_APPLICATION_STATUS"

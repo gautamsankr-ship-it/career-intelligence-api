@@ -42,7 +42,7 @@ def _setup(tmp_path):
     resume=_pdf(tmp_path/"Synthetic_Candidate_Resume.pdf", "Synthetic Resume")
     cover=_pdf(tmp_path/"Synthetic_Candidate_Cover_Letter.pdf", "Synthetic Cover Letter")
     record={"id":42,"job_fingerprint":"f","company":"Example","job_title":"Finance Manager","job_description":"finance",
-            "decision":"AUTO_APPLY","remote_eligibility":"ELIGIBLE","status":"MANUAL_WEB_REQUIRED","application_status":"MANUAL_WEB_REQUIRED",
+            "decision":"AUTO_APPLY","remote_eligibility":"ELIGIBLE","intelligence_priority":"B","status":"MANUAL_WEB_REQUIRED","application_status":"MANUAL_WEB_REQUIRED",
             "application_url":wrapper_url,"source_listing_url":wrapper_url}
     package=ApplicationPackage("pkg-iframe-e2e",42,company="Example",job_title="Finance Manager",market="united_kingdom",
                                 application_url=wrapper_url,application_portal="GREENHOUSE",route_confidence="HIGH",

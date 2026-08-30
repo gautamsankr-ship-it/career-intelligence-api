@@ -56,7 +56,7 @@ class ProgressBrowser(Browser):
 
 def record(**changes):
     return {"id":42, "job_fingerprint":"f", "company":"Example", "job_title":"Finance Manager", "job_description":"finance",
-            "decision":"AUTO_APPLY", "remote_eligibility":"ELIGIBLE", "status":"MANUAL_WEB_REQUIRED", "application_status":"MANUAL_WEB_REQUIRED",
+            "decision":"AUTO_APPLY", "remote_eligibility":"ELIGIBLE", "intelligence_priority":"B", "status":"MANUAL_WEB_REQUIRED", "application_status":"MANUAL_WEB_REQUIRED",
             "application_url":"https://boards.greenhouse.io/example/jobs/1", "source_listing_url":"https://boards.greenhouse.io/example/jobs/1", **changes}
 
 
@@ -121,6 +121,42 @@ def test_package_and_production_guards_and_document_identity(tmp_path):
     service, packages, browser=orchestrator(tmp_path / "wrong")
     packages.package.resume_vacancy_identity="other"
     assert service.execute(42).status == "PACKAGE_REFRESH_REQUIRED"
+
+
+@pytest.mark.parametrize("priority", ["C", "D", "E"])
+def test_non_ab_intelligence_priority_blocks_execution(tmp_path, priority):
+    """Task 21.17C: intelligence_priority is authoritative -- C/D/E must
+    never reach execution regardless of legacy decision/remote_eligibility
+    fields (both still say AUTO_APPLY/ELIGIBLE in the shared `record()`
+    fixture)."""
+    service, packages, browser = orchestrator(tmp_path / priority)
+    packages.history.record["intelligence_priority"] = priority
+    assert service.execute(42).status == "NOT_APPLICATION_ELIGIBLE"
+    assert browser.preview_calls == 0
+
+
+def test_priority_a_is_authorized_same_as_b(tmp_path):
+    service, packages, _ = orchestrator(tmp_path)
+    packages.history.record["intelligence_priority"] = "A"
+    assert service.execute(42, "INSPECT_ONLY").status == "READY_FOR_PREPARATION"
+
+
+def test_missing_intelligence_priority_fails_closed_even_with_legacy_auto_apply(tmp_path):
+    """Task 21.17C: execution must never treat the legacy decision/
+    remote_eligibility fields as authorization on their own -- a record with
+    no intelligence_priority at all (e.g. a malformed or never-evaluated
+    record) is blocked, even though the legacy fields say AUTO_APPLY/ELIGIBLE."""
+    service, packages, browser = orchestrator(tmp_path)
+    del packages.history.record["intelligence_priority"]
+    assert service.execute(42).status == "NOT_APPLICATION_ELIGIBLE"
+    assert browser.preview_calls == 0
+
+
+def test_unrecognized_intelligence_priority_fails_closed(tmp_path):
+    service, packages, browser = orchestrator(tmp_path)
+    packages.history.record["intelligence_priority"] = "NOT_A_REAL_PRIORITY"
+    assert service.execute(42).status == "NOT_APPLICATION_ELIGIBLE"
+    assert browser.preview_calls == 0
 
 
 def test_source_only_job33_style_route_resolves_once_then_requires_direct_route(tmp_path):
