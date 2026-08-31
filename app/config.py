@@ -3,6 +3,8 @@ Career Intelligence Platform
 Global Configuration
 """
 
+import os
+
 # ==========================================================
 # DEVELOPMENT
 # ==========================================================
@@ -110,6 +112,30 @@ APPLICATION_DRY_RUN = True
 APPLICATION_AUTO_SUBMIT = False
 APPLICATION_BROWSER_TIMEOUT_MS = 30_000
 APPLICATION_PREVIEW_FOLDER = "app/data/application_previews"
+
+# Task 21.28: browser session mode. ISOLATED (fresh, cookie-less context per
+# call -- "isolated: no imported browser profile/cookies") remains the
+# default for all existing Greenhouse/Lever/ATS preparation and tests.
+# PERSISTENT_AUTHENTICATED is an explicit, opt-in mode where a human has
+# already logged into a dedicated local Chromium profile by hand; the
+# software only ever reuses that already-authenticated session and never
+# performs credential login itself (see
+# ApplicationBrowserService.open_persistent_session).
+APPLICATION_BROWSER_SESSION_MODE_ISOLATED = "ISOLATED"
+APPLICATION_BROWSER_SESSION_MODE_PERSISTENT_AUTHENTICATED = "PERSISTENT_AUTHENTICATED"
+APPLICATION_BROWSER_SESSION_MODE = os.getenv(
+    "APPLICATION_BROWSER_SESSION_MODE", APPLICATION_BROWSER_SESSION_MODE_ISOLATED
+)
+# Local, outside-repository directory a human has manually logged into.
+# Deliberately supplied only through local environment -- never a literal
+# path here, and never a repository-relative default -- so a profile
+# directory can never be accidentally committed. Persistent mode fails
+# closed (PersistentProfileNotConfiguredError) when this is unset, and
+# fails closed again (PersistentProfileInsideRepositoryError) if it ever
+# resolves to a path inside this repository.
+APPLICATION_PERSISTENT_BROWSER_PROFILE_DIR = os.getenv(
+    "APPLICATION_PERSISTENT_BROWSER_PROFILE_DIR", ""
+)
 
 RAW_JOB_CACHE = "raw_jobs.json"
 

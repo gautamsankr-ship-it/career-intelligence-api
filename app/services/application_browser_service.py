@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import os
 import re
 from datetime import datetime, timezone
 from html.parser import HTMLParser
@@ -16,14 +17,22 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 from urllib.parse import urlparse
 
-from app.config import APPLICATION_AUTO_SUBMIT, APPLICATION_BROWSER_TIMEOUT_MS, APPLICATION_DRY_RUN, APPLICATION_PREVIEW_FOLDER
+from app.config import (
+    APPLICATION_AUTO_SUBMIT,
+    APPLICATION_BROWSER_SESSION_MODE_ISOLATED,
+    APPLICATION_BROWSER_SESSION_MODE_PERSISTENT_AUTHENTICATED,
+    APPLICATION_BROWSER_TIMEOUT_MS,
+    APPLICATION_DRY_RUN,
+    APPLICATION_PERSISTENT_BROWSER_PROFILE_DIR,
+    APPLICATION_PREVIEW_FOLDER,
+)
 from app.models.application_browser import ApplicationField, ApplicationPlan
 from app.services.application_answer_engine import ApplicationAnswerEngine
 from app.services.application_route_resolver import ApplicationRouteResolver
 from app.services.portal_evidence import detect_portal_evidence
 
 if TYPE_CHECKING:
-    from playwright.async_api import Frame, Page
+    from playwright.async_api import Browser, BrowserContext, Frame, Page, Playwright
 
 
 class ApplicationSurface(Protocol):
@@ -133,6 +142,143 @@ class GenericApplicationAdapter(ApplicationPortalAdapter):
 
 
 ADAPTERS = (GreenhouseAdapter, LeverAdapter, WorkdayAdapter, SmartRecruitersAdapter, SuccessFactorsAdapter, OracleAdapter, AshbyAdapter, GenericApplicationAdapter)
+
+
+# --- Persistent authenticated browser session (Task 21.28) ------------------
+# Foundation only: open a human-pre-authenticated local Chromium profile,
+# classify whether the current page needs a human (login/MFA/CAPTCHA), and
+# let automation continue once it doesn't. No credential login, no LinkedIn
+# Easy Apply handling, no autofill wiring, and no cross-process reattachment
+# are implemented here -- all explicitly deferred.
+
+_PROFILE_LOCK_FILENAME = ".career_intelligence_browser.lock"
+
+# Page-purpose classifications that require the human to act, mapped to the
+# persistent-mode-specific pause states this task introduces. Deliberately
+# separate from the existing ISOLATED-mode ApplicationPlan.readiness/
+# ApplicationExecutionResult.status vocabulary (AUTH_REQUIRED/CAPTCHA_REQUIRED/
+# MFA_REQUIRED) -- isolated mode is untouched by this table.
+PERSISTENT_CHALLENGE_STATE_BY_PAGE_PURPOSE = {
+    "LOGIN": "HUMAN_LOGIN_REQUIRED",
+    "MFA": "HUMAN_MFA_REQUIRED",
+    "CAPTCHA": "HUMAN_CAPTCHA_REQUIRED",
+}
+PERSISTENT_SESSION_READY = "READY"
+
+
+class PersistentProfileError(RuntimeError):
+    """Base class for persistent-profile configuration/safety failures."""
+
+
+class PersistentProfileNotConfiguredError(PersistentProfileError):
+    """Persistent mode was requested but no external profile directory is configured."""
+
+
+class PersistentProfileInsideRepositoryError(PersistentProfileError):
+    """The configured/supplied profile directory resolves inside this repository."""
+
+
+class PersistentProfileLockedError(PersistentProfileError):
+    """Another execution already holds the lock for this profile directory."""
+
+
+def resolve_persistent_profile_dir(explicit: str | Path | None = None) -> Path:
+    """Fail-closed resolution of the persistent browser profile directory.
+
+    Never defaults to a path inside the repository. Requires either an
+    explicit caller-supplied path or APPLICATION_PERSISTENT_BROWSER_PROFILE_DIR
+    to be set (local configuration/environment only -- never a literal
+    default here)."""
+    raw = explicit or APPLICATION_PERSISTENT_BROWSER_PROFILE_DIR
+    if not raw:
+        raise PersistentProfileNotConfiguredError(
+            "Persistent authenticated browser mode requires a configured profile "
+            "directory (APPLICATION_PERSISTENT_BROWSER_PROFILE_DIR), outside this "
+            "repository. None was supplied."
+        )
+    profile_dir = Path(raw).expanduser().resolve()
+    repo_root = Path(__file__).resolve().parents[2]
+    if profile_dir == repo_root or repo_root in profile_dir.parents:
+        raise PersistentProfileInsideRepositoryError(
+            f"Persistent browser profile directory ({profile_dir}) must be outside "
+            f"the repository ({repo_root}); refusing to use a repository-contained path."
+        )
+    return profile_dir
+
+
+def _acquire_profile_lock(profile_dir: Path) -> Path:
+    """Same O_CREAT|O_EXCL exclusive-create lock pattern already used by
+    ApplicationSubmissionService -- the smallest reliable local mechanism
+    already established in this project, reused rather than reinvented."""
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = profile_dir / _PROFILE_LOCK_FILENAME
+    try:
+        fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.close(fd)
+    except FileExistsError:
+        raise PersistentProfileLockedError(
+            f"Persistent browser profile at {profile_dir} is already in use by "
+            "another execution. Close it before starting another."
+        ) from None
+    return lock_path
+
+
+class PersistentSession:
+    """A live, human-authenticated persistent browser session.
+
+    Deliberately carries only a state/page-purpose/url summary -- never
+    cookies, session/storage data, tokens, or page HTML. There is
+    intentionally no method on this class that reads or exports that kind of
+    session data; that omission is structural (source-inspected), not just
+    documented -- see the browser-session test suite's dedicated guard tests.
+
+    The "resume" primitive for this task is calling `refresh_state()` again
+    on the SAME still-open `page` after a human resolves a pause in the
+    visible browser window -- proving the context stays alive and usable,
+    without any cross-process reattachment (explicitly out of scope)."""
+
+    def __init__(self, service: "ApplicationBrowserService", playwright: "Playwright", browser: "Browser | None",
+                 context: "BrowserContext", page: "Page", profile_dir: Path, lock_path: Path):
+        self._service = service
+        self._playwright = playwright
+        self._browser = browser
+        self.context = context
+        self.page = page
+        self.profile_dir = profile_dir
+        self._lock_path = lock_path
+        self.state = PERSISTENT_SESSION_READY
+        self.page_purpose = ""
+        self.url = ""
+        self._closed = False
+
+    async def refresh_state(self) -> str:
+        """Re-classify the current page from the live, still-open page --
+        never touches cookies/storage; reads only page URL and visible
+        content, exactly like the existing isolated-mode classification."""
+        if self._closed:
+            raise RuntimeError("PersistentSession is already closed.")
+        html = await self.page.content()
+        self.url = self.page.url
+        self.page_purpose = self._service.page_purpose(self.url, html)
+        self.state = PERSISTENT_CHALLENGE_STATE_BY_PAGE_PURPOSE.get(self.page_purpose, PERSISTENT_SESSION_READY)
+        return self.state
+
+    async def close(self) -> None:
+        """Closes the context (never the underlying persistent profile data)
+        and releases the profile lock. Never exports cookies/storage state."""
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            await self.context.close()
+        finally:
+            if self._browser is not None:
+                await self._browser.close()
+            await self._playwright.stop()
+            try:
+                self._lock_path.unlink()
+            except FileNotFoundError:
+                pass
 
 
 class ApplicationBrowserService:
@@ -252,6 +398,61 @@ class ApplicationBrowserService:
 
     def fill_preview_url(self, url: str, vacancy: Any | None = None, tracker_id: int | None = None, headed: bool = False, application_date: str | None = None, pause_seconds: int = 0) -> ApplicationPlan:
         return asyncio.run(self._preview_url(url, vacancy, tracker_id, headed, application_date, True, pause_seconds))
+
+    async def open_persistent_session(
+        self, url: str | None = None, *, headed: bool = True, profile_dir: str | Path | None = None,
+    ) -> "PersistentSession":
+        """Task 21.28 foundation: open (or reuse) a human-pre-authenticated
+        persistent Chromium profile and classify whether the current page
+        needs a human (login/MFA/CAPTCHA) before automation may continue.
+
+        Caller-managed lifetime: this coroutine is awaited directly within
+        the caller's own event loop/task (never internally wrapped in
+        asyncio.run()), so the returned PersistentSession's live context/page
+        remain valid for further awaited calls -- e.g. `await
+        session.refresh_state()` again after a human resolves a pause in the
+        visible window -- within that same async flow. Cross-process
+        reattachment across separate top-level invocations is explicitly out
+        of scope for this task.
+
+        Never performs credential login, never fills any field, never reads
+        cookies or storage state (no such call exists in this method or
+        anywhere in this class). Fails closed if no profile directory is
+        configured (PersistentProfileNotConfiguredError), if it resolves
+        inside this repository (PersistentProfileInsideRepositoryError), or
+        if another execution already holds its lock
+        (PersistentProfileLockedError)."""
+        resolved_profile_dir = resolve_persistent_profile_dir(profile_dir)
+        lock_path = _acquire_profile_lock(resolved_profile_dir)
+        try:
+            from playwright.async_api import async_playwright
+        except ImportError as exc:
+            self._release_lock_safely(lock_path)
+            raise RuntimeError("Playwright is required. Install project dependencies and Chromium before live browser use.") from exc
+        api = await async_playwright().start()
+        context = None
+        try:
+            context = await api.chromium.launch_persistent_context(str(resolved_profile_dir), headless=not headed)
+            page = context.pages[0] if context.pages else await context.new_page()
+            session = PersistentSession(self, api, None, context, page, resolved_profile_dir, lock_path)
+            if url is not None:
+                self.validate_url(url)
+                await page.goto(url, wait_until="domcontentloaded", timeout=APPLICATION_BROWSER_TIMEOUT_MS)
+            await session.refresh_state()
+            return session
+        except Exception:
+            if context is not None:
+                await context.close()
+            await api.stop()
+            self._release_lock_safely(lock_path)
+            raise
+
+    @staticmethod
+    def _release_lock_safely(lock_path: Path) -> None:
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            pass
 
     def progress_url(self, url: str, vacancy: Any | None = None, tracker_id: int | None = None, headed: bool = False, application_date: str | None = None, max_pages: int = 6, max_navigation_actions: int = 5):
         """Fill/upload and click only one unambiguous non-final intermediate control."""

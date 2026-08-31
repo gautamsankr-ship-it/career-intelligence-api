@@ -12,10 +12,31 @@ def engine(tmp_path: Path) -> tuple[ApplicationAnswerVault, ApplicationAnswerEng
     return vault, ApplicationAnswerEngine(vault)
 
 
-def test_simple_current_location_autofills(tmp_path):
+def test_current_location_requires_human_review_without_explicit_application_context(tmp_path):
+    """Task 21.28: CURRENT_LOCATION_COUNTRY is not temporally/context-aware
+    (the vault's own seeded value is a single global fact, currently
+    "Nepal") -- it must never be blindly auto-filled. No vacancy/context is
+    supplied here, so it must fail closed to manual review, regardless of
+    what the vault itself contains for this concept."""
     _, service = engine(tmp_path)
     result = service.resolve("What is your current country of residence?")
-    assert (result.concept, result.answer, result.automation_policy, result.confidence) == ("CURRENT_LOCATION_COUNTRY", "Nepal", "AUTO_FILL", "HIGH")
+    assert result.concept == "CURRENT_LOCATION_COUNTRY"
+    assert result.manual_review is True
+    assert result.answer is None
+
+
+def test_current_location_autofills_only_from_explicit_application_context(tmp_path):
+    """An explicitly approved value for THIS specific application context
+    (never the target market, never an inferred future/planned residence) is
+    the only way CURRENT_LOCATION_COUNTRY may auto-fill."""
+    _, service = engine(tmp_path)
+    result = service.resolve(
+        "What is your current country of residence?",
+        vacancy={"approved_current_location_country": "United Kingdom"},
+    )
+    assert (result.concept, result.answer, result.automation_policy, result.confidence, result.manual_review) == (
+        "CURRENT_LOCATION_COUNTRY", "United Kingdom", "AUTO_FILL", "HIGH", False,
+    )
 
 
 def test_specific_qualification_is_not_overclaimed(tmp_path):

@@ -25,6 +25,8 @@ class ApplicationAnswerEngine:
             return self._manual(concept, "Sensitive, legal, or voluntary declaration requires human review.", "LEGAL" if concept != "VOLUNTARY_DEMOGRAPHIC" else "VOLUNTARY_DEMOGRAPHIC")
         if concept.startswith("WORK_AUTHORIZATION_") or concept in {"EARLIEST_START_DATE"} or concept.startswith("WILLING_TO_RELOCATE_") or concept.startswith("WILLING_TO_TRAVEL_"):
             return self._rule(concept, normalized_market, application_date, choices)
+        if concept == "CURRENT_LOCATION_COUNTRY":
+            return self._current_location(vacancy, choices)
         if concept in {"ROLE_MOTIVATION", "COMPANY_MOTIVATION", "RELEVANT_EXPERIENCE_SUMMARY", "FINTECH_TRANSITION_MOTIVATION"}:
             return self._generated(concept, vacancy, question_text)
         if concept == "EXPECTED_SALARY" and (field_type or "").upper() in {"NUMBER", "NUMERIC", "CURRENCY"}:
@@ -93,6 +95,39 @@ class ApplicationAnswerEngine:
                     if result is None: return self._manual(concept, "Approved rule cannot be mapped safely to the offered choices.")
                 return AnswerDecision(concept, result, rule.automation_policy, rule.confidence, rule.answer_source, rule.explanation, False, rule.sensitivity, f"rule:{rule.rule_id}")
         return self._manual(concept, "No approved market-specific work-authorization rule applies.", "LEGAL")
+
+    def _current_location(self, vacancy: Any | None, choices: list[str] | None) -> AnswerDecision:
+        """Task 21.28: the vault's own CURRENT_LOCATION_COUNTRY answer is a
+        single global value -- not temporally/context-aware -- so it cannot
+        safely reflect a candidate who is relocating between countries
+        across different applications (e.g. currently in Nepal, moving to
+        the UK for study). It must never be blindly auto-filled from that
+        global value in an authenticated application.
+
+        Never infer from the vacancy's target market, and never infer a
+        future/planned residence merely because relocation or study is
+        planned -- only an explicitly approved value supplied for THIS
+        specific application context (vacancy["approved_current_location_country"])
+        may be used. Until location becomes properly temporal/context-aware,
+        the safe default is always human review."""
+        approved = self._field(vacancy, "approved_current_location_country")
+        if not approved:
+            return self._manual(
+                "CURRENT_LOCATION_COUNTRY",
+                "Current location is not temporally/context-aware -- no explicitly "
+                "approved value was supplied for this specific application context.",
+                "LOCATION",
+            )
+        result = approved
+        if choices:
+            result = self._map_choices(result, choices)
+            if result is None:
+                return self._manual("CURRENT_LOCATION_COUNTRY", "Approved current-location value cannot be mapped safely to the offered choices.", "LOCATION")
+        return AnswerDecision(
+            "CURRENT_LOCATION_COUNTRY", result, "AUTO_FILL", "HIGH", "APPLICATION_CONTEXT_APPROVED",
+            "Explicitly approved current location for this specific application context.", False, "STANDARD",
+            "application_context", result,
+        )
 
     def _generated(self, concept: str, vacancy: Any | None, question: str) -> AnswerDecision:
         title = self._field(vacancy, "title")
