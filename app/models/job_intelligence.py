@@ -107,3 +107,13 @@ class JobIntelligence:
     priority: Priority
     priority_reasons: tuple[str, ...]
     evidence: tuple[str, ...] = field(default_factory=tuple)
+    # Task 21.24C: a narrow, additive distinction for whether *internal*
+    # application-package preparation may proceed for a strong HUMAN_REVIEW
+    # (C) opportunity whose only remaining blocker is human-resolvable
+    # uncertainty (see job_intelligence_service._package_preparation_gate).
+    # Empty string for every A/B/D/E vacancy and for any C that does not
+    # qualify. Never changes `priority` itself, and never consulted by
+    # execution/FinalReview/submission -- those still gate purely on
+    # `priority` via application_eligibility_policy.intelligence_priority_gate.
+    package_gate: str = ""
+    package_gate_reasons: tuple[str, ...] = field(default_factory=tuple)

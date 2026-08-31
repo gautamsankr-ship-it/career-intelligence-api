@@ -190,6 +190,12 @@ class CareerAgent:
                     opportunity_value=intelligence.opportunity_value.value,
                     candidate_competitiveness=intelligence.candidate_competitiveness.value,
                     evaluation_snapshot=evaluation_snapshot,
+                    # Task 21.24C: persisted alongside intelligence_priority,
+                    # from the same evaluate() call, so it can never belong to
+                    # a different vacancy or drift from the priority it was
+                    # computed with.
+                    package_gate=intelligence.package_gate,
+                    package_gate_reasons=json.dumps(list(intelligence.package_gate_reasons)),
                 )
 
                 result = None

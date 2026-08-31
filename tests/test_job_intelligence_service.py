@@ -1189,3 +1189,114 @@ def test_jobgether_style_scenario_is_not_blocked_solely_by_employer_anonymity():
     assert intelligence.priority == Priority.HUMAN_REVIEW
     assert intelligence.hard_eligibility.value == MANUAL_REVIEW
     assert any("eligibility" in reason.lower() for reason in intelligence.priority_reasons)
+
+
+# --- Prepare-for-human-review package gate (Task 21.24C) --------------------
+# A narrow, additive distinction -- separate from `priority`, which always
+# stays HUMAN_REVIEW (C) here -- for whether *internal* application-package
+# preparation may proceed for a strong C opportunity whose only remaining
+# blocker is human-resolvable uncertainty. Never converts C to B.
+
+def test_qualifying_strong_c_gets_prepare_for_human_review():
+    """(1)/(2) A strong C -- LIKELY_VALID vacancy, HIGH/MEDIUM opportunity
+    value, VERY_STRONG/STRONG competitiveness, no requirement gap, only
+    unresolved hard eligibility -- qualifies for PREPARE_FOR_HUMAN_REVIEW,
+    and priority itself remains exactly "C"."""
+    service = JobIntelligenceService()
+    intelligence = service.evaluate(
+        _evaluation(MANUAL_REVIEW_RESULT, job_analysis={"job_title": "Head of Finance", "company": "Acme Partners"}),
+    )
+    assert intelligence.priority == Priority.HUMAN_REVIEW
+    assert intelligence.priority.value == "C"
+    assert intelligence.package_gate == "PREPARE_FOR_HUMAN_REVIEW"
+    assert intelligence.package_gate_reasons
+    assert any("eligibility" in reason.lower() for reason in intelligence.package_gate_reasons)
+
+
+def test_hard_ineligible_c_cannot_prepare():
+    """(3) Hard INELIGIBLE never even reaches C (it's REJECT, tier 1) --
+    package_gate must be empty regardless."""
+    service = JobIntelligenceService()
+    intelligence = service.evaluate(
+        _evaluation(INELIGIBLE_RESULT, job_analysis={"job_title": "Head of Finance", "company": "Acme Partners"}),
+    )
+    assert intelligence.priority == Priority.REJECT
+    assert intelligence.package_gate == ""
+
+
+def test_hard_requirement_gap_cannot_prepare():
+    """(4) A proven HARD_REQUIREMENT_GAP forces REJECT (tier 1) -- never
+    HUMAN_REVIEW, so package_gate must be empty."""
+    service = JobIntelligenceService()
+    job_analysis = {"job_title": "Head of Finance", "company": "Acme Partners", "experience_required": 25}
+    intelligence = service.evaluate(_evaluation_with_profile(MANUAL_REVIEW_RESULT, job_analysis))
+    assert any(r.classification == "HARD_REQUIREMENT_GAP" for r in intelligence.requirement_evidence)
+    assert intelligence.priority == Priority.REJECT
+    assert intelligence.package_gate == ""
+
+
+def test_weak_stretch_competitiveness_c_cannot_prepare():
+    """(5) A C driven by STRETCH candidate competitiveness (weak/low-value
+    fit), not by unresolved eligibility, must not qualify -- competitiveness
+    must be STRONG or VERY_STRONG."""
+    service = JobIntelligenceService()
+    job_analysis = {
+        "job_title": "Accountant", "company": "Acme Partners",
+        "required_skills": ["SAP FICO Consultant", "Workday", "Oracle Fusion"],  # 0/3 covered -> LOW coverage
+    }
+    intelligence = service.evaluate(_evaluation_with_profile(ELIGIBLE_RESULT, job_analysis, career_score=60.0))
+    assert intelligence.candidate_competitiveness.value == "STRETCH"
+    assert intelligence.priority == Priority.HUMAN_REVIEW
+    assert intelligence.package_gate == ""
+
+
+def test_uncertain_critical_requirement_c_cannot_prepare():
+    """(5)/credential variant: a C driven by an uncertain CRITICAL mandatory
+    requirement (a genuine, unresolved skill/credential question) is NOT the
+    "human-resolvable" uncertainty this rule is for -- must not qualify,
+    read from structured requirement_evidence, never string-matched."""
+    service = JobIntelligenceService()
+    job_analysis = {
+        "job_title": "Accountant", "company": "Acme Partners",
+        "required_skills": ["SAP FICO Consultant"],  # mandatory, factual, unmatched, CRITICAL
+    }
+    intelligence = service.evaluate(_evaluation_with_profile(
+        ELIGIBLE_RESULT, job_analysis, screening_decision="AUTO_APPLY", ats_grade="A+", employer_score=9.5,
+    ))
+    assert intelligence.priority == Priority.HUMAN_REVIEW
+    assert intelligence.package_gate == ""
+
+
+def test_uncertain_suspicious_vacancy_cannot_prepare():
+    """(6) A C driven by UNCERTAIN vacancy validity (no legitimate-
+    intermediary evidence at all -- a genuinely suspicious/unverifiable
+    posting) must not qualify -- validity must be VERIFIED or LIKELY_VALID."""
+    service = JobIntelligenceService()
+    intelligence = service.evaluate(
+        _evaluation(ELIGIBLE_RESULT, job_analysis={"job_title": "Accountant"}),  # missing company, no intermediary
+    )
+    assert intelligence.vacancy_validity.value == "UNCERTAIN"
+    assert intelligence.priority == Priority.HUMAN_REVIEW
+    assert intelligence.package_gate == ""
+
+
+def test_a_and_b_never_carry_package_gate():
+    """(11) A/B opportunities never populate package_gate -- it is purely a
+    C-priority concept and irrelevant to the existing A/B path."""
+    service = JobIntelligenceService()
+    intelligence = service.evaluate(_evaluation(
+        ELIGIBLE_RESULT, screening_decision="AUTO_APPLY", ats_grade="A+", employer_score=9.5,
+    ))
+    assert intelligence.priority in (Priority.PRIORITY_APPLY, Priority.APPLY)
+    assert intelligence.package_gate == ""
+
+
+def test_d_and_e_never_qualify_for_package_gate():
+    """(12) WATCH (D) and REJECT (E) never populate package_gate."""
+    service = JobIntelligenceService()
+    watch = service.evaluate(_evaluation(ELIGIBLE_RESULT, screening_decision="SKIP"))
+    assert watch.priority == Priority.WATCH
+    assert watch.package_gate == ""
+    reject = service.evaluate(_evaluation(INELIGIBLE_RESULT))
+    assert reject.priority == Priority.REJECT
+    assert reject.package_gate == ""

@@ -134,6 +134,47 @@ def test_eligible_vacancy_generates_documents_normally(tmp_path):
     assert Path(result.docx_path).exists()
 
 
+# --- human_review_package=True: the ONE narrow Task 21.24C exception -------
+
+def test_ineligible_vacancy_still_blocks_generation_even_with_human_review_package_flag(tmp_path):
+    """INELIGIBLE remains an absolute, unconditional block -- human_review_package
+    (like manual) may never rescue it."""
+    service = _service()
+    evaluation = _evaluation(INELIGIBLE_RESULT)
+
+    with pytest.raises(ValueError, match="eligibility"):
+        service.generate_application_documents(evaluation, manual=True, human_review_package=True)
+
+    assert _applications_dir_is_empty(tmp_path)
+
+
+def test_uncertain_eligibility_still_blocks_generation_without_the_human_review_flag(tmp_path):
+    """Confirms the pre-existing test above still holds unchanged: manual=True
+    alone (human_review_package defaulting to False) never bypasses MANUAL_REVIEW."""
+    service = _service()
+    evaluation = _evaluation(MANUAL_REVIEW_RESULT)
+
+    with pytest.raises(ValueError, match="eligibility"):
+        service.generate_application_documents(evaluation, manual=True)
+
+    assert _applications_dir_is_empty(tmp_path)
+
+
+def test_uncertain_eligibility_generates_documents_when_human_review_package_is_explicit(tmp_path):
+    """Task 21.24C: human_review_package=True is the one narrow, named
+    exception that lets a MANUAL_REVIEW (unresolved hard eligibility)
+    evaluation through to document generation -- used only by
+    ApplicationPackageOrchestrator for a record whose own persisted
+    package_gate already says PREPARE_FOR_HUMAN_REVIEW."""
+    service = _service()
+    evaluation = _evaluation(MANUAL_REVIEW_RESULT)
+
+    result = service.generate_application_documents(evaluation, manual=True, human_review_package=True)
+
+    assert result.docx_path is not None
+    assert Path(result.docx_path).exists()
+
+
 def test_not_applicable_eligibility_generates_documents_normally(tmp_path):
     """NOT_APPLICABLE means "not a remote-eligibility concern for this
     vacancy" -- a proceed state, same as ELIGIBLE, not a block."""

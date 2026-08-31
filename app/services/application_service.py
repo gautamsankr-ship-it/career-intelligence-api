@@ -222,6 +222,7 @@ class ApplicationService:
         self,
         evaluation: JobEvaluation,
         manual: bool = False,
+        human_review_package: bool = False,
     ) -> ApplicationResult:
         """Generate the application package for an eligible evaluation."""
         if evaluation.screening_decision != SCREENING_AUTO_APPLY and not manual:
@@ -230,17 +231,31 @@ class ApplicationService:
                 "unless manual generation is explicitly requested."
             )
 
-        # Task 21.14A: hard eligibility gates document generation, always,
-        # regardless of `manual` -- screening/manual overrides are about
-        # *why* generation was requested, never about *whether the candidate
-        # may work there at all*.
+        # Task 21.14A: hard INELIGIBLE always blocks document generation,
+        # unconditionally, with no override of any kind -- this is the one
+        # true "the candidate may not work there at all" gate and nothing in
+        # this method may ever bypass it.
         eligibility = evaluation.hard_eligibility
         if eligibility is not None and eligibility.decision == INELIGIBLE:
             raise ValueError(
                 "Cannot generate application documents: hard eligibility check failed "
                 f"({eligibility.reason or 'no reason recorded'})."
             )
-        if eligibility is not None and eligibility.decision == MANUAL_REVIEW:
+        # Task 21.24C: `human_review_package=True` is the ONE narrow, named
+        # exception to the otherwise-unconditional MANUAL_REVIEW block below
+        # -- ApplicationPackageOrchestrator passes it ONLY when a record's own
+        # persisted package_gate (computed once, structurally, by
+        # JobIntelligenceService._package_preparation_gate -- vacancy
+        # validity/opportunity value/competitiveness/requirement evidence all
+        # already verified strong, with unresolved hard eligibility the one
+        # remaining human-resolvable blocker) says PREPARE_FOR_HUMAN_REVIEW.
+        # The resulting documents are for internal human review ONLY -- the
+        # calling package's readiness is unconditionally forced to
+        # HUMAN_REVIEW_REQUIRED regardless of document readiness, and
+        # execution/FinalReview/submission never consult this flag or
+        # package_gate at all, only intelligence_priority. No other caller in
+        # the codebase passes human_review_package=True.
+        if eligibility is not None and eligibility.decision == MANUAL_REVIEW and not human_review_package:
             raise ValueError(
                 "Cannot generate application documents: hard eligibility is uncertain "
                 "and requires human review before any document is prepared."

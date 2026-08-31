@@ -16,10 +16,16 @@ from app.services.application_eligibility_policy import (
 from app.services.application_history_service import ApplicationHistoryService
 from app.services.application_route_resolver import ApplicationRouteResolver
 from app.services.application_service import ApplicationService
+from app.services.job_intelligence_service import PREPARE_FOR_HUMAN_REVIEW
 from app.services.remote_work_eligibility import ELIGIBLE, NOT_APPLICABLE, RemoteEligibilityResult
 
 PACKAGE_DIR = Path("app/data/application_packages")
 TERMINAL = {"APPLIED", "INTERVIEW", "OFFER", "REJECTED", "WITHDRAWN", "FAILED", "INTELLIGENCE_REJECTED"}
+# Task 21.24C: the gate reason intelligence_priority_gate() returns for a C
+# (HUMAN_REVIEW) priority -- see application_eligibility_policy.py. Only
+# this specific, otherwise-blocking reason may ever be bypassed here, and
+# only when the record's own persisted package_gate says so.
+HUMAN_REVIEW_GATE_REASON = "INTELLIGENCE_HUMAN_REVIEW_REQUIRED"
 
 
 class ApplicationPackageOrchestrator:
@@ -37,7 +43,20 @@ class ApplicationPackageOrchestrator:
             raise ValueError(f"Tracker ID {tracker_id} was not found.")
         identity = self._identity(record)
         ineligible = self._eligibility_reason(record)
-        if ineligible:
+        # Task 21.24C: the ONLY bypass this ever grants -- a strong C
+        # (HUMAN_REVIEW) opportunity whose own persisted `package_gate`
+        # (computed once, by JobIntelligenceService, from structured
+        # vacancy-validity/opportunity-value/competitiveness/requirement-
+        # evidence dimensions -- never re-derived or guessed here) says
+        # internal package preparation may proceed. This never changes
+        # intelligence_priority itself, and execution/FinalReview/submission
+        # keep calling intelligence_priority_gate() directly and unchanged,
+        # so a package built this way can never reach external action.
+        prepare_for_human_review = (
+            ineligible == HUMAN_REVIEW_GATE_REASON
+            and record.get("package_gate") == PREPARE_FOR_HUMAN_REVIEW
+        )
+        if ineligible and not prepare_for_human_review:
             return self._save(self._base(record, identity, readiness="NOT_APPLICATION_ELIGIBLE", reasons=[ineligible]))
 
         prior = self.load(tracker_id)
@@ -45,10 +64,30 @@ class ApplicationPackageOrchestrator:
         package = self._base(record, identity)
         self._apply_route(package, record, route)
         self._apply_answers(package)
-        self._apply_documents(package, record, prior)
+        self._apply_documents(
+            package, record, prior, manual=prepare_for_human_review, human_review_package=prepare_for_human_review,
+        )
         self._sync_documents_to_tracker(record, package)
         self._apply_readiness(package)
+        if prepare_for_human_review:
+            # Never claim submission-readiness for a C opportunity, no
+            # matter how ready its documents/route/answers are -- external
+            # execution still requires an A/B-compatible priority. Any
+            # document-generation failure _apply_documents already recorded
+            # is preserved (prepended before the human-review reasons), never
+            # silently discarded.
+            document_failures = [reason for reason in package.blocking_reasons if reason.startswith("DOCUMENT_GENERATION_FAILED:")]
+            package.readiness = "HUMAN_REVIEW_REQUIRED"
+            package.blocking_reasons = document_failures + self._human_review_reasons(record)
         return self._save(package)
+
+    @staticmethod
+    def _human_review_reasons(record) -> list[str]:
+        try:
+            reasons = json.loads(record.get("package_gate_reasons") or "[]")
+        except (json.JSONDecodeError, TypeError):
+            return [HUMAN_REVIEW_GATE_REASON]
+        return list(reasons) if isinstance(reasons, list) and reasons else [HUMAN_REVIEW_GATE_REASON]
 
     def show(self, tracker_id: int) -> ApplicationPackage | None:
         return self.load(tracker_id)
@@ -144,7 +183,7 @@ class ApplicationPackageOrchestrator:
         package.manual_answer_count = package.answer_counts["MANUAL_REVIEW"]
         package.answer_vault_status = "ANSWER_VAULT_READY" if package.answer_counts["AUTO_FILL"] else "ANSWER_REVIEW_REQUIRED"
 
-    def _apply_documents(self, package, record, prior):
+    def _apply_documents(self, package, record, prior, manual=False, human_review_package=False):
         # Paths stored against this tracker are vacancy-specific. A prior package
         # must also share the content identity before it may be reused.
         reusable_prior = prior if prior and prior.vacancy_identity == package.vacancy_identity else None
@@ -158,7 +197,7 @@ class ApplicationPackageOrchestrator:
         if resume and (package.cover_letter_status in {"READY", "OPTIONAL", "NOT_NEEDED"}):
             return
         try:
-            generated = self._generate_documents(package, record)
+            generated = self._generate_documents(package, record, manual=manual, human_review_package=human_review_package)
         except Exception as exc:
             package.blocking_reasons.append(f"DOCUMENT_GENERATION_FAILED:{type(exc).__name__}")
             return
@@ -190,7 +229,7 @@ class ApplicationPackageOrchestrator:
             self.history.update_record(record["job_fingerprint"], **updates)
             record.update(updates)
 
-    def _generate_documents(self, package, record):
+    def _generate_documents(self, package, record, manual=False, human_review_package=False):
         # Task 21.14B: reuse the tracker's already-recorded, authoritative
         # remote_eligibility (the same value _eligibility_reason() above
         # already gated on) rather than letting evaluate_job() silently
@@ -222,6 +261,24 @@ class ApplicationPackageOrchestrator:
                 job_description, hard_eligibility=hard_eligibility,
             )
             package.evaluation_source = "FRESH_EVALUATION_FALLBACK"
+        # Task 21.24C: a PREPARE_FOR_HUMAN_REVIEW (strong C) package passes
+        # manual=True -- evaluation.screening_decision for such a record may
+        # be REVIEW/SKIP (intelligence priority C here comes from unresolved
+        # hard eligibility, not the raw career screening decision), and
+        # generate_application_documents() only allows a non-AUTO_APPLY
+        # evaluation through with this explicit override -- AND separately
+        # human_review_package=True, the one narrow, named exception to its
+        # otherwise-unconditional MANUAL_REVIEW block (INELIGIBLE remains an
+        # absolute, unconditional block regardless). The resulting package's
+        # readiness is still forced to HUMAN_REVIEW_REQUIRED by prepare()
+        # below regardless of whether document generation itself succeeds.
+        # The normal (non-human-review) call is made exactly as before -- no
+        # extra kwargs at all -- so existing document_service fakes/mocks
+        # built against the pre-21.24C signature are unaffected.
+        if human_review_package:
+            return self.document_service.generate_application_documents(
+                evaluation, manual=True, human_review_package=True,
+            )
         return self.document_service.generate_application_documents(evaluation)
 
     @staticmethod

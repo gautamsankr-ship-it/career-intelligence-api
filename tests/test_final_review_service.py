@@ -122,3 +122,20 @@ def test_document_deficiency_alone_on_eligible_vacancy_still_reports_changes_req
 def test_review_storage_has_no_browser_secrets(tmp_path):
  service,_,_,_=setup(tmp_path); review=service.create(42); text=(tmp_path/'reviews'/f'{review.review_id}.json').read_text().lower()
  assert all(word not in text for word in ('cookie','password','csrf','otp','validitytoken'))
+
+
+def test_prepare_for_human_review_package_still_blocks_final_review(tmp_path):
+    """Task 21.24C: a package built via the new PREPARE_FOR_HUMAN_REVIEW
+    package-preparation bypass (readiness=HUMAN_REVIEW_REQUIRED) -- with an
+    otherwise fully "ready" execution/route/document trail, exactly like the
+    happy-path fixture -- must still report NOT_READY. FinalReviewService
+    gates purely on intelligence_priority (still "C") via the unchanged,
+    shared intelligence_priority_gate(), and never consults package_gate or
+    package.readiness at all."""
+    service, record, pkg, execution = setup(
+        tmp_path, package={"readiness": "HUMAN_REVIEW_REQUIRED"},
+        record={"intelligence_priority": "C", "package_gate": "PREPARE_FOR_HUMAN_REVIEW"},
+    )
+    review = service.create(42)
+    assert review.review_status == "NOT_READY"
+    assert "NOT_APPLICATION_ELIGIBLE" in review.blocking_reasons

@@ -206,6 +206,17 @@ class ApplicationHistoryService:
             # browser data -- only the same structured vacancy/employer
             # analysis fields already used throughout this table.
             "evaluation_snapshot": "TEXT",
+            # Task 21.24C: JobIntelligenceService's own, narrow
+            # prepare-for-human-review distinction (see
+            # job_intelligence_service._package_preparation_gate) --
+            # persisted alongside intelligence_priority above so
+            # ApplicationPackageOrchestrator can consult it without
+            # recomputing/guessing. Empty for every A/B/D/E record and for
+            # any C that does not qualify; never changes intelligence_priority
+            # itself and is never consulted by execution/FinalReview/
+            # submission, which continue to gate purely on intelligence_priority.
+            "package_gate": "TEXT",
+            "package_gate_reasons": "TEXT",
         }
         existing = {row[1] for row in self.connection.execute("PRAGMA table_info(application_history)")}
         for column, definition in additions.items():

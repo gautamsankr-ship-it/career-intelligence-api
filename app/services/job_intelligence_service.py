@@ -1076,6 +1076,86 @@ def _decide_priority(
     return Priority.HUMAN_REVIEW, tuple(reasons)
 
 
+# --- Prepare-for-human-review package gate (Task 21.24C) --------------------
+PREPARE_FOR_HUMAN_REVIEW = "PREPARE_FOR_HUMAN_REVIEW"
+
+_PACKAGE_GATE_QUALIFYING_VALIDITY = (VERIFIED, LIKELY_VALID)
+_PACKAGE_GATE_QUALIFYING_OPPORTUNITY_VALUE = (HIGH, MEDIUM)
+_PACKAGE_GATE_QUALIFYING_COMPETITIVENESS = (STRONG, VERY_STRONG)
+
+
+def _package_preparation_gate(
+    priority: Priority,
+    hard_eligibility: DimensionScore,
+    vacancy_validity: DimensionScore,
+    opportunity_value: DimensionScore,
+    candidate_competitiveness: DimensionScore,
+    requirement_evidence: tuple[RequirementEvidence, ...],
+) -> tuple[str, tuple[str, ...]]:
+    """A narrow, additive distinction -- separate from `priority`, which
+    always stays HUMAN_REVIEW (C) here -- for whether *internal*
+    application-package preparation may proceed for a strong C opportunity
+    whose only remaining blocker is human-resolvable uncertainty (e.g.
+    unresolved international-remote eligibility behind a legitimate
+    intermediary). External execution/FinalReview/submission are entirely
+    unaffected: they gate purely on `priority` via
+    application_eligibility_policy.intelligence_priority_gate, which never
+    consults this. Never converts C to B, never fires for A/B/D/E.
+
+    Qualifies ONLY when ALL of:
+      - priority is HUMAN_REVIEW;
+      - vacancy_validity is VERIFIED or LIKELY_VALID (never UNCERTAIN/
+        INVALID/STALE);
+      - opportunity_value is HIGH or MEDIUM;
+      - candidate_competitiveness is STRONG or VERY_STRONG (never STRETCH/
+        INSUFFICIENT_DATA/COMPETITIVE/LOW);
+      - hard_eligibility is not INELIGIBLE;
+      - no requirement_evidence item is a proven HARD_REQUIREMENT_GAP;
+      - no requirement_evidence item is an uncertain CRITICAL/
+        AMBIGUOUS_CRITICALITY mandatory factual requirement -- a genuine
+        credential/skill gap is NOT the "human-resolvable" uncertainty this
+        rule is for, and this is always read from structured
+        requirement_evidence, never string-matched against priority_reasons.
+
+    The last two checks are already implied by `priority` not being REJECT,
+    but are re-checked explicitly here so this function's own contract does
+    not silently depend on `_decide_priority`'s exact tier ordering. Once all
+    of the above hold, the only thing left that can still be driving
+    HUMAN_REVIEW is hard_eligibility == MANUAL_REVIEW; if it somehow isn't,
+    this fails closed rather than guessing why priority is C."""
+    if priority != Priority.HUMAN_REVIEW:
+        return "", ()
+    if vacancy_validity.value not in _PACKAGE_GATE_QUALIFYING_VALIDITY:
+        return "", ()
+    if opportunity_value.value not in _PACKAGE_GATE_QUALIFYING_OPPORTUNITY_VALUE:
+        return "", ()
+    if candidate_competitiveness.value not in _PACKAGE_GATE_QUALIFYING_COMPETITIVENESS:
+        return "", ()
+    if hard_eligibility.value == INELIGIBLE:
+        return "", ()
+    if any(r.classification == HARD_REQUIREMENT_GAP for r in requirement_evidence):
+        return "", ()
+    uncertain_critical = [
+        r for r in requirement_evidence
+        if r.is_mandatory and not r.is_behavioural and r.classification == NO_EVIDENCE
+        and r.criticality in (CRITICAL, AMBIGUOUS_CRITICALITY)
+    ]
+    if uncertain_critical:
+        return "", ()
+    if hard_eligibility.value != MANUAL_REVIEW:
+        return "", ()
+    reasons = (
+        f"Strong C opportunity: vacancy validity is {vacancy_validity.value}, opportunity value is "
+        f"{opportunity_value.value}, candidate competitiveness is {candidate_competitiveness.value}, "
+        "and no hard requirement gap or uncertain critical requirement was found -- the only remaining "
+        "blocker is unresolved hard eligibility (geographic/work-authorization), which is "
+        "human-resolvable. Internal package preparation may proceed for human review; external "
+        "execution remains blocked.",
+        *hard_eligibility.reasons,
+    )
+    return PREPARE_FOR_HUMAN_REVIEW, reasons
+
+
 class JobIntelligenceService:
     """Computes JobIntelligence for an already-produced JobEvaluation,
     reusing CareerDecisionEngine/ATSEngine/EmployerService's own outputs
@@ -1106,6 +1186,10 @@ class JobIntelligenceService:
             hard_eligibility, vacancy_validity, evaluation.screening_decision, evaluation.ats_result,
             opportunity_value, candidate_competitiveness, requirement_evidence,
         )
+        package_gate, package_gate_reasons = _package_preparation_gate(
+            priority, hard_eligibility, vacancy_validity, opportunity_value,
+            candidate_competitiveness, requirement_evidence,
+        )
 
         return JobIntelligence(
             vacancy_validity=vacancy_validity,
@@ -1117,4 +1201,6 @@ class JobIntelligenceService:
             priority=priority,
             priority_reasons=priority_reasons,
             evidence=(eligibility_result.evidence,) if eligibility_result.evidence else (),
+            package_gate=package_gate,
+            package_gate_reasons=package_gate_reasons,
         )

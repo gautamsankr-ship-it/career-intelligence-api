@@ -48,3 +48,21 @@ def test_explicit_isolated_construction_still_works_and_uses_only_isolated_paths
  service=ApplicationSubmissionService(reviews,Browser('SUBMISSION_CONFIRMED'),tmp_path/'receipts',tmp_path/'locks')
  assert service.receipt_dir==tmp_path/'receipts' and service.lock_dir==tmp_path/'locks'
  assert not RECEIPT_DIR.exists() and not LOCK_DIR.exists()
+
+def test_prepare_for_human_review_package_cannot_reach_submission(tmp_path):
+ """Task 21.24C: a PREPARE_FOR_HUMAN_REVIEW (C) package -- with an
+ otherwise fully "ready" execution trail, exactly like the happy-path
+ fixture -- can never even reach an APPROVED_FOR_SUBMISSION review (its
+ review_status stays NOT_READY, so approve() raises), so submit() is
+ blocked without ever touching the browser or writing APPLIED."""
+ reviews,record,pkg,exe=setup(
+  tmp_path, package={"readiness":"HUMAN_REVIEW_REQUIRED"},
+  record={"intelligence_priority":"C","package_gate":"PREPARE_FOR_HUMAN_REVIEW"},
+ )
+ review=reviews.create(42)
+ assert review.review_status=="NOT_READY"
+ with pytest.raises(ValueError,match="not eligible for approval"):
+  reviews.approve(review.review_id)
+ browser=Browser('SUBMISSION_CONFIRMED'); service=ApplicationSubmissionService(reviews,browser,tmp_path/'r2',tmp_path/'l2')
+ receipt=service.submit(review.review_id,f'SUBMIT {review.review_id}')
+ assert receipt.outcome=='SUBMISSION_BLOCKED' and browser.calls==0 and record['status']!='APPLIED'

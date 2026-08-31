@@ -152,6 +152,23 @@ def test_missing_intelligence_priority_fails_closed_even_with_legacy_auto_apply(
     assert browser.preview_calls == 0
 
 
+def test_prepare_for_human_review_package_still_blocks_execution(tmp_path):
+    """Task 21.24C: a package built via the new PREPARE_FOR_HUMAN_REVIEW
+    package-preparation bypass (readiness=HUMAN_REVIEW_REQUIRED, fully
+    document/route/answer-ready otherwise) must still be fully blocked at
+    execution -- ApplicationExecutionOrchestrator gates purely on
+    intelligence_priority (still "C" here) via the unchanged, shared
+    application_eligibility_policy.intelligence_priority_gate(), and never
+    consults package_gate/readiness at all."""
+    service, packages, browser = orchestrator(
+        tmp_path, readiness="HUMAN_REVIEW_REQUIRED",
+    )
+    packages.history.record["intelligence_priority"] = "C"
+    packages.history.record["package_gate"] = "PREPARE_FOR_HUMAN_REVIEW"
+    assert service.execute(42).status == "NOT_APPLICATION_ELIGIBLE"
+    assert browser.preview_calls == 0
+
+
 def test_unrecognized_intelligence_priority_fails_closed(tmp_path):
     service, packages, browser = orchestrator(tmp_path)
     packages.history.record["intelligence_priority"] = "NOT_A_REAL_PRIORITY"

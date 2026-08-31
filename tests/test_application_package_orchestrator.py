@@ -21,7 +21,7 @@ class History:
 class Documents:
     def __init__(self, directory, fail=False):
         self.directory=Path(directory); self.calls=0; self.snapshot_calls=0; self.fail=fail
-        self.last_hard_eligibility=None; self.last_job_analysis=None; self.last_employer=None
+        self.last_hard_eligibility=None; self.last_job_analysis=None; self.last_employer=None; self.last_manual=None
     def evaluate_job(self, text, opportunity=None, hard_eligibility=None):
         self.calls += 1
         self.last_hard_eligibility = hard_eligibility
@@ -32,7 +32,17 @@ class Documents:
         self.last_job_analysis = job_analysis
         self.last_employer = employer
         return SimpleNamespace(hard_eligibility=hard_eligibility, job_analysis=job_analysis, employer=employer)
-    def generate_application_documents(self, evaluation):
+    def generate_application_documents(self, evaluation, manual=False, human_review_package=False):
+        self.last_manual = manual
+        self.last_human_review_package = human_review_package
+        eligibility = getattr(evaluation, "hard_eligibility", None)
+        # Mirrors the real ApplicationService.generate_application_documents()
+        # invariant (Task 21.24C): MANUAL_REVIEW hard eligibility always
+        # blocks generation unless human_review_package=True is explicitly
+        # passed -- so this fake actually proves the bypass, not just that a
+        # looser fake happened not to object.
+        if eligibility is not None and getattr(eligibility, "decision", None) == "MANUAL_REVIEW" and not human_review_package:
+            raise ValueError("hard eligibility is uncertain and requires human review")
         if self.fail: raise RuntimeError("document generation failed")
         resume=self.directory / "generated-resume.docx"; cover=self.directory / "generated-cover.docx"
         resume.write_text("resume", encoding="utf-8"); cover.write_text("cover", encoding="utf-8")
@@ -301,3 +311,81 @@ def test_sync_only_updates_the_targeted_tracker_row(tmp_path):
     assert orchestrator.history.records[1]["resume_path"]
     assert orchestrator.history.records[2].get("resume_path") is None
     assert all(fp == "fingerprint-1" for fp, _ in orchestrator.history.update_calls)
+
+
+# --- Prepare-for-human-review package gate (Task 21.24C) --------------------
+
+def _human_review_record(**extra):
+    return record(
+        intelligence_priority="C", decision="AUTO_APPLY", remote_eligibility="MANUAL_REVIEW",
+        package_gate="PREPARE_FOR_HUMAN_REVIEW",
+        package_gate_reasons=json.dumps(["unresolved hard eligibility (geographic/work-authorization)"]),
+        **extra,
+    )
+
+
+def test_qualifying_strong_c_prepares_a_human_review_package(tmp_path):
+    """(1)/(7) A tracker whose persisted package_gate says
+    PREPARE_FOR_HUMAN_REVIEW proceeds through route/answers/document
+    preparation, but the resulting package is explicitly
+    HUMAN_REVIEW_REQUIRED -- never READY_FOR_APPLICATION/
+    READY_FOR_BROWSER_PREPARATION -- and lists the unresolved blocker."""
+    orchestrator = service(tmp_path, [_human_review_record()])
+    package = orchestrator.prepare(1)
+    assert package.readiness == "HUMAN_REVIEW_REQUIRED"
+    assert package.blocking_reasons == ["unresolved hard eligibility (geographic/work-authorization)"]
+    assert package.resume_status == "READY"  # documents were still generated
+    assert orchestrator.document_service.calls == 1
+    assert orchestrator.document_service.last_manual is True
+    assert orchestrator.document_service.last_human_review_package is True
+
+
+def test_prepared_c_package_never_appears_in_ready_lists(tmp_path):
+    """HUMAN_REVIEW_REQUIRED must never be mistaken for submission-readiness
+    -- it is excluded from ready(), the same set execution/automation would
+    consult for "what can proceed"."""
+    orchestrator = service(tmp_path, [_human_review_record()])
+    orchestrator.prepare(1)
+    assert orchestrator.ready() == []
+
+
+def test_intelligence_priority_c_unchanged_by_package_preparation(tmp_path):
+    """(2) Preparing a PREPARE_FOR_HUMAN_REVIEW package must never write to
+    intelligence_priority itself -- C stays C, never silently promoted."""
+    orchestrator = service(tmp_path, [_human_review_record()])
+    orchestrator.prepare(1)
+    written_keys = {key for _, fields in orchestrator.history.update_calls for key in fields}
+    assert "intelligence_priority" not in written_keys
+    assert orchestrator.history.records[1]["intelligence_priority"] == "C"
+
+
+def test_c_without_package_gate_still_cannot_prepare(tmp_path):
+    """(3)/(4)/(5)/(6) The orchestrator only ever trusts the persisted
+    package_gate field -- a C record where JobIntelligenceService did NOT
+    set package_gate (any disqualifying reason: hard ineligibility, a
+    requirement gap, weak competitiveness, an uncertain vacancy, etc. -- all
+    already proven at the JobIntelligenceService level) remains fully
+    blocked, exactly like today, regardless of how "ready" other fields look."""
+    orchestrator = service(tmp_path, [record(
+        intelligence_priority="C", decision="AUTO_APPLY", remote_eligibility="MANUAL_REVIEW",
+        career_score=95.0,  # a deliberately "strong-looking" record otherwise
+    )])
+    package = orchestrator.prepare(1)
+    assert package.readiness == "NOT_APPLICATION_ELIGIBLE"
+    assert package.blocking_reasons == ["INTELLIGENCE_HUMAN_REVIEW_REQUIRED"]
+    assert orchestrator.document_service.calls == 0
+
+
+@pytest.mark.parametrize("priority", ["D", "E"])
+def test_d_and_e_ignore_a_stray_package_gate_value(tmp_path, priority):
+    """(12) Defensive: even if package_gate were somehow inconsistently set
+    on a D/E record (never produced by the real pipeline -- see
+    _package_preparation_gate's own priority==HUMAN_REVIEW guard), the
+    orchestrator's bypass only ever fires for the literal C gate reason, so
+    D/E remain blocked regardless."""
+    orchestrator = service(tmp_path, [record(
+        intelligence_priority=priority, package_gate="PREPARE_FOR_HUMAN_REVIEW",
+    )])
+    package = orchestrator.prepare(1)
+    assert package.readiness == "NOT_APPLICATION_ELIGIBLE"
+    assert orchestrator.document_service.calls == 0
