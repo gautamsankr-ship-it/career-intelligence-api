@@ -24,9 +24,9 @@ def main() -> None:
     print()
 
     print(f"Jobs Found      : {summary['total_jobs']}")
-    print(f"Approve & Send  : {summary['ready']}")
+    print(f"Approve & Send  : {summary['apply']}")
     print(f"Generate Package: {summary['review']}")
-    print(f"Rejected        : {summary['rejected']}")
+    print(f"Rejected        : {summary['skip']}")
 
     print()
     print("=" * 90)
