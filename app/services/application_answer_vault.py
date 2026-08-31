@@ -19,7 +19,18 @@ def _seed_answers() -> list[ApplicationAnswer]:
     return [
         ApplicationAnswer("email_address", "EMAIL_ADDRESS", "gautamsankr@gmail.com", "EMAIL", "AUTO_FILL", "HIGH", "USER_APPROVED_ANSWER", "Task 20.1 candidate approval", [], "STANDARD", approved),
         ApplicationAnswer("phone_number", "PHONE_NUMBER", "+9779851139824", "PHONE", "AUTO_FILL", "HIGH", "USER_APPROVED_ANSWER", "Task 20.1 candidate approval", [], "STANDARD", approved),
-        ApplicationAnswer("current_location_country", "CURRENT_LOCATION_COUNTRY", "Nepal", "TEXT", "AUTO_FILL", "HIGH", "USER_APPROVED_ANSWER", "Task 20.1 candidate approval", [], "STANDARD", approved),
+        ApplicationAnswer("first_name", "FIRST_NAME", "Shankar", "TEXT", "AUTO_FILL", "HIGH", "PROFILE_FACT", "master_candidate_profile.json:candidate.full_name", [], "STANDARD", approved),
+        ApplicationAnswer("last_name", "LAST_NAME", "Gautam", "TEXT", "AUTO_FILL", "HIGH", "PROFILE_FACT", "master_candidate_profile.json:candidate.full_name", [], "STANDARD", approved),
+        ApplicationAnswer("full_name", "FULL_NAME", "Shankar Gautam", "TEXT", "AUTO_FILL", "HIGH", "PROFILE_FACT", "master_candidate_profile.json:candidate.full_name", [], "STANDARD", approved),
+        # Task 21.30: the candidate's CURRENT approved location, until
+        # explicitly changed by the human. Never inferred from a target
+        # market or from planned future relocation/study -- a single,
+        # standing, human-approved fact, same as email/phone/name above.
+        # Work authorization concepts (WORK_AUTHORIZATION_*/SPONSORSHIP_*)
+        # remain entirely separate and are never derived from this.
+        ApplicationAnswer("current_location_country", "CURRENT_LOCATION_COUNTRY", "Nepal", "TEXT", "AUTO_FILL", "HIGH", "USER_APPROVED_ANSWER", "Task 21.30 candidate approval: Kathmandu, Nepal", [], "STANDARD", approved),
+        ApplicationAnswer("current_city", "CURRENT_CITY", "Kathmandu", "TEXT", "AUTO_FILL", "HIGH", "USER_APPROVED_ANSWER", "Task 21.30 candidate approval: Kathmandu, Nepal", [], "STANDARD", approved),
+        ApplicationAnswer("current_location_full", "CURRENT_LOCATION", "Kathmandu, Nepal", "TEXT", "AUTO_FILL", "HIGH", "USER_APPROVED_ANSWER", "Task 21.30 candidate approval: Kathmandu, Nepal", [], "STANDARD", approved),
         ApplicationAnswer("accounting_qualification", "ACCOUNTING_QUALIFICATION", "YES", "BOOLEAN", "AUTO_FILL", "HIGH", "PROFILE_FACT", "master_candidate_profile.json:education[Chartered Accountant]", [], "STANDARD", approved),
         ApplicationAnswer("professional_membership", "PROFESSIONAL_MEMBERSHIP", "Institute of Chartered Accountants of India", "TEXT", "AUTO_FILL", "HIGH", "PROFILE_FACT", "master_candidate_profile.json:professional_memberships", [], "STANDARD", approved),
         ApplicationAnswer("education", "EDUCATION", "Bachelor of Business Studies", "TEXT", "AUTO_FILL", "HIGH", "PROFILE_FACT", "master_candidate_profile.json:education", [], "STANDARD", approved),
@@ -79,7 +90,7 @@ class ApplicationAnswerVault:
         answers = {row.get("concept"): row for row in data.setdefault("answers", [])}
         changed = False
         for seeded in _seed_answers():
-            if seeded.concept in {"EMAIL_ADDRESS", "PHONE_NUMBER", "CURRENT_LOCATION_COUNTRY", "NOTICE_PERIOD", "EXPECTED_SALARY", "SPONSORSHIP_UK", "SPONSORSHIP_US", "SPONSORSHIP_AUSTRALIA"}:
+            if seeded.concept in {"EMAIL_ADDRESS", "PHONE_NUMBER", "CURRENT_LOCATION_COUNTRY", "NOTICE_PERIOD", "EXPECTED_SALARY", "SPONSORSHIP_UK", "SPONSORSHIP_US", "SPONSORSHIP_AUSTRALIA", "FIRST_NAME", "LAST_NAME", "FULL_NAME", "CURRENT_CITY", "CURRENT_LOCATION"}:
                 old = answers.get(seeded.concept)
                 if old != seeded.to_dict():
                     if old: data["answers"].remove(old)

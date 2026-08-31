@@ -12,31 +12,31 @@ def engine(tmp_path: Path) -> tuple[ApplicationAnswerVault, ApplicationAnswerEng
     return vault, ApplicationAnswerEngine(vault)
 
 
-def test_current_location_requires_human_review_without_explicit_application_context(tmp_path):
-    """Task 21.28: CURRENT_LOCATION_COUNTRY is not temporally/context-aware
-    (the vault's own seeded value is a single global fact, currently
-    "Nepal") -- it must never be blindly auto-filled. No vacancy/context is
-    supplied here, so it must fail closed to manual review, regardless of
-    what the vault itself contains for this concept."""
+def test_current_location_autofills_from_the_approved_standing_fact(tmp_path):
+    """Task 21.30: the candidate's current location (Kathmandu, Nepal) is
+    now an explicitly human-approved STANDING fact -- resolved the same way
+    as email/phone/name, via the normal approved-vault-answer path, with no
+    per-application context required. Never inferred from a target market
+    or from planned future relocation -- a flat, non-market-scoped value."""
     _, service = engine(tmp_path)
-    result = service.resolve("What is your current country of residence?")
-    assert result.concept == "CURRENT_LOCATION_COUNTRY"
-    assert result.manual_review is True
-    assert result.answer is None
+    country = service.resolve("What is your current country of residence?")
+    assert (country.concept, country.answer, country.manual_review) == ("CURRENT_LOCATION_COUNTRY", "Nepal", False)
+    city = service.resolve("Current city")
+    assert (city.concept, city.answer, city.manual_review) == ("CURRENT_CITY", "Kathmandu", False)
+    city2 = service.resolve("City of residence")
+    assert (city2.concept, city2.answer, city2.manual_review) == ("CURRENT_CITY", "Kathmandu", False)
+    full = service.resolve("Where are you currently based?")
+    assert (full.concept, full.answer, full.manual_review) == ("CURRENT_LOCATION", "Kathmandu, Nepal", False)
+    # Never affected by the vacancy's target market.
+    for market in ("united_kingdom", "united_states", "australia"):
+        assert service.resolve("Country of residence", market=market).answer == "Nepal"
 
 
-def test_current_location_autofills_only_from_explicit_application_context(tmp_path):
-    """An explicitly approved value for THIS specific application context
-    (never the target market, never an inferred future/planned residence) is
-    the only way CURRENT_LOCATION_COUNTRY may auto-fill."""
+def test_current_location_never_changes_work_authorization_answers(tmp_path):
+    """Location and work authorization remain fully separate concepts."""
     _, service = engine(tmp_path)
-    result = service.resolve(
-        "What is your current country of residence?",
-        vacancy={"approved_current_location_country": "United Kingdom"},
-    )
-    assert (result.concept, result.answer, result.automation_policy, result.confidence, result.manual_review) == (
-        "CURRENT_LOCATION_COUNTRY", "United Kingdom", "AUTO_FILL", "HIGH", False,
-    )
+    auth = service.resolve("Are you legally authorized to work in Australia?", market="australia")
+    assert (auth.concept, auth.answer) == ("WORK_AUTHORIZATION_AUSTRALIA", "NO")
 
 
 def test_specific_qualification_is_not_overclaimed(tmp_path):

@@ -1,10 +1,16 @@
 import re
+import xml.sax.saxutils as saxutils
 from pathlib import Path
 from datetime import datetime
 import json
 
 from docx import Document
 from docx.shared import Pt
+from reportlab.lib.enums import TA_LEFT
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import Paragraph, SimpleDocTemplate
 
 
 OUTPUT_DIR = Path("applications")
@@ -99,6 +105,72 @@ def _write_markdown_to_docx(document, markdown_text):
         _add_inline_runs(paragraph, stripped)
 
 
+def _pdf_styles():
+    """A plain, single-column style sheet: real embedded/selectable text,
+    no tables, images, or text boxes -- kept ATS-parseable (Task 21.30
+    Section 1), not a visually elaborate layout."""
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(
+        name="ResumeBody", parent=styles["Normal"], fontName="Helvetica",
+        fontSize=10, leading=13, spaceAfter=3, alignment=TA_LEFT,
+    ))
+    styles.add(ParagraphStyle(
+        name="ResumeBullet", parent=styles["ResumeBody"], leftIndent=14, bulletIndent=0,
+    ))
+    for level, size in ((1, 14), (2, 12), (3, 11)):
+        styles.add(ParagraphStyle(
+            name=f"ResumeH{level}", parent=styles["Normal"], fontName="Helvetica-Bold",
+            fontSize=size, leading=size + 3, spaceBefore=10 if level == 1 else 6, spaceAfter=3,
+        ))
+    return styles
+
+
+def _inline_markup(text):
+    """Escape XML-special characters, then re-apply `**bold**` as reportlab's
+    own minimal `<b>` markup -- mirrors _add_inline_runs's docx behaviour
+    without ever passing unescaped candidate text into the PDF's markup
+    parser."""
+    parts = []
+    for segment in _BOLD_SPLIT.split(text):
+        if not segment:
+            continue
+        if segment.startswith("**") and segment.endswith("**") and len(segment) > 4:
+            parts.append(f"<b>{saxutils.escape(segment[2:-2])}</b>")
+        else:
+            parts.append(saxutils.escape(segment))
+    return "".join(parts)
+
+
+def _write_markdown_to_pdf_story(markdown_text, styles):
+    """Same Markdown subset as _write_markdown_to_docx, rendered as a flat
+    list of reportlab flowables -- same factual content, no images."""
+    story = []
+    heading_styles = {1: styles["ResumeH1"], 2: styles["ResumeH2"], 3: styles["ResumeH3"]}
+    for line in markdown_text.split("\n"):
+        stripped = line.strip()
+        if not stripped or stripped == "---":
+            continue
+        heading_match = re.match(r"^(#{1,3})\s+(.*)$", stripped)
+        if heading_match:
+            level = len(heading_match.group(1))
+            story.append(Paragraph(_inline_markup(heading_match.group(2)), heading_styles[level]))
+            continue
+        if stripped.startswith("- "):
+            story.append(Paragraph("&bull;&nbsp;&nbsp;" + _inline_markup(stripped[2:]), styles["ResumeBullet"]))
+            continue
+        story.append(Paragraph(_inline_markup(stripped), styles["ResumeBody"]))
+    return story
+
+
+def _build_pdf(filename, story):
+    document = SimpleDocTemplate(
+        str(filename), pagesize=letter,
+        topMargin=0.75 * inch, bottomMargin=0.75 * inch,
+        leftMargin=0.75 * inch, rightMargin=0.75 * inch,
+    )
+    document.build(story)
+
+
 def _create_application_folder(company, job_title):
 
     company = (company or "").replace("/", "-").strip()
@@ -138,6 +210,28 @@ def generate_resume_docx(
     return str(filename)
 
 
+def generate_resume_pdf(
+    resume_text,
+    company="Company",
+    job_title="Position"
+):
+    """Text-based, ATS-safe PDF sibling of generate_resume_docx, rendered
+    from the SAME already-approved resume content (Task 21.30 Section 1) --
+    never a re-generation, never an image/rasterized conversion."""
+
+    folder = _create_application_folder(
+        company,
+        job_title
+    )
+
+    filename = folder / "Resume.pdf"
+
+    story = _write_markdown_to_pdf_story(resume_text, _pdf_styles())
+    _build_pdf(filename, story)
+
+    return str(filename)
+
+
 def generate_cover_letter_docx(
     cover_letter,
     company="Company",
@@ -162,6 +256,29 @@ def generate_cover_letter_docx(
     _write_markdown_to_docx(document, cover_letter)
 
     document.save(filename)
+
+    return str(filename)
+
+
+def generate_cover_letter_pdf(
+    cover_letter,
+    company="Company",
+    job_title="Position"
+):
+    """Text-based, ATS-safe PDF sibling of generate_cover_letter_docx, from
+    the SAME already-approved cover-letter content (Task 21.30 Section 1)."""
+
+    folder = _create_application_folder(
+        company,
+        job_title
+    )
+
+    filename = folder / "CoverLetter.pdf"
+
+    styles = _pdf_styles()
+    story = [Paragraph("Cover Letter", styles["ResumeH1"])]
+    story.extend(_write_markdown_to_pdf_story(cover_letter, styles))
+    _build_pdf(filename, story)
 
     return str(filename)
 

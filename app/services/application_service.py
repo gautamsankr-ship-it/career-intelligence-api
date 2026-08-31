@@ -11,7 +11,7 @@ from app.services.ats import ATSEngine
 from app.services.career_engine import CareerDecisionEngine
 from app.services.cover_letter_generator import CoverLetterGenerator
 from app.services.custom_response_generator import CustomResponseGenerator
-from app.services.docx_service import generate_resume_docx
+from app.services.docx_service import generate_resume_docx, generate_resume_pdf, generate_cover_letter_pdf
 from app.services.employer_service import EmployerService
 from app.services.profile_service import ProfileService
 from app.services.resume_composer import ResumeComposer
@@ -37,8 +37,10 @@ class ApplicationResult:
     resume_composition: dict[str, Any]
     markdown_path: str
     docx_path: str
+    pdf_path: str
     cover_letter_markdown_path: str
     cover_letter_docx_path: str
+    cover_letter_pdf_path: str
 
 
 @dataclass(frozen=True)
@@ -52,8 +54,10 @@ class ApplicationPackagePlan:
     requirements: ApplicationRequirements
     resume_markdown_path: str | None
     resume_docx_path: str | None
+    resume_pdf_path: str | None
     cover_letter_markdown_path: str | None
     cover_letter_docx_path: str | None
+    cover_letter_pdf_path: str | None
     custom_responses: tuple[str, ...]
     email_subject: str | None
     email_body: str | None
@@ -287,12 +291,22 @@ class ApplicationService:
             company=job_analysis.get("company", "Company"),
             job_title=job_analysis.get("job_title", "Position"),
         )
-        
+        pdf_path = generate_resume_pdf(
+            markdown,
+            company=job_analysis.get("company", "Company"),
+            job_title=job_analysis.get("job_title", "Position"),
+        )
+
         cover_letter_markdown_path, cover_letter_docx_path = self.cover_letter_generator.generate(
             profile,
             job_analysis,
             career_decision,
             resume_strategy
+        )
+        cover_letter_pdf_path = generate_cover_letter_pdf(
+            Path(cover_letter_markdown_path).read_text(encoding="utf-8"),
+            company=job_analysis.get("company", "Company"),
+            job_title=job_analysis.get("job_title", "Position"),
         )
 
         return ApplicationResult(
@@ -305,8 +319,10 @@ class ApplicationService:
             resume_composition=resume_composition,
             markdown_path=markdown_path,
             docx_path=docx_path,
+            pdf_path=pdf_path,
             cover_letter_markdown_path=cover_letter_markdown_path,
             cover_letter_docx_path=cover_letter_docx_path,
+            cover_letter_pdf_path=cover_letter_pdf_path,
         )
 
     def prepare_application(
@@ -374,8 +390,10 @@ class ApplicationService:
                 requirements=requirements,
                 resume_markdown_path=None,
                 resume_docx_path=None,
+                resume_pdf_path=None,
                 cover_letter_markdown_path=None,
                 cover_letter_docx_path=None,
+                cover_letter_pdf_path=None,
                 custom_responses=(),
                 email_subject=None,
                 email_body=None,
@@ -412,6 +430,7 @@ class ApplicationService:
 
         resume_markdown_path = None
         resume_docx_path = None
+        resume_pdf_path = None
         if requirements.resume_required:
             resume_composition = self.resume_composer.compose(
                 profile, job_analysis, career_decision, ats_result, resume_strategy,
@@ -425,18 +444,31 @@ class ApplicationService:
                 company=job_analysis.get("company", "Company"),
                 job_title=job_analysis.get("job_title", "Position"),
             )
+            resume_pdf_path = generate_resume_pdf(
+                markdown,
+                company=job_analysis.get("company", "Company"),
+                job_title=job_analysis.get("job_title", "Position"),
+            )
             manifest["generated_artifacts"]["resume"] = resume_docx_path
+            manifest["generated_artifacts"]["resume_pdf"] = resume_pdf_path
             resume_check = check_resume(resume_docx_path)
             quality_gate["resume"] = {"passed": resume_check.passed, "issues": list(resume_check.issues)}
 
         cover_letter_markdown_path = None
         cover_letter_docx_path = None
+        cover_letter_pdf_path = None
         if requirements.cover_letter_required:
             cover_letter_markdown_path, cover_letter_docx_path = self.cover_letter_generator.generate(
                 profile, job_analysis, career_decision, resume_strategy,
             )
             manifest["generated_artifacts"]["cover_letter"] = cover_letter_docx_path
             cover_letter_text = Path(cover_letter_markdown_path).read_text(encoding="utf-8")
+            cover_letter_pdf_path = generate_cover_letter_pdf(
+                cover_letter_text,
+                company=job_analysis.get("company", "Company"),
+                job_title=job_analysis.get("job_title", "Position"),
+            )
+            manifest["generated_artifacts"]["cover_letter_pdf"] = cover_letter_pdf_path
             cover_letter_check = check_cover_letter(cover_letter_text, employer_name, role_title)
             quality_gate["cover_letter"] = {"passed": cover_letter_check.passed, "issues": list(cover_letter_check.issues)}
 
@@ -518,8 +550,10 @@ class ApplicationService:
             requirements=requirements,
             resume_markdown_path=resume_markdown_path,
             resume_docx_path=resume_docx_path,
+            resume_pdf_path=resume_pdf_path,
             cover_letter_markdown_path=cover_letter_markdown_path,
             cover_letter_docx_path=cover_letter_docx_path,
+            cover_letter_pdf_path=cover_letter_pdf_path,
             custom_responses=tuple(custom_response_texts),
             email_subject=email_subject,
             email_body=email_body,

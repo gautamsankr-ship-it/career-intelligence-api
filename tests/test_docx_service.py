@@ -5,9 +5,16 @@ the fix (_write_markdown_to_docx / _add_inline_runs) directly and end-to-end,
 never touching the production applications/ directory."""
 
 import docx
+from pypdf import PdfReader
 
 from app.services import docx_service
-from app.services.docx_service import _write_markdown_to_docx, generate_resume_docx
+from app.services.docx_service import (
+    _write_markdown_to_docx,
+    generate_cover_letter_docx,
+    generate_cover_letter_pdf,
+    generate_resume_docx,
+    generate_resume_pdf,
+)
 
 
 SAMPLE_MARKDOWN = """# Jane Candidate
@@ -142,3 +149,42 @@ def test_heading_only_line_has_no_literal_hashes():
     document = _render("### Heading Only")
     assert document.paragraphs[0].text == "Heading Only"
     assert document.paragraphs[0].style.name == "Heading 3"
+
+
+def _pdf_text(path):
+    reader = PdfReader(path)
+    return "\n".join(page.extract_text() or "" for page in reader.pages)
+
+
+def test_generate_resume_pdf_is_ats_safe_and_matches_docx_content(tmp_path, monkeypatch):
+    """Task 21.30 Section 1: the PDF sibling carries real, selectable text
+    (extractable by pypdf, unlike an image-only conversion) with the SAME
+    factual content as the DOCX -- never regenerated, never rewritten, and
+    with no literal Markdown syntax leaking through."""
+    monkeypatch.setattr(docx_service, "OUTPUT_DIR", tmp_path)
+    docx_path = generate_resume_docx(SAMPLE_MARKDOWN, company="Acme Co", job_title="Senior Accountant")
+    pdf_path = generate_resume_pdf(SAMPLE_MARKDOWN, company="Acme Co", job_title="Senior Accountant")
+
+    assert pdf_path.endswith("Resume.pdf")
+    pdf_text = _pdf_text(pdf_path)
+    assert pdf_text.strip(), "PDF must contain real extractable text, not a rasterized image"
+    assert "**" not in pdf_text and "##" not in pdf_text
+
+    docx_texts = _paragraph_texts(docx.Document(docx_path))
+    for expected in ("Jane Candidate", "Senior Accountant", "Tax planning", "Financial reporting"):
+        assert expected in docx_texts or any(expected in t for t in docx_texts)
+        assert expected in pdf_text
+
+
+def test_generate_cover_letter_pdf_matches_docx_content(tmp_path, monkeypatch):
+    monkeypatch.setattr(docx_service, "OUTPUT_DIR", tmp_path)
+    cover_letter = "Dear Hiring Manager,\n\nI am **excited** to apply for this role.\n\n- Strong fit\n- Ready to start\n"
+    docx_path = generate_cover_letter_docx(cover_letter, company="Acme Co", job_title="Senior Accountant")
+    pdf_path = generate_cover_letter_pdf(cover_letter, company="Acme Co", job_title="Senior Accountant")
+
+    assert pdf_path.endswith("CoverLetter.pdf")
+    pdf_text = _pdf_text(pdf_path)
+    docx_texts = _paragraph_texts(docx.Document(docx_path))
+    assert "excited" in pdf_text and any("excited" in t for t in docx_texts)
+    assert "Strong fit" in pdf_text and "Strong fit" in docx_texts
+    assert "**" not in pdf_text

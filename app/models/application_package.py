@@ -19,6 +19,7 @@ class ApplicationPackage:
     application_portal: str = "UNKNOWN"
     route_confidence: str = "UNKNOWN"
     resume_path: str = ""
+    resume_pdf_path: str = ""
     resume_status: str = "DOCUMENT_NOT_READY"
     resume_generated_at: str = ""
     resume_vacancy_identity: str = ""

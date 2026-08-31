@@ -188,8 +188,10 @@ class ApplicationPackageOrchestrator:
         # must also share the content identity before it may be reused.
         reusable_prior = prior if prior and prior.vacancy_identity == package.vacancy_identity else None
         resume = self._existing(record.get("resume_path")) or (reusable_prior and self._existing(reusable_prior.resume_path))
+        resume_pdf = self._existing(reusable_prior and reusable_prior.resume_pdf_path)
         cover = self._existing(record.get("cover_letter_path")) or (reusable_prior and self._existing(reusable_prior.cover_letter_path))
         package.resume_path = resume or ""
+        package.resume_pdf_path = resume_pdf or ""
         package.cover_letter_path = cover or ""
         package.resume_status = "READY" if resume else "DOCUMENT_NOT_READY"
         package.resume_vacancy_identity = package.vacancy_identity if resume else ""
@@ -202,6 +204,7 @@ class ApplicationPackageOrchestrator:
             package.blocking_reasons.append(f"DOCUMENT_GENERATION_FAILED:{type(exc).__name__}")
             return
         package.resume_path = self._existing(getattr(generated, "docx_path", "")) or ""
+        package.resume_pdf_path = self._existing(getattr(generated, "pdf_path", "")) or ""
         package.cover_letter_path = self._existing(getattr(generated, "cover_letter_docx_path", "")) or ""
         package.resume_status = "READY" if package.resume_path else "DOCUMENT_NOT_READY"
         package.resume_generated_at = self._now() if package.resume_path else ""

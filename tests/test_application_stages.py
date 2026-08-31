@@ -64,10 +64,13 @@ def test_auto_apply_evaluation_allows_document_generation(tmp_path, monkeypatch)
             calls.append("resume_markdown")
             return str(markdown_path)
 
+    cover_letter_markdown_path = Path(tmp_path) / "CoverLetter.md"
+    cover_letter_markdown_path.write_text("Dear Hiring Manager,", encoding="utf-8")
+
     class FakeCoverLetter:
         def generate(self, *args):
             calls.append("cover_letter")
-            return "CoverLetter.md", "CoverLetter.docx"
+            return str(cover_letter_markdown_path), "CoverLetter.docx"
 
     service.resume_strategy_engine = FakeStrategy()
     service.resume_composer = FakeComposer()
@@ -77,17 +80,29 @@ def test_auto_apply_evaluation_allows_document_generation(tmp_path, monkeypatch)
         "app.services.application_service.generate_resume_docx",
         lambda *args, **kwargs: calls.append("resume_docx") or "Resume.docx",
     )
+    monkeypatch.setattr(
+        "app.services.application_service.generate_resume_pdf",
+        lambda *args, **kwargs: calls.append("resume_pdf") or "Resume.pdf",
+    )
+    monkeypatch.setattr(
+        "app.services.application_service.generate_cover_letter_pdf",
+        lambda *args, **kwargs: calls.append("cover_letter_pdf") or "CoverLetter.pdf",
+    )
 
     result = service.generate_application_documents(evaluation_for_score(78))
 
     assert result.markdown_path == str(markdown_path)
     assert result.docx_path == "Resume.docx"
-    assert result.cover_letter_markdown_path == "CoverLetter.md"
+    assert result.pdf_path == "Resume.pdf"
+    assert result.cover_letter_markdown_path == str(cover_letter_markdown_path)
     assert result.cover_letter_docx_path == "CoverLetter.docx"
+    assert result.cover_letter_pdf_path == "CoverLetter.pdf"
     assert calls == [
         "strategy",
         "compose",
         "resume_markdown",
         "resume_docx",
+        "resume_pdf",
         "cover_letter",
+        "cover_letter_pdf",
     ]

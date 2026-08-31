@@ -542,6 +542,16 @@ class ApplicationHistoryService:
         allowed = {
             "MANUAL_WEB_REQUIRED": {"APPLIED", "WITHDRAWN"},
             "DRAFTED": {"APPLIED", "WITHDRAWN"},
+            # Task 21.30: a PREPARE_FOR_HUMAN_REVIEW (strong C) opportunity's
+            # tracker status is REMOTE_ELIGIBILITY_REVIEW right up until a
+            # human personally completes and submits the application
+            # themselves (e.g. LinkedIn Easy Apply) -- intelligence_priority
+            # itself is never changed by this. This only widens which
+            # PRE-application statuses may transition to APPLIED/WITHDRAWN;
+            # it does not touch the C/PREPARE_FOR_HUMAN_REVIEW gates
+            # themselves, which still block any automated path from ever
+            # reaching this state on its own.
+            "REMOTE_ELIGIBILITY_REVIEW": {"APPLIED", "WITHDRAWN"},
             "APPLIED": {"APPLIED", "INTERVIEW", "REJECTED", "WITHDRAWN"},
             "INTERVIEW": {"INTERVIEW", "OFFER", "REJECTED", "WITHDRAWN"},
         }
