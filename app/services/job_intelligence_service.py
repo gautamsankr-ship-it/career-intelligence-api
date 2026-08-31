@@ -142,12 +142,69 @@ def _posting_age_days(posted_date: str | None) -> int | None:
     return None
 
 
+# --- Legitimate-intermediary / anonymous-employer policy (Task 21.24B) -----
+# Generic phrasing an identifiable intermediary (a recruiting platform,
+# agency, executive-search firm, or staffing firm named on the discovery
+# `opportunity`) uses to affirmatively disclose that it is posting/recruiting
+# on behalf of an undisclosed hiring client -- deliberately not tied to any
+# single platform's name (e.g. not just "Jobgether").
+_INTERMEDIARY_ON_BEHALF_PATTERN = re.compile(
+    r"\bon behalf of (?:a|our|the)\s+(?:client|partner|customer|employer)\b"
+    r"|\bacting on behalf of\b"
+    r"|\brecruiting on behalf of\b"
+    r"|\bour client\b[^.]{0,40}\b(?:is|are)\s+(?:looking|seeking|hiring)\b"
+    r"|\bconfidential\s+(?:client|search)\b",
+    re.IGNORECASE,
+)
+
+LEGITIMATE_INTERMEDIARY_EMPLOYER_ANONYMOUS = "LEGITIMATE_INTERMEDIARY_EMPLOYER_ANONYMOUS"
+
+
+def _legitimate_intermediary_anonymous_employer(job_description: str, opportunity: Any) -> str | None:
+    """Affirmative evidence -- never assumed -- that an identifiable
+    intermediary is explicitly disclosing that it recruits on behalf of an
+    undisclosed hiring employer/client. Returns the intermediary's own name
+    when both conditions hold, else None. Requires ALL of:
+
+      1. a discovery `opportunity` is supplied (so there is an identifiable
+         poster/intermediary name distinct from job_analysis's own -- absent
+         -- `company` field); a bare JobEvaluation with no opportunity never
+         qualifies, since there is then no intermediary identity at all;
+      2. that opportunity carries a non-empty `company` (the intermediary's
+         own name, e.g. "Jobgether", a named agency, or an executive-search
+         firm) -- an unnamed/unidentifiable poster never qualifies;
+      3. the job description itself affirmatively states it is recruiting on
+         behalf of a client/partner/employer (not merely a missing company
+         field, which is exactly the UNKNOWN/SUSPICIOUS case this must not
+         cover).
+
+    Never fires from the intermediary's name alone, and never substitutes
+    for -- or weakens -- any other vacancy-validity, eligibility, or
+    application-route evidence."""
+    if opportunity is None:
+        return None
+    intermediary_name = (getattr(opportunity, "company", "") or "").strip()
+    if not intermediary_name:
+        return None
+    if _INTERMEDIARY_ON_BEHALF_PATTERN.search(job_description or ""):
+        return intermediary_name
+    return None
+
+
 def _vacancy_validity(job_analysis: dict | None, job_description: str, opportunity: Any) -> DimensionScore:
     """VERIFIED/LIKELY_VALID/UNCERTAIN/STALE/INVALID, from usable-description
     length, identifiable employer/title, and -- only where a discovery
     `opportunity` is actually supplied -- duplicate/freshness/application-
     route evidence. Never performs a live web/network check and never
-    invents evidence a caller didn't supply."""
+    invents evidence a caller didn't supply.
+
+    Task 21.24B: a missing underlying-employer `company` field alone does
+    not make validity UNCERTAIN when there is affirmative evidence of a
+    legitimate, identifiable intermediary explicitly recruiting on behalf of
+    an anonymous client (see `_legitimate_intermediary_anonymous_employer`).
+    This never touches hard eligibility, requirement evidence,
+    competitiveness, or application-route resolution -- those remain fully
+    independent gates."""
     job_analysis = job_analysis or {}
     source = "job_analysis (analyze_job)" + (" + discovery opportunity" if opportunity is not None else "")
     description_len = len((job_description or "").strip())
@@ -182,11 +239,21 @@ def _vacancy_validity(job_analysis: dict | None, job_description: str, opportuni
                  "freshness threshold",),
             )
 
+    intermediary_name = None
     if not has_title or not has_company:
         missing = "company" if has_title else "job title"
-        return DimensionScore(UNCERTAIN, source, (f"vacancy analysis is missing: {missing}",))
+        if missing == "company":
+            intermediary_name = _legitimate_intermediary_anonymous_employer(job_description, opportunity)
+        if intermediary_name is None:
+            return DimensionScore(UNCERTAIN, source, (f"vacancy analysis is missing: {missing}",))
 
     reasons: list[str] = []
+    if intermediary_name:
+        reasons.append(
+            f"underlying hiring employer is intentionally undisclosed behind identifiable intermediary "
+            f"'{intermediary_name}', which explicitly states it is recruiting on behalf of a client/partner "
+            f"-- not treated as a missing-employer failure ({LEGITIMATE_INTERMEDIARY_EMPLOYER_ANONYMOUS})"
+        )
     route_confirmed = False
     route_uncertain = False
     if opportunity is not None:
@@ -206,16 +273,17 @@ def _vacancy_validity(job_analysis: dict | None, job_description: str, opportuni
     if route_uncertain:
         return DimensionScore(UNCERTAIN, source, tuple(reasons))
 
+    identity_phrase = "job title and intermediary identity" if intermediary_name else "job title, company"
     if route_confirmed and description_len >= STRONG_DESCRIPTION_CHARS:
         reasons.append(
-            f"job title, company and a substantive job description ({description_len} characters) are all present"
+            f"{identity_phrase} and a substantive job description ({description_len} characters) are all present"
         )
         return DimensionScore(VERIFIED, source, tuple(reasons))
 
     reasons.append(
-        "job title, company and job description are present; no independent route/freshness "
+        f"{identity_phrase} and job description are present; no independent route/freshness "
         "confirmation was supplied" if opportunity is None else
-        "job title, company and job description are present; no stronger verification signal "
+        f"{identity_phrase} and job description are present; no stronger verification signal "
         "(resolved high-confidence route + substantive description) was available"
     )
     return DimensionScore(LIKELY_VALID, source, tuple(reasons))

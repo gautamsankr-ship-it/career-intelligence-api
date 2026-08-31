@@ -1053,3 +1053,139 @@ def test_deterministic_replay_with_criticality_remains_identical_across_runs():
         ELIGIBLE_RESULT, job_analysis, job_description=_CPA_REQUIRED_DESCRIPTION,
     ))
     assert first == second
+
+
+# --- Legitimate intermediary / anonymous employer (Task 21.24B) -------------
+# A vacancy must not be rejected/deferred merely because the underlying
+# employer is anonymous when a legitimate, identifiable intermediary
+# explicitly discloses it is recruiting on behalf of a client/partner
+# (Jobgether-style partner-company vacancies). Employer anonymity alone must
+# never override eligibility, requirement evidence, or application-route
+# checks -- those remain fully independent gates.
+
+_INTERMEDIARY_DESCRIPTION = (
+    "This position is listed on behalf of a partner company, who manages all applications "
+    "and next steps. Our partner is looking for a Head of Finance based in Australia to lead "
+    "management reporting, budgeting, settlements and financial process optimization."
+)
+_INTERMEDIARY_STRONG_DESCRIPTION = _INTERMEDIARY_DESCRIPTION + (
+    " Responsibilities include monthly close, statutory reporting, tax compliance, budgeting, "
+    "forecasting and liaison with the finance leadership team across multiple entities and markets."
+)
+
+
+def test_legitimate_intermediary_with_anonymous_employer_is_not_uncertain_from_missing_company():
+    """(1) A named, identifiable intermediary that affirmatively discloses it
+    recruits on behalf of an anonymous client must not be UNCERTAIN merely
+    because job_analysis has no company field."""
+    service = JobIntelligenceService()
+    opportunity = _opportunity(company="Jobgether", application_route_status="SOURCE_ONLY")
+    intelligence = service.evaluate(
+        _evaluation(ELIGIBLE_RESULT, job_analysis={"job_title": "Head of Finance"}, job_description=_INTERMEDIARY_DESCRIPTION),
+        opportunity=opportunity,
+    )
+    assert intelligence.vacancy_validity.value in ("LIKELY_VALID", "VERIFIED")
+    assert any("LEGITIMATE_INTERMEDIARY_EMPLOYER_ANONYMOUS" in reason for reason in intelligence.vacancy_validity.reasons)
+    assert "vacancy analysis is missing: company" not in intelligence.vacancy_validity.reasons
+
+
+def test_missing_employer_without_on_behalf_of_disclosure_remains_uncertain():
+    """(2) A named poster alone -- with no affirmative "on behalf of a
+    client/partner" disclosure in the JD -- must not be trusted as a
+    legitimate intermediary. Employer anonymity here is genuinely unresolved,
+    not a disclosed intermediary relationship."""
+    service = JobIntelligenceService()
+    opportunity = _opportunity(company="Some Job Board")
+    intelligence = service.evaluate(
+        _evaluation(ELIGIBLE_RESULT, job_analysis={"job_title": "Head of Finance"}, job_description=USABLE_DESCRIPTION),
+        opportunity=opportunity,
+    )
+    assert intelligence.vacancy_validity.value == "UNCERTAIN"
+    assert intelligence.priority == Priority.HUMAN_REVIEW
+
+
+def test_suspicious_unidentifiable_poster_stays_fail_closed():
+    """(3) No discovery opportunity at all (so no identifiable intermediary
+    name whatsoever) must remain UNCERTAIN -- the pre-existing, unresolved-
+    employer behavior is fully preserved for genuinely unknown/suspicious
+    postings."""
+    service = JobIntelligenceService()
+    intelligence = service.evaluate(
+        _evaluation(ELIGIBLE_RESULT, job_analysis={"job_title": "Head of Finance"}, job_description=_INTERMEDIARY_DESCRIPTION),
+    )
+    assert intelligence.vacancy_validity.value == "UNCERTAIN"
+
+
+def test_intermediary_anonymous_employer_does_not_bypass_hard_ineligibility():
+    """(4) Intermediary/anonymous-employer status must never rescue a hard
+    INELIGIBLE result -- eligibility stays fully independent."""
+    service = JobIntelligenceService()
+    opportunity = _opportunity(company="Jobgether", application_route_status="SOURCE_ONLY")
+    intelligence = service.evaluate(
+        _evaluation(INELIGIBLE_RESULT, job_analysis={"job_title": "Head of Finance"}, job_description=_INTERMEDIARY_DESCRIPTION),
+        opportunity=opportunity,
+    )
+    assert intelligence.priority == Priority.REJECT
+    assert intelligence.vacancy_validity.value != "UNCERTAIN"  # validity itself is fine
+    assert intelligence.hard_eligibility.value == INELIGIBLE  # but eligibility still rejects
+
+
+def test_intermediary_anonymous_employer_does_not_bypass_hard_requirement_gap():
+    """(5) Intermediary/anonymous-employer status must never rescue a proven
+    HARD_REQUIREMENT_GAP (e.g. a mandatory years-of-experience shortfall) --
+    requirement evidence stays fully independent."""
+    service = JobIntelligenceService()
+    opportunity = _opportunity(company="Jobgether", application_route_status="SOURCE_ONLY")
+    job_analysis = {"job_title": "Head of Finance", "experience_required": 25}
+    intelligence = service.evaluate(
+        _evaluation_with_profile(ELIGIBLE_RESULT, job_analysis, job_description=_INTERMEDIARY_DESCRIPTION),
+        opportunity=opportunity,
+    )
+    gap = next(r for r in intelligence.requirement_evidence if r.classification == "HARD_REQUIREMENT_GAP")
+    assert "25" in gap.requirement
+    assert intelligence.priority == Priority.REJECT
+
+
+def test_intermediary_application_route_is_accepted_as_a_valid_route():
+    """(6) When the intermediary's own listing carries a resolved,
+    high-confidence application route and a substantive description, the
+    vacancy can reach VERIFIED -- the system does not require a direct
+    employer ATS when the intermediary is the authorized channel."""
+    service = JobIntelligenceService()
+    opportunity = _opportunity(
+        company="Jobgether", application_route_status="RESOLVED", application_route_confidence="HIGH",
+    )
+    intelligence = service.evaluate(
+        _evaluation(ELIGIBLE_RESULT, job_analysis={"job_title": "Head of Finance"}, job_description=_INTERMEDIARY_STRONG_DESCRIPTION),
+        opportunity=opportunity,
+    )
+    assert intelligence.vacancy_validity.value == "VERIFIED"
+    assert any("Jobgether" in reason for reason in intelligence.vacancy_validity.reasons)
+
+
+def test_jobgether_style_scenario_is_not_blocked_solely_by_employer_anonymity():
+    """(7) Task 21.24B regression scenario, reproducing Tracker 61's actual
+    persisted shape: Jobgether intermediary, "on behalf of a partner
+    company" disclosure, missing job_analysis.company, SOURCE_ONLY/LOW route,
+    and MANUAL_REVIEW hard eligibility (international eligibility unresolved
+    -- unrelated to employer anonymity). Employer anonymity alone must not be
+    a blocker; geographic eligibility remains the one real blocker."""
+    service = JobIntelligenceService()
+    opportunity = _opportunity(
+        company="Jobgether", application_route_status="SOURCE_ONLY", application_route_confidence="LOW",
+        job_url="https://au.linkedin.com/jobs/view/head-of-finance-at-jobgether-4457989411",
+    )
+    intelligence = service.evaluate(
+        _evaluation(
+            MANUAL_REVIEW_RESULT, job_analysis={"job_title": "Head of Finance"},
+            job_description=_INTERMEDIARY_STRONG_DESCRIPTION, career_score=79.6,
+        ),
+        opportunity=opportunity,
+    )
+    assert intelligence.vacancy_validity.value != "UNCERTAIN"
+    assert not any("missing: company" in reason for reason in intelligence.vacancy_validity.reasons)
+    # The vacancy itself is no longer the blocker; unresolved geographic
+    # eligibility is now the *only* thing routing this to HUMAN_REVIEW.
+    assert intelligence.priority == Priority.HUMAN_REVIEW
+    assert intelligence.hard_eligibility.value == MANUAL_REVIEW
+    assert any("eligibility" in reason.lower() for reason in intelligence.priority_reasons)
