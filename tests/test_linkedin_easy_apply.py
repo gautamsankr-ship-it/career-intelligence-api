@@ -202,6 +202,74 @@ def test_unknown_screening_question_pauses():
     _run(run())
 
 
+STEP_CHECKBOX_GROUP = (
+    '<div role="group">'
+    '<div>Which accountancy firm(s) have you trained or worked with?</div>'
+    '<div>Required</div>'
+    '<label><input type="checkbox" name="firms" value="Deloitte">Deloitte</label>'
+    '<label><input type="checkbox" name="firms" value="PwC">PwC</label>'
+    '</div>'
+    '<button>Next</button>'
+)
+
+
+def test_standalone_checkbox_group_question_is_detected_and_pauses():
+    """Task 21.31 production fix: LinkedIn also poses required multi-select
+    checklist questions as a bare role="group" of role="checkbox" items
+    with no radiogroup wrapper and no aria-label on the group -- only its
+    own plain text ("<question>\\nRequired\\n<option>..."). Before this
+    fix such a field was invisible to inspect_step entirely (never filled,
+    never flagged), so a real application would reach "Next" with
+    LinkedIn's own required-field validation silently blocking every
+    further click. Never auto-selects an option -- always routes to human
+    review, exactly like any other UNKNOWN concept."""
+    orchestrator = LinkedInEasyApplyOrchestrator()
+
+    async def run():
+        api, browser, page = await _launch(_easy_apply_fixture([STEP_CHECKBOX_GROUP]))
+        try:
+            result = await orchestrator.run(page, _vacancy(), market="australia")
+            assert result.status == HUMAN_SCREENING_REVIEW_REQUIRED
+            assert result.unknown_required_fields >= 1
+        finally:
+            await _teardown(api, browser)
+
+    _run(run())
+
+
+STEP_BARE_RADIO_GROUP = (
+    '<div role="group">'
+    '<div>Are you based in the UK and have the right to work in the UK?</div>'
+    '<div>Required</div>'
+    '<label><input type="radio" name="ukauth" value="Yes">Yes</label>'
+    '<label><input type="radio" name="ukauth" value="No">No</label>'
+    '</div>'
+    '<button>Review your application</button>'
+)
+def test_bare_group_radio_question_autofills_from_approved_rule():
+    """Task 21.31 production fix: LinkedIn also poses Yes/No work-
+    authorization questions as a bare role="group" wrapping role="radio"
+    children -- NOT role="radiogroup" (_collect_radiogroups already
+    handled that shape). Before this fix such a question was invisible to
+    inspect_step entirely, so even an already-approved fact like
+    WORK_AUTHORIZATION_UK=No could never auto-fill, and the application
+    would reach "Next" with LinkedIn's own required-field validation
+    silently blocking every further click."""
+    orchestrator = LinkedInEasyApplyOrchestrator()
+
+    async def run():
+        api, browser, page = await _launch(_easy_apply_fixture([STEP_BARE_RADIO_GROUP, STEP_REVIEW]))
+        try:
+            result = await orchestrator.run(page, _vacancy(), market="united_kingdom")
+            assert result.status == HUMAN_FINAL_SUBMIT_AUTHORIZATION_REQUIRED
+            assert result.fields_resolved == 1
+            assert result.manual_review_fields == 0
+        finally:
+            await _teardown(api, browser)
+
+    _run(run())
+
+
 def test_legal_question_never_inferred_and_pauses():
     """A legal/criminal-history concept must never be auto-answered to
     improve eligibility -- it always requires human review."""

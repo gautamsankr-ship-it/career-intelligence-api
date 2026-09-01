@@ -51,15 +51,27 @@ def _paragraph_texts(document):
     return [p.text for p in document.paragraphs]
 
 
-def test_headings_become_real_word_headings_not_literal_hashes():
+def test_headings_render_as_styled_paragraphs_not_literal_hashes():
+    """Task 21.31: headings are now direct bold/sized paragraphs (not
+    Word's built-in Heading N style, which offered no clean way to combine
+    keep-with-next + a subtle rule + restrained caps) -- name unchanged
+    case, ## section headings rendered in restrained caps as a pure
+    display transform (never changing the underlying section label text
+    itself, which resume_generator.py already writes in Title Case)."""
     document = _render(SAMPLE_MARKDOWN)
-    heading_paragraphs = [p for p in document.paragraphs if p.style.name.startswith("Heading")]
-    heading_texts = [p.text for p in heading_paragraphs]
-    assert "Jane Candidate" in heading_texts
-    assert "Professional Summary" in heading_texts
-    assert "Core Competencies" in heading_texts
-    for text in _paragraph_texts(document):
+    texts = _paragraph_texts(document)
+    assert "Jane Candidate" in texts
+    assert "PROFESSIONAL SUMMARY" in texts
+    assert "CORE COMPETENCIES" in texts
+    for text in texts:
         assert not text.lstrip().startswith("#")
+
+    name_paragraph = next(p for p in document.paragraphs if p.text == "Jane Candidate")
+    assert name_paragraph.runs[0].bold is True
+    assert name_paragraph.runs[0].font.size.pt == 20
+
+    section_paragraph = next(p for p in document.paragraphs if p.text == "PROFESSIONAL SUMMARY")
+    assert section_paragraph.runs[0].bold is True
 
 
 def test_bold_markers_become_real_bold_runs_not_literal_asterisks():
@@ -148,7 +160,35 @@ def test_generate_resume_docx_uses_compact_paragraph_spacing(tmp_path, monkeypat
 def test_heading_only_line_has_no_literal_hashes():
     document = _render("### Heading Only")
     assert document.paragraphs[0].text == "Heading Only"
-    assert document.paragraphs[0].style.name == "Heading 3"
+    assert document.paragraphs[0].runs[0].bold is True
+
+
+def test_section_heading_has_understated_bottom_rule_not_a_drawing_object():
+    """The "optional simple horizontal separator" is a paragraph border
+    (pure XML, part of the text run stream), never a shape/text box that
+    could confuse ATS parsing."""
+    document = _render(SAMPLE_MARKDOWN)
+    section_paragraph = next(p for p in document.paragraphs if p.text == "PROFESSIONAL SUMMARY")
+    pbdr = section_paragraph._p.find(
+        ".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pBdr"
+    )
+    assert pbdr is not None
+
+
+def test_contact_and_meta_lines_are_restrained_not_bold():
+    """Contact details and headline/meta lines support the hierarchy but
+    must never compete visually with section headings or job titles."""
+    document = _render(SAMPLE_MARKDOWN)
+    contact_paragraph = next(p for p in document.paragraphs if "jane@example.test" in p.text)
+    assert not any(run.bold for run in contact_paragraph.runs)
+
+
+def test_bullet_style_has_hanging_indent_for_wrapped_lines(tmp_path, monkeypatch):
+    monkeypatch.setattr(docx_service, "OUTPUT_DIR", tmp_path)
+    path = generate_resume_docx(SAMPLE_MARKDOWN, company="Acme Co", job_title="Senior Accountant")
+    bullet_format = docx.Document(path).styles["List Bullet"].paragraph_format
+    assert bullet_format.left_indent is not None and bullet_format.left_indent.pt > 0
+    assert bullet_format.first_line_indent is not None and bullet_format.first_line_indent.pt < 0
 
 
 def _pdf_text(path):
@@ -174,6 +214,11 @@ def test_generate_resume_pdf_is_ats_safe_and_matches_docx_content(tmp_path, monk
     for expected in ("Jane Candidate", "Senior Accountant", "Tax planning", "Financial reporting"):
         assert expected in docx_texts or any(expected in t for t in docx_texts)
         assert expected in pdf_text
+
+    # Task 21.31 section 4: the two formats must share the same heading
+    # hierarchy, not just the same body text.
+    assert "PROFESSIONAL SUMMARY" in docx_texts
+    assert "PROFESSIONAL SUMMARY" in pdf_text
 
 
 def test_generate_cover_letter_pdf_matches_docx_content(tmp_path, monkeypatch):

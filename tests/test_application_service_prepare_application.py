@@ -404,10 +404,13 @@ def test_resume_no_longer_has_overlapping_skills_sections():
     plan = service.prepare_application(evaluation)
 
     document = docx.Document(plan.resume_docx_path)
-    heading_texts = [p.text for p in document.paragraphs if p.style.name.startswith("Heading")]
-    assert heading_texts.count("Core Competencies") == 1
-    for forbidden_heading in ("Core Focus Areas", "Technical Skills", "Industry Expertise"):
-        assert forbidden_heading not in heading_texts
+    # Task 21.31: ## section headings render as restrained-caps paragraphs
+    # (not Word's built-in Heading N style), so a genuine section heading
+    # is identified by its exact uppercased text.
+    texts = [p.text for p in document.paragraphs]
+    assert texts.count("CORE COMPETENCIES") == 1
+    for forbidden_heading in ("CORE FOCUS AREAS", "TECHNICAL SKILLS", "INDUSTRY EXPERTISE"):
+        assert forbidden_heading not in texts
 
 
 def test_custom_response_uses_more_of_a_generous_limit_than_a_tight_one():

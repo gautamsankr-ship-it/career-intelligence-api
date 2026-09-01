@@ -5,18 +5,27 @@ from datetime import datetime
 import json
 
 from docx import Document
-from docx.shared import Pt
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Pt, RGBColor
+from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
-from reportlab.platypus import Paragraph, SimpleDocTemplate
+from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate
 
 
 OUTPUT_DIR = Path("applications")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 _BOLD_SPLIT = re.compile(r"(\*\*.+?\*\*)")
+_BODY_FONT = "Calibri"
+_MUTED_RGB = RGBColor(0x40, 0x40, 0x40)
+_META_RGB = RGBColor(0x55, 0x55, 0x55)
+_MUTED_HEX = colors.HexColor("#404040")
+_META_HEX = colors.HexColor("#555555")
+_RULE_HEX = colors.HexColor("#999999")
 
 
 def _apply_compact_paragraph_spacing(document):
@@ -27,16 +36,30 @@ def _apply_compact_paragraph_spacing(document):
     whitespace rather than content (Task 21.13 section 5). Tightening
     spacing/margins to common professional-resume conventions lets the
     rendered page count reflect actual content density instead of template
-    padding, without removing or shortening any actual evidence."""
+    padding, without removing or shortening any actual evidence.
+
+    Task 21.31: also sets the base executive typeface/size here (Calibri,
+    a font reliably present alongside any DOCX-capable install) and a
+    hanging indent on bullet styles so a wrapped bullet line aligns under
+    the bullet's TEXT, not its glyph -- the two remaining ingredients for
+    an executive-quality look that apply uniformly regardless of which
+    named-style paragraphs (_add_*_paragraph below) end up used."""
     for style_name in ("Normal", "List Bullet", "List Bullet 2", "List Bullet 3"):
         try:
             style = document.styles[style_name]
         except KeyError:
             continue
+        style.font.name = _BODY_FONT
+        style.font.size = Pt(10.5)
         paragraph_format = style.paragraph_format
         paragraph_format.space_before = Pt(0)
-        paragraph_format.space_after = Pt(2)
+        paragraph_format.space_after = Pt(3)
         paragraph_format.line_spacing = 1.0
+
+    for style_name in ("List Bullet", "List Bullet 2", "List Bullet 3"):
+        style = document.styles[style_name]
+        style.paragraph_format.left_indent = Pt(18)
+        style.paragraph_format.first_line_indent = Pt(-13)
 
     for level in (1, 2, 3):
         try:
@@ -49,10 +72,26 @@ def _apply_compact_paragraph_spacing(document):
         paragraph_format.line_spacing = 1.0
 
     for section in document.sections:
-        section.top_margin = Pt(54)     # 0.75"
-        section.bottom_margin = Pt(54)
-        section.left_margin = Pt(54)
+        section.top_margin = Pt(50)     # ~0.7"
+        section.bottom_margin = Pt(50)
+        section.left_margin = Pt(54)    # 0.75"
         section.right_margin = Pt(54)
+
+
+def _add_bottom_border(paragraph):
+    """A thin, understated rule under a section heading -- the "optional
+    simple horizontal separator" the resume design standard allows.  Pure
+    paragraph-border XML, no drawing object/text box, so it never affects
+    ATS text extraction."""
+    p_pr = paragraph._p.get_or_add_pPr()
+    p_bdr = OxmlElement("w:pBdr")
+    bottom = OxmlElement("w:bottom")
+    bottom.set(qn("w:val"), "single")
+    bottom.set(qn("w:sz"), "4")
+    bottom.set(qn("w:space"), "2")
+    bottom.set(qn("w:color"), "999999")
+    p_bdr.append(bottom)
+    p_pr.append(p_bdr)
 
 
 def _add_inline_runs(paragraph, text):
@@ -69,60 +108,206 @@ def _add_inline_runs(paragraph, text):
             paragraph.add_run(segment)
 
 
-def _write_markdown_to_docx(document, markdown_text):
-    """Render simple resume/cover-letter Markdown as real Word formatting.
+def _classify_markdown_lines(markdown_text):
+    """Shared structural pass over the Markdown subset ResumeGenerator/
+    CoverLetterGenerator actually produce, so the DOCX and PDF renderers
+    stay materially consistent (Task 21.31 section 4) instead of each
+    re-implementing their own reading of "what is this line".
 
-    Supports the subset actually produced by ResumeGenerator/CoverLetterGenerator:
-    #/##/### headings, **bold** (inline or whole-line), "- " bullet lists, a
-    "---" horizontal rule (dropped, no literal Word equivalent), and plain
-    paragraphs. Never writes literal Markdown syntax or raw Python
-    dict/list reprs into the document.
+    Yields (kind, text) pairs. kind is one of: name (the H1 header line --
+    always the candidate's name), headline (a whole-line **bold** directly
+    under the name -- the professional headline, when present), contact
+    (the plain contact-details line directly under the name/headline),
+    section (## heading), entry (### heading -- a job/education/project
+    title line), meta (the plain line immediately after an entry heading --
+    ResumeGenerator always emits period/location there), bullet ("- "),
+    body (anything else). Never invents or reorders content -- purely a
+    read of the line order ResumeGenerator/CoverLetterGenerator already
+    guarantee.
     """
+    in_header_zone = False
+    headline_done = False
+    contact_done = False
+    prev_was_entry = False
 
-    for line in markdown_text.split("\n"):
+    for raw_line in markdown_text.split("\n"):
+        stripped = raw_line.strip()
 
-        stripped = line.strip()
-
-        if not stripped:
-            continue
-
-        if stripped == "---":
+        if not stripped or stripped == "---":
+            prev_was_entry = False
             continue
 
         heading_match = re.match(r"^(#{1,3})\s+(.*)$", stripped)
-
         if heading_match:
             level = len(heading_match.group(1))
-            document.add_heading(heading_match.group(2), level=level)
+            text = heading_match.group(2)
+            if level == 1:
+                in_header_zone, headline_done, contact_done = True, False, False
+                yield ("name", text)
+            elif level == 2:
+                in_header_zone = False
+                yield ("section", text)
+            else:
+                yield ("entry", text)
+            prev_was_entry = level == 3
             continue
 
         if stripped.startswith("- "):
-            paragraph = document.add_paragraph(style="List Bullet")
-            _add_inline_runs(paragraph, stripped[2:])
+            prev_was_entry = False
+            yield ("bullet", stripped[2:])
             continue
 
-        paragraph = document.add_paragraph()
-        _add_inline_runs(paragraph, stripped)
+        if in_header_zone and not headline_done and stripped.startswith("**") and stripped.endswith("**") and len(stripped) > 4:
+            headline_done = True
+            prev_was_entry = False
+            yield ("headline", stripped[2:-2])
+            continue
+
+        if in_header_zone and not contact_done:
+            contact_done = True
+            prev_was_entry = False
+            yield ("contact", stripped)
+            continue
+
+        if prev_was_entry:
+            prev_was_entry = False
+            yield ("meta", stripped)
+            continue
+
+        prev_was_entry = False
+        yield ("body", stripped)
+
+
+def _write_markdown_to_docx(document, markdown_text):
+    """Render simple resume/cover-letter Markdown as real, executive-quality
+    Word formatting -- single-column, no tables/text boxes/images, every
+    heading/date/bullet a real styled paragraph so ATS text extraction sees
+    normal readable text throughout. Never writes literal Markdown syntax
+    or raw Python dict/list reprs into the document, and never alters the
+    underlying candidate facts -- only how they are laid out.
+    """
+    for kind, text in _classify_markdown_lines(markdown_text):
+        if kind == "name":
+            paragraph = document.add_paragraph()
+            paragraph.paragraph_format.space_before = Pt(0)
+            paragraph.paragraph_format.space_after = Pt(2)
+            paragraph.paragraph_format.keep_with_next = True
+            run = paragraph.add_run(text)
+            run.bold = True
+            run.font.name = _BODY_FONT
+            run.font.size = Pt(20)
+        elif kind == "headline":
+            paragraph = document.add_paragraph()
+            paragraph.paragraph_format.space_before = Pt(0)
+            paragraph.paragraph_format.space_after = Pt(4)
+            paragraph.paragraph_format.keep_with_next = True
+            run = paragraph.add_run(text)
+            run.bold = True
+            run.font.name = _BODY_FONT
+            run.font.size = Pt(12)
+            run.font.color.rgb = _MUTED_RGB
+        elif kind == "contact":
+            paragraph = document.add_paragraph()
+            paragraph.paragraph_format.space_before = Pt(0)
+            paragraph.paragraph_format.space_after = Pt(12)
+            run = paragraph.add_run(text)
+            run.font.name = _BODY_FONT
+            run.font.size = Pt(9.5)
+            run.font.color.rgb = _MUTED_RGB
+        elif kind == "section":
+            _add_section_heading_docx(document, text)
+        elif kind == "entry":
+            paragraph = document.add_paragraph()
+            paragraph.paragraph_format.space_before = Pt(9)
+            paragraph.paragraph_format.space_after = Pt(1)
+            paragraph.paragraph_format.keep_with_next = True
+            _add_inline_runs(paragraph, text)
+            for run in paragraph.runs:
+                run.bold = True
+                run.font.name = _BODY_FONT
+                run.font.size = Pt(10.5)
+        elif kind == "meta":
+            paragraph = document.add_paragraph()
+            paragraph.paragraph_format.space_before = Pt(0)
+            paragraph.paragraph_format.space_after = Pt(4)
+            paragraph.paragraph_format.keep_with_next = True
+            run = paragraph.add_run(text)
+            run.italic = True
+            run.font.name = _BODY_FONT
+            run.font.size = Pt(9.5)
+            run.font.color.rgb = _META_RGB
+        elif kind == "bullet":
+            paragraph = document.add_paragraph(style="List Bullet")
+            _add_inline_runs(paragraph, text)
+        else:  # body
+            paragraph = document.add_paragraph()
+            _add_inline_runs(paragraph, text)
+
+
+def _add_section_heading_docx(document, text):
+    """A major section heading (## in Markdown, or the cover letter's own
+    "Cover Letter" label): bold, restrained caps, a subtle rule beneath --
+    the ALL-CAPS display is a pure character-formatting transform (the
+    underlying run text is uppercased directly, matching the PDF sibling
+    exactly per Task 21.31 section 4) applied only to structural section
+    labels, never to a candidate fact."""
+    paragraph = document.add_paragraph()
+    paragraph.paragraph_format.space_before = Pt(14)
+    paragraph.paragraph_format.space_after = Pt(4)
+    paragraph.paragraph_format.keep_with_next = True
+    run = paragraph.add_run(text.upper())
+    run.bold = True
+    run.font.name = _BODY_FONT
+    run.font.size = Pt(11.5)
+    _add_bottom_border(paragraph)
+    return paragraph
 
 
 def _pdf_styles():
-    """A plain, single-column style sheet: real embedded/selectable text,
-    no tables, images, or text boxes -- kept ATS-parseable (Task 21.30
-    Section 1), not a visually elaborate layout."""
+    """A plain, single-column executive style sheet: real embedded/
+    selectable text, no tables, images, or text boxes -- kept ATS-parseable
+    (Task 21.30 Section 1), and matched to the DOCX renderer's hierarchy/
+    sizing one-for-one (Task 21.31 section 4) rather than a separate,
+    drifting design."""
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(
         name="ResumeBody", parent=styles["Normal"], fontName="Helvetica",
-        fontSize=10, leading=13, spaceAfter=3, alignment=TA_LEFT,
+        fontSize=10.5, leading=14, spaceAfter=3, alignment=TA_LEFT,
     ))
     styles.add(ParagraphStyle(
-        name="ResumeBullet", parent=styles["ResumeBody"], leftIndent=14, bulletIndent=0,
+        name="ResumeBullet", parent=styles["ResumeBody"], leftIndent=16, bulletIndent=2, spaceAfter=2,
     ))
-    for level, size in ((1, 14), (2, 12), (3, 11)):
-        styles.add(ParagraphStyle(
-            name=f"ResumeH{level}", parent=styles["Normal"], fontName="Helvetica-Bold",
-            fontSize=size, leading=size + 3, spaceBefore=10 if level == 1 else 6, spaceAfter=3,
-        ))
+    styles.add(ParagraphStyle(
+        name="ResumeName", parent=styles["ResumeBody"], fontName="Helvetica-Bold",
+        fontSize=20, leading=23, spaceAfter=2, keepWithNext=True,
+    ))
+    styles.add(ParagraphStyle(
+        name="ResumeHeadline", parent=styles["ResumeBody"], fontName="Helvetica-Bold",
+        fontSize=12, leading=15, spaceAfter=4, textColor=_MUTED_HEX, keepWithNext=True,
+    ))
+    styles.add(ParagraphStyle(
+        name="ResumeContact", parent=styles["ResumeBody"], fontName="Helvetica",
+        fontSize=9.5, leading=12, spaceAfter=12, textColor=_MUTED_HEX,
+    ))
+    styles.add(ParagraphStyle(
+        name="ResumeSection", parent=styles["ResumeBody"], fontName="Helvetica-Bold",
+        fontSize=11.5, leading=14, spaceBefore=14, spaceAfter=2, keepWithNext=True,
+    ))
+    styles.add(ParagraphStyle(
+        name="ResumeEntry", parent=styles["ResumeBody"], fontName="Helvetica-Bold",
+        fontSize=10.5, leading=13, spaceBefore=9, spaceAfter=1, keepWithNext=True,
+    ))
+    styles.add(ParagraphStyle(
+        name="ResumeMeta", parent=styles["ResumeBody"], fontName="Helvetica-Oblique",
+        fontSize=9.5, leading=12, spaceAfter=4, textColor=_META_HEX, keepWithNext=True,
+    ))
     return styles
+
+
+def _section_rule():
+    """The PDF sibling of _add_bottom_border: a thin vector line, not an
+    image, so it never affects text extraction."""
+    return HRFlowable(width="100%", thickness=0.6, color=_RULE_HEX, spaceBefore=1, spaceAfter=6)
 
 
 def _inline_markup(text):
@@ -142,23 +327,29 @@ def _inline_markup(text):
 
 
 def _write_markdown_to_pdf_story(markdown_text, styles):
-    """Same Markdown subset as _write_markdown_to_docx, rendered as a flat
-    list of reportlab flowables -- same factual content, no images."""
+    """Same Markdown subset, same _classify_markdown_lines structural read,
+    and the same visual hierarchy as _write_markdown_to_docx -- same
+    factual content, no images, materially consistent with the DOCX
+    sibling (Task 21.31 section 4)."""
     story = []
-    heading_styles = {1: styles["ResumeH1"], 2: styles["ResumeH2"], 3: styles["ResumeH3"]}
-    for line in markdown_text.split("\n"):
-        stripped = line.strip()
-        if not stripped or stripped == "---":
-            continue
-        heading_match = re.match(r"^(#{1,3})\s+(.*)$", stripped)
-        if heading_match:
-            level = len(heading_match.group(1))
-            story.append(Paragraph(_inline_markup(heading_match.group(2)), heading_styles[level]))
-            continue
-        if stripped.startswith("- "):
-            story.append(Paragraph("&bull;&nbsp;&nbsp;" + _inline_markup(stripped[2:]), styles["ResumeBullet"]))
-            continue
-        story.append(Paragraph(_inline_markup(stripped), styles["ResumeBody"]))
+    for kind, text in _classify_markdown_lines(markdown_text):
+        if kind == "name":
+            story.append(Paragraph(_inline_markup(text), styles["ResumeName"]))
+        elif kind == "headline":
+            story.append(Paragraph(_inline_markup(text), styles["ResumeHeadline"]))
+        elif kind == "contact":
+            story.append(Paragraph(_inline_markup(text), styles["ResumeContact"]))
+        elif kind == "section":
+            story.append(Paragraph(_inline_markup(text.upper()), styles["ResumeSection"]))
+            story.append(_section_rule())
+        elif kind == "entry":
+            story.append(Paragraph(_inline_markup(text), styles["ResumeEntry"]))
+        elif kind == "meta":
+            story.append(Paragraph(_inline_markup(text), styles["ResumeMeta"]))
+        elif kind == "bullet":
+            story.append(Paragraph("&bull;&nbsp;&nbsp;" + _inline_markup(text), styles["ResumeBullet"]))
+        else:  # body
+            story.append(Paragraph(_inline_markup(text), styles["ResumeBody"]))
     return story
 
 
@@ -248,10 +439,7 @@ def generate_cover_letter_docx(
     document = Document()
     _apply_compact_paragraph_spacing(document)
 
-    document.add_heading(
-        "Cover Letter",
-        level=1
-    )
+    _add_section_heading_docx(document, "Cover Letter")
 
     _write_markdown_to_docx(document, cover_letter)
 
@@ -276,7 +464,7 @@ def generate_cover_letter_pdf(
     filename = folder / "CoverLetter.pdf"
 
     styles = _pdf_styles()
-    story = [Paragraph("Cover Letter", styles["ResumeH1"])]
+    story = [Paragraph("COVER LETTER", styles["ResumeSection"]), _section_rule()]
     story.extend(_write_markdown_to_pdf_story(cover_letter, styles))
     _build_pdf(filename, story)
 

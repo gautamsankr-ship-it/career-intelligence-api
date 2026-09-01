@@ -158,6 +158,7 @@ class LinkedInEasyApplyAdapter:
         await self._collect_spinbuttons(dialog, plan, market, vacancy)
         await self._collect_radiogroups(dialog, plan, market, vacancy)
         await self._collect_comboboxes(dialog, plan, market, vacancy)
+        await self._collect_bare_groups(dialog, plan, market, vacancy)
         await self._collect_file_uploads(dialog, plan, vacancy)
 
         button_names = await self._button_names(dialog)
@@ -198,13 +199,38 @@ class LinkedInEasyApplyAdapter:
                     group = radiogroups.nth(index)
                     option = group.get_by_role("radio", name=re.compile(re.escape(str(field_item.answer)), re.I))
                     if await option.count() == 1:
-                        await option.check()
+                        # Task 21.31: LinkedIn's own custom-styled radio
+                        # controls render a <label> visually on top of the
+                        # native <input>, which fails Playwright's default
+                        # "receives pointer events at this point" actionability
+                        # check even though the control is genuinely checkable
+                        # -- force=True performs the real native check() (and
+                        # fires the same change events) without that false-
+                        # negative visibility gate.
+                        await option.check(force=True)
                     else:
                         field_item.action = "REVIEW"
                         field_item.reason = "Approved answer could not be mapped to exactly one offered option."
                 elif field_item.field_id.startswith("combobox_"):
                     index = int(field_item.field_id.split("_", 1)[1])
                     await comboboxes.nth(index).select_option(label=str(field_item.answer))
+                elif field_item.field_id.startswith("baregroup_radio_"):
+                    index = int(field_item.field_id.rsplit("_", 1)[1])
+                    group = dialog.get_by_role("group").nth(index)
+                    option = group.get_by_role("radio", name=re.compile(re.escape(str(field_item.answer)), re.I))
+                    if await option.count() == 1:
+                        # Task 21.31: LinkedIn's own custom-styled radio
+                        # controls render a <label> visually on top of the
+                        # native <input>, which fails Playwright's default
+                        # "receives pointer events at this point" actionability
+                        # check even though the control is genuinely checkable
+                        # -- force=True performs the real native check() (and
+                        # fires the same change events) without that false-
+                        # negative visibility gate.
+                        await option.check(force=True)
+                    else:
+                        field_item.action = "REVIEW"
+                        field_item.reason = "Approved answer could not be mapped to exactly one offered option."
             except Exception:
                 field_item.action = "REVIEW"
                 field_item.reason = "Supported fill selector/value was not unambiguous."
@@ -323,6 +349,58 @@ class LinkedInEasyApplyAdapter:
                 action=action, concept=decision.concept, answer=decision.answer,
                 confidence=decision.confidence, answer_source=decision.answer_source, reason=decision.reason,
             ))
+
+    async def _collect_bare_groups(self, dialog, plan, market, vacancy):
+        """Task 21.31 production fix: LinkedIn also poses standalone
+        Yes/No AND multi-select checklist questions (e.g. "Are you based
+        in the UK and have the right to work in the UK?", "Which
+        accountancy firm(s) have you trained or worked with?") as a bare
+        role="group" wrapping role="radio"/role="checkbox" children --
+        NOT the role="radiogroup" _collect_radiogroups already handles --
+        and with no aria-label/aria-labelledby on the group itself, only
+        its own plain text ("<question>\nRequired\n<option>\n<option>...").
+        Without this collector such a required question was invisible to
+        inspect_step entirely: never filled, never flagged for review, so
+        a real application could reach "Next"/"Review" with LinkedIn's own
+        client-side validation silently blocking every further click --
+        including a genuinely approved, reusable fact like
+        WORK_AUTHORIZATION_UK, which should auto-fill exactly like it does
+        everywhere else. Resolved through the SAME ApplicationAnswerEngine/
+        _action_for path every other field type uses -- a multi-select
+        checklist has no reusable concept and always routes to human
+        review; a bare radio group can auto-fill when (and only when) an
+        approved rule already answers it, exactly like _collect_radiogroups."""
+        groups = dialog.get_by_role("group")
+        for index in range(await groups.count()):
+            group = groups.nth(index)
+            radios = group.get_by_role("radio")
+            checkboxes = group.get_by_role("checkbox")
+            radio_count = await radios.count()
+            checkbox_count = await checkboxes.count()
+            if radio_count == 0 and checkbox_count == 0:
+                continue
+            raw_name = await self._accessible_name(group)
+            lines = [line.strip() for line in raw_name.split("\n") if line.strip()]
+            label = lines[0].rstrip("*").strip() if lines else ""
+            required = len(lines) > 1 and lines[1].lower() == "required"
+            if radio_count and not checkbox_count:
+                choices = [await self._accessible_name(radios.nth(i)) for i in range(radio_count)]
+                decision = self.answer_engine.resolve(label, field_type="RADIO", choices=choices, market=market, vacancy=vacancy)
+                action = self._action_for(decision, required)
+                plan.fields.append(ApplicationField(
+                    f"baregroup_radio_{index}", PORTAL, label, label, "RADIO", required, choices=choices,
+                    action=action, concept=decision.concept, answer=decision.answer,
+                    confidence=decision.confidence, answer_source=decision.answer_source, reason=decision.reason,
+                ))
+            else:
+                choices = [await self._accessible_name(checkboxes.nth(i)) for i in range(checkbox_count)]
+                decision = self.answer_engine.resolve(label, field_type="CHECKBOX_GROUP", choices=choices, market=market, vacancy=vacancy)
+                action = self._action_for(decision, required)
+                plan.fields.append(ApplicationField(
+                    f"baregroup_checkbox_{index}", PORTAL, label, label, "CHECKBOX_GROUP", required, choices=choices,
+                    action=action, concept=decision.concept, answer=decision.answer,
+                    confidence=decision.confidence, answer_source=decision.answer_source, reason=decision.reason,
+                ))
 
     async def _collect_file_uploads(self, dialog, plan, vacancy):
         inputs = dialog.locator("input[type='file']")
