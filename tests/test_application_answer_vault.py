@@ -40,9 +40,75 @@ def test_current_location_never_changes_work_authorization_answers(tmp_path):
 
 
 def test_specific_qualification_is_not_overclaimed(tmp_path):
+    """Task 21.31: the candidate holds a Chartered Accountant qualification
+    through ICAI/ICAN, never ACA or ACCA specifically. An exact-designation
+    question is honestly answered NO -- not manual review -- and a broad
+    qualified-accountant question remains YES."""
     _, service = engine(tmp_path)
-    assert service.resolve("Are you ACCA qualified?").manual_review
+    acca = service.resolve("Are you ACCA qualified?")
+    assert (acca.concept, acca.answer, acca.manual_review) == ("ACCOUNTING_QUALIFICATION_ACA_ACCA", "NO", False)
     assert service.resolve("Are you a qualified accountant?").answer == "YES"
+
+
+def test_aca_acca_exact_designation_questions_answer_no(tmp_path):
+    _, service = engine(tmp_path)
+    for question in ("Are you ACA?", "Are you ACCA?", "Are you ACA or ACCA qualified?", "Do you hold ACA/ACCA?"):
+        result = service.resolve(question)
+        assert (result.concept, result.answer, result.manual_review) == ("ACCOUNTING_QUALIFICATION_ACA_ACCA", "NO", False), question
+
+
+def test_broad_qualification_questions_answer_yes(tmp_path):
+    _, service = engine(tmp_path)
+    for question in ("Are you a Chartered Accountant?", "Are you a qualified accountant?"):
+        result = service.resolve(question)
+        assert (result.concept, result.answer, result.manual_review) == ("ACCOUNTING_QUALIFICATION", "YES", False), question
+
+
+def test_aca_acca_or_equivalent_recognizes_ca_and_does_not_autofail(tmp_path):
+    """"...or equivalent" phrasing must never auto-fail the candidate just
+    because they do not personally hold ACA/ACCA -- ICAI/ICAN Chartered
+    Accountancy is the approved equivalent professional qualification."""
+    _, service = engine(tmp_path)
+    for question in ("ACA/ACCA or equivalent", "ACA, ACCA, CIMA or equivalent professional qualification", "Qualified accountant or equivalent"):
+        result = service.resolve(question)
+        assert result.answer == "YES" and not result.manual_review, question
+
+
+def test_qualification_multiple_choice_prefers_ca_never_selects_aca_acca(tmp_path):
+    """Never select an ACA/ACCA-specific option -- prefer an explicit CA/
+    Chartered Accountant choice, then Equivalent/Other, in that order."""
+    _, service = engine(tmp_path)
+    with_ca = service.resolve("Are you ACA or ACCA qualified?", choices=["ACA", "ACCA", "CA", "CPA", "CIMA", "Other"])
+    assert with_ca.answer == "CA" and not with_ca.manual_review
+
+    without_ca = service.resolve("Are you ACA or ACCA qualified?", choices=["ACA", "ACCA", "Other"])
+    assert without_ca.answer == "Other" and not without_ca.manual_review
+
+
+def test_qualification_choice_list_with_no_honest_option_requires_human_review(tmp_path):
+    """If neither CA/Chartered Accountant nor Equivalent/Other is offered,
+    never select ACA or ACCA to force an answer -- route to human review."""
+    _, service = engine(tmp_path)
+    result = service.resolve("Are you ACA or ACCA qualified?", choices=["ACA", "ACCA"])
+    assert result.manual_review
+
+
+def test_plain_yes_no_qualification_choices_are_unaffected_by_multichoice_logic(tmp_path):
+    """A plain Yes/No choice list must still map through the ordinary
+    approved-value path, not the designation-choice picker."""
+    _, service = engine(tmp_path)
+    result = service.resolve("Are you ACCA qualified?", choices=["Yes", "No"])
+    assert result.answer == "No" and not result.manual_review
+
+
+def test_tracker_81_aca_acca_answer_unaffected(tmp_path):
+    """Task 21.31: Tracker 81 was already submitted accurately with
+    ACA/ACCA = NO before this correction -- confirms the new policy
+    produces the identical answer for that exact question, so nothing
+    about the already-submitted application is contradicted."""
+    _, service = engine(tmp_path)
+    result = service.resolve("Are you a qualified ACA or ACCA accountant?")
+    assert (result.answer, result.manual_review) == ("NO", False)
 
 
 def test_country_specific_authorization_and_sponsorship_are_separate(tmp_path):

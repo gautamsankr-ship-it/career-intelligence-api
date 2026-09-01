@@ -255,7 +255,7 @@
       "status": "APPROVED",
       "question_patterns": [],
       "notes": "",
-      "updated_at": "2026-08-31T18:41:57.952782+00:00"
+      "updated_at": "2026-09-01T11:59:02.913652+00:00"
     },
     {
       "answer_id": "phone_number",
@@ -271,7 +271,7 @@
       "status": "APPROVED",
       "question_patterns": [],
       "notes": "",
-      "updated_at": "2026-08-31T18:41:57.952830+00:00"
+      "updated_at": "2026-09-01T11:59:02.913780+00:00"
     },
     {
       "answer_id": "first_name",
@@ -287,7 +287,7 @@
       "status": "APPROVED",
       "question_patterns": [],
       "notes": "",
-      "updated_at": "2026-08-31T18:41:57.952845+00:00"
+      "updated_at": "2026-09-01T11:59:02.913795+00:00"
     },
     {
       "answer_id": "last_name",
@@ -303,7 +303,7 @@
       "status": "APPROVED",
       "question_patterns": [],
       "notes": "",
-      "updated_at": "2026-08-31T18:41:57.952857+00:00"
+      "updated_at": "2026-09-01T11:59:02.913805+00:00"
     },
     {
       "answer_id": "full_name",
@@ -319,7 +319,7 @@
       "status": "APPROVED",
       "question_patterns": [],
       "notes": "",
-      "updated_at": "2026-08-31T18:41:57.952869+00:00"
+      "updated_at": "2026-09-01T11:59:02.913815+00:00"
     },
     {
       "answer_id": "current_location_country",
@@ -335,7 +335,7 @@
       "status": "APPROVED",
       "question_patterns": [],
       "notes": "",
-      "updated_at": "2026-08-31T18:41:57.952880+00:00"
+      "updated_at": "2026-09-01T11:59:02.913824+00:00"
     },
     {
       "answer_id": "current_city",
@@ -351,7 +351,7 @@
       "status": "APPROVED",
       "question_patterns": [],
       "notes": "",
-      "updated_at": "2026-08-31T18:41:57.952892+00:00"
+      "updated_at": "2026-09-01T11:59:02.913832+00:00"
     },
     {
       "answer_id": "current_location_full",
@@ -367,7 +367,39 @@
       "status": "APPROVED",
       "question_patterns": [],
       "notes": "",
-      "updated_at": "2026-08-31T18:41:57.952902+00:00"
+      "updated_at": "2026-09-01T11:59:02.913840+00:00"
+    },
+    {
+      "answer_id": "accounting_qualification_aca_acca",
+      "concept": "ACCOUNTING_QUALIFICATION_ACA_ACCA",
+      "value": "NO",
+      "answer_type": "BOOLEAN",
+      "automation_policy": "AUTO_FILL",
+      "confidence": "HIGH",
+      "answer_source": "PROFILE_FACT",
+      "evidence_reference": "master_candidate_profile.json:education[Chartered Accountant (ICAI/ICAN), not ACA/ACCA]",
+      "applicable_markets": [],
+      "sensitivity": "STANDARD",
+      "status": "APPROVED",
+      "question_patterns": [],
+      "notes": "",
+      "updated_at": "2026-09-01T11:59:02.913857+00:00"
+    },
+    {
+      "answer_id": "accounting_qualification_or_equivalent",
+      "concept": "ACCOUNTING_QUALIFICATION_OR_EQUIVALENT",
+      "value": "YES",
+      "answer_type": "BOOLEAN",
+      "automation_policy": "AUTO_FILL",
+      "confidence": "HIGH",
+      "answer_source": "PROFILE_FACT",
+      "evidence_reference": "master_candidate_profile.json:education[Chartered Accountant (ICAI/ICAN) recognized as the equivalent professional accounting qualification]",
+      "applicable_markets": [],
+      "sensitivity": "STANDARD",
+      "status": "APPROVED",
+      "question_patterns": [],
+      "notes": "",
+      "updated_at": "2026-09-01T11:59:02.913865+00:00"
     },
     {
       "answer_id": "notice_period",
@@ -383,7 +415,7 @@
       "status": "APPROVED",
       "question_patterns": [],
       "notes": "",
-      "updated_at": "2026-08-31T18:41:57.953070+00:00"
+      "updated_at": "2026-09-01T11:59:02.914003+00:00"
     },
     {
       "answer_id": "expected_salary",
@@ -399,7 +431,7 @@
       "status": "APPROVED",
       "question_patterns": [],
       "notes": "",
-      "updated_at": "2026-08-31T18:41:57.953081+00:00"
+      "updated_at": "2026-09-01T11:59:02.914011+00:00"
     },
     {
       "answer_id": "sponsorship_uk",
@@ -417,7 +449,7 @@
       "status": "APPROVED",
       "question_patterns": [],
       "notes": "",
-      "updated_at": "2026-08-31T18:41:57.953092+00:00"
+      "updated_at": "2026-09-01T11:59:02.914019+00:00"
     },
     {
       "answer_id": "sponsorship_us",
@@ -435,7 +467,7 @@
       "status": "APPROVED",
       "question_patterns": [],
       "notes": "",
-      "updated_at": "2026-08-31T18:41:57.953102+00:00"
+      "updated_at": "2026-09-01T11:59:02.914027+00:00"
     },
     {
       "answer_id": "sponsorship_au",
@@ -453,7 +485,7 @@
       "status": "APPROVED",
       "question_patterns": [],
       "notes": "",
-      "updated_at": "2026-08-31T18:41:57.953111+00:00"
+      "updated_at": "2026-09-01T11:59:02.914034+00:00"
     }
   ],
   "rules": [
@@ -14472,6 +14504,1278 @@
       "kind": "migration",
       "id": "task20_1",
       "changed_at": "2026-08-31T18:41:57.953912+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-08-31T19:10:55.694041+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-08-31T19:26:09.813197+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-08-31T19:27:38.484391+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-08-31T19:27:38.597113+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-08-31T19:28:19.392428+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-08-31T19:30:35.063040+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-08-31T19:31:25.962988+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-08-31T19:31:26.109940+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T02:44:57.323413+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T02:44:57.343547+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:04:01.295701+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:06:27.551827+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:06:49.810369+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:06:49.836538+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:07:18.615272+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:07:56.785199+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:08:30.644393+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:08:30.770755+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:08:43.647642+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:08:45.804850+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:08:56.916972+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:09:22.665317+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:11:06.051714+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:11:06.093086+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:11:34.205138+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:11:34.254901+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:13:35.596639+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:15:47.236282+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:20.155906+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:28.276139+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:30.069971+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:30.825283+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:31.797072+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:32.587814+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:33.404751+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:34.205701+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:35.031169+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:35.513189+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:35.609944+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:35.750751+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:36.453947+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:37.031210+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:37.148559+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:37.624952+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:37.724266+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:38.239722+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:38.335960+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:39.234400+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:39.975845+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:40.692374+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:41.495212+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:42.199034+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:42.889153+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:43.640446+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:44.329067+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:17:44.901512+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:18:03.663023+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:18:03.680497+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:18:44.467939+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:20:17.028800+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:05.255884+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:07.199782+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:07.985607+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:08.787147+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:09.548169+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:10.656552+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:11.856086+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:12.990450+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:13.724372+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:13.861895+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:14.069747+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:15.266767+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:16.049777+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:16.201994+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:16.970396+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:17.114863+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:18.013167+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:18.178626+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:21.194266+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:22.691560+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:23.746093+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:24.700081+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:25.718008+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:26.728651+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:28.036302+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:29.301680+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:30.454040+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:51.791473+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:21:59.924790+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:01.719439+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:02.476349+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:03.805840+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:05.153294+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:06.458956+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:07.839290+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:08.959445+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:10.106022+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:10.916427+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:11.032303+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:11.245864+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:12.598493+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:13.413268+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:13.578951+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:14.368975+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:14.537522+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:15.364314+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:15.503145+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:16.900174+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:18.286807+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:19.332051+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:20.345299+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:21.304904+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:22.443738+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:23.612420+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:24.669463+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:22:25.487361+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:23:13.499136+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:23:13.517544+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:47:20.088751+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:47:20.133729+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:50:43.095815+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:51:08.486810+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:51:34.196648+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:21.436520+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:25.467202+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:26.996856+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:28.817123+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:30.489404+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:32.453031+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:34.250903+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:35.820303+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:37.414407+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:38.734713+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:38.927761+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:39.225177+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:40.779402+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:42.077543+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:42.317917+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:43.604216+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:43.802646+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:45.070606+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:45.337464+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:47.349069+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:49.058850+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:50.696114+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:52.308604+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:53.859296+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:55.347879+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:57.122565+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:52:58.962977+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:53:00.359631+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:53:34.698679+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:53:34.782591+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:53:59.207898+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:53:59.292786+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:06.526371+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:14.346359+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:17.614655+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:20.991644+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:24.133862+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:27.172476+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:30.076298+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:32.934699+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:35.943684+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:38.065560+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:38.354411+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:38.793639+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:41.755136+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:43.789262+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:44.162151+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:46.260691+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:46.581792+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:48.688798+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:48.951300+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:52.255788+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:55.361806+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:57:58.010545+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:58:00.730612+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:58:03.248078+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:58:06.041401+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:58:08.924501+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:58:11.984796+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T05:58:14.277510+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:57:19.502712+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:57:39.175243+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:57:42.166446+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:57:45.424312+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:57:48.267667+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:57:51.132974+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:57:54.121159+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:57:56.934749+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:57:59.727961+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:01.763859+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:02.011414+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:02.512598+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:05.450037+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:07.606844+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:07.967667+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:10.072872+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:10.523223+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:12.573754+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:12.842520+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:16.231523+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:19.154819+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:21.723997+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:24.562793+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:27.172947+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:29.906440+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:32.966525+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:35.657716+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:58:37.926876+00:00",
+      "reason": "Candidate-approved practical application answers"
+    },
+    {
+      "kind": "migration",
+      "id": "task20_1",
+      "changed_at": "2026-09-01T11:59:02.914811+00:00",
       "reason": "Candidate-approved practical application answers"
     }
   ]

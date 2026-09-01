@@ -32,6 +32,17 @@ def _seed_answers() -> list[ApplicationAnswer]:
         ApplicationAnswer("current_city", "CURRENT_CITY", "Kathmandu", "TEXT", "AUTO_FILL", "HIGH", "USER_APPROVED_ANSWER", "Task 21.30 candidate approval: Kathmandu, Nepal", [], "STANDARD", approved),
         ApplicationAnswer("current_location_full", "CURRENT_LOCATION", "Kathmandu, Nepal", "TEXT", "AUTO_FILL", "HIGH", "USER_APPROVED_ANSWER", "Task 21.30 candidate approval: Kathmandu, Nepal", [], "STANDARD", approved),
         ApplicationAnswer("accounting_qualification", "ACCOUNTING_QUALIFICATION", "YES", "BOOLEAN", "AUTO_FILL", "HIGH", "PROFILE_FACT", "master_candidate_profile.json:education[Chartered Accountant]", [], "STANDARD", approved),
+        # Task 21.31: the candidate is a Chartered Accountant through
+        # ICAI/ICAN -- never ACA or ACCA specifically (no separately
+        # verified ACA/ACCA membership), but also never "unqualified"
+        # merely because a UK vacancy phrases the question in ACA/ACCA
+        # terms. Two distinct approved facts, kept apart from the broad
+        # ACCOUNTING_QUALIFICATION=YES above: an exact "are you ACA/ACCA"
+        # designation question is honestly NO; an "...or equivalent"
+        # question recognizes ICAI/ICAN CA as the equivalent qualification
+        # and is YES.
+        ApplicationAnswer("accounting_qualification_aca_acca", "ACCOUNTING_QUALIFICATION_ACA_ACCA", "NO", "BOOLEAN", "AUTO_FILL", "HIGH", "PROFILE_FACT", "master_candidate_profile.json:education[Chartered Accountant (ICAI/ICAN), not ACA/ACCA]", [], "STANDARD", approved),
+        ApplicationAnswer("accounting_qualification_or_equivalent", "ACCOUNTING_QUALIFICATION_OR_EQUIVALENT", "YES", "BOOLEAN", "AUTO_FILL", "HIGH", "PROFILE_FACT", "master_candidate_profile.json:education[Chartered Accountant (ICAI/ICAN) recognized as the equivalent professional accounting qualification]", [], "STANDARD", approved),
         ApplicationAnswer("professional_membership", "PROFESSIONAL_MEMBERSHIP", "Institute of Chartered Accountants of India", "TEXT", "AUTO_FILL", "HIGH", "PROFILE_FACT", "master_candidate_profile.json:professional_memberships", [], "STANDARD", approved),
         ApplicationAnswer("education", "EDUCATION", "Bachelor of Business Studies", "TEXT", "AUTO_FILL", "HIGH", "PROFILE_FACT", "master_candidate_profile.json:education", [], "STANDARD", approved),
         ApplicationAnswer("education_status", "EDUCATION_STATUS", "COMPLETED", "TEXT", "AUTO_FILL", "HIGH", "PROFILE_FACT", "master_candidate_profile.json:education", [], "STANDARD", approved),
@@ -90,7 +101,7 @@ class ApplicationAnswerVault:
         answers = {row.get("concept"): row for row in data.setdefault("answers", [])}
         changed = False
         for seeded in _seed_answers():
-            if seeded.concept in {"EMAIL_ADDRESS", "PHONE_NUMBER", "CURRENT_LOCATION_COUNTRY", "NOTICE_PERIOD", "EXPECTED_SALARY", "SPONSORSHIP_UK", "SPONSORSHIP_US", "SPONSORSHIP_AUSTRALIA", "FIRST_NAME", "LAST_NAME", "FULL_NAME", "CURRENT_CITY", "CURRENT_LOCATION"}:
+            if seeded.concept in {"EMAIL_ADDRESS", "PHONE_NUMBER", "CURRENT_LOCATION_COUNTRY", "NOTICE_PERIOD", "EXPECTED_SALARY", "SPONSORSHIP_UK", "SPONSORSHIP_US", "SPONSORSHIP_AUSTRALIA", "FIRST_NAME", "LAST_NAME", "FULL_NAME", "CURRENT_CITY", "CURRENT_LOCATION", "ACCOUNTING_QUALIFICATION_ACA_ACCA", "ACCOUNTING_QUALIFICATION_OR_EQUIVALENT"}:
                 old = answers.get(seeded.concept)
                 if old != seeded.to_dict():
                     if old: data["answers"].remove(old)

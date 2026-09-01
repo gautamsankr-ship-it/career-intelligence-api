@@ -29,6 +29,22 @@ class ApplicationAnswerEngine:
             return self._generated(concept, vacancy, question_text)
         if concept == "EXPECTED_SALARY" and (field_type or "").upper() in {"NUMBER", "NUMERIC", "CURRENCY"}:
             return self._manual(concept, "Mandatory numeric compensation conversion has not been approved.", "SENSITIVE")
+        # Task 21.31: a designation-choice list (e.g. "ACA / ACCA / CA /
+        # CPA / CIMA / Other") needs a different resolution than a plain
+        # Yes/No mapping -- select the option that actually, honestly
+        # represents the candidate's Chartered Accountant (ICAI/ICAN)
+        # qualification, never an ACA/ACCA option specifically. A plain
+        # Yes/No choice list (or no choices at all) falls through to the
+        # normal vault-answer path below unaffected.
+        if concept in {"ACCOUNTING_QUALIFICATION", "ACCOUNTING_QUALIFICATION_ACA_ACCA", "ACCOUNTING_QUALIFICATION_OR_EQUIVALENT"} and choices and self._looks_like_qualification_choices(choices):
+            picked = self._qualification_choice(choices)
+            if picked is None:
+                return self._manual(concept, "No offered choice can honestly represent the candidate's Chartered Accountant (ICAI/ICAN) qualification without overclaiming ACA/ACCA.", "CONTEXTUAL")
+            return AnswerDecision(
+                concept, picked, "AUTO_FILL", "HIGH", "PROFILE_FACT",
+                "Chartered Accountant (ICAI/ICAN) mapped to the closest honest offered choice; ACA/ACCA never selected.",
+                False, "STANDARD", "master_candidate_profile.json:education[Chartered Accountant]", picked,
+            )
         answer = self.vault.get_answer(concept)
         if not answer or answer.status != "APPROVED" or answer.automation_policy == "MANUAL_REVIEW" or answer.confidence != "HIGH":
             return self._manual(concept, "No approved high-confidence reusable answer is available.")
@@ -65,7 +81,16 @@ class ApplicationAnswerEngine:
         if re.search(r"right to work|authorized to work|authorised to work|employment authorization|eligible to work", q):
             suffix = {"united_kingdom": "UK", "united_states": "US", "australia": "AUSTRALIA"}.get(market or "")
             return f"WORK_AUTHORIZATION_{suffix}" if suffix else "WORK_AUTHORIZATION"
-        if "acca" in q: return "ACCOUNTING_QUALIFICATION_ACCA"
+        # Task 21.31: the candidate holds a Chartered Accountant
+        # qualification through ICAI/ICAN, never ACA or ACCA specifically.
+        # An exact designation question ("Are you ACA?", "Do you hold
+        # ACA/ACCA?") must answer NO -- but "...or equivalent" phrasing
+        # must not auto-fail the candidate; ICAI/ICAN CA is the approved
+        # equivalent professional qualification.
+        if re.search(r"\baca\b|\bacca\b", q):
+            if re.search(r"or equivalent|equivalent professional", q):
+                return "ACCOUNTING_QUALIFICATION_OR_EQUIVALENT"
+            return "ACCOUNTING_QUALIFICATION_ACA_ACCA"
         if re.search(r"qualified accountant|chartered accountant|recognised accounting qualification", q): return "ACCOUNTING_QUALIFICATION"
         if re.search(r"highest qualification|degree|education", q): return "EDUCATION"
         # Task 21.30: the candidate's current location is now an explicitly
@@ -152,6 +177,34 @@ class ApplicationAnswerEngine:
         if isinstance(value, bool) or str(value).upper() in {"YES", "NO"}:
             desired = "yes" if value is True or str(value).upper() == "YES" else "no"
             return next((x for x in choices if x.strip().lower() in {desired, desired[0]}), None)
+        return None
+
+    _QUALIFICATION_CHOICE_MARKERS = {"aca", "acca", "ca", "cpa", "cima", "chartered accountant", "equivalent", "other"}
+
+    @classmethod
+    def _looks_like_qualification_choices(cls, choices: list[str]) -> bool:
+        """True only for a genuine designation-choice list (e.g. ACA/ACCA/
+        CA/CPA/CIMA/Other) -- never for a plain Yes/No choice list, which
+        must keep using the ordinary vault-answer YES/NO mapping."""
+        return any(str(c).strip().lower() in cls._QUALIFICATION_CHOICE_MARKERS for c in choices)
+
+    @staticmethod
+    def _qualification_choice(choices: list[str]) -> str | None:
+        """Task 21.31: select the offered choice that honestly represents
+        the candidate's Chartered Accountant (ICAI/ICAN) qualification --
+        preferring an explicit CA/Chartered Accountant option, then an
+        Equivalent/Other option, and NEVER an ACA/ACCA-specific option
+        (the candidate does not hold that separately verified membership).
+        Returns None when no honest choice exists (e.g. only ACA/ACCA
+        options with no CA/Equivalent/Other alternative) so the caller
+        routes to human review rather than overclaiming."""
+        normalized = {str(c).strip().lower(): c for c in choices}
+        for label in ("ca", "chartered accountant"):
+            if label in normalized:
+                return normalized[label]
+        for label in ("equivalent", "other"):
+            if label in normalized:
+                return normalized[label]
         return None
 
     @staticmethod
