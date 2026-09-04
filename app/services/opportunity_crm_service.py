@@ -25,6 +25,7 @@ from typing import Any
 from app.models.crm import (
     ACTIVE_FORWARD_ORDER,
     ALL_STAGES,
+    ATTENTION_STAGES,
     EMPLOYER_RESPONSE_TYPES,
     HUMAN_BLOCKER_TYPES,
     INTERVIEW_STAGES,
@@ -32,6 +33,7 @@ from app.models.crm import (
     OFFER_ACCEPTED,
     OFFER_DECLINED,
     OFFER_PENDING,
+    PIPELINE_VIEW_STAGES,
     TERMINAL_STAGES,
     BLOCKER_OPEN,
     BLOCKER_RESOLVED,
@@ -736,6 +738,91 @@ class OpportunityCRMService:
             f"SELECT {field} AS value, COUNT(*) AS count FROM application_history GROUP BY {field} ORDER BY count DESC"
         ).fetchall()
         return [{"value": row["value"], "count": row["count"]} for row in rows]
+
+    # -- dashboard (Task 21.33) ---------------------------------------------
+    _LIST_FILTER_COLUMNS = frozenset({"crm_stage", "intelligence_priority", "market", "source", "application_portal"})
+
+    def list_opportunities(self, **filters: str) -> list[dict]:
+        """Every opportunity, optionally filtered by one or more of
+        crm_stage/intelligence_priority/market/source/application_portal
+        (an unrecognized filter key is rejected -- `filters` is never
+        interpolated into SQL beyond this fixed whitelist). Each row also
+        carries `open_blocker_count`, the same underlying check
+        `needs_attention()` uses, so the UI never re-derives it."""
+        unknown = filters.keys() - self._LIST_FILTER_COLUMNS
+        if unknown:
+            raise ValueError(f"Unsupported opportunity filter(s): {sorted(unknown)}")
+        clauses = [f"{column} = :{column}" for column in filters]
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        query = (
+            "SELECT ah.*, "
+            "(SELECT COUNT(*) FROM human_blockers hb WHERE hb.tracker_id = ah.id AND hb.status = 'OPEN') AS open_blocker_count "
+            f"FROM application_history ah {where} ORDER BY ah.id DESC"
+        )
+        return [dict(row) for row in self.connection.execute(query, filters)]
+
+    def needs_attention(self) -> list[dict]:
+        """Opportunities genuinely waiting on a human right now: either an
+        ATTENTION_STAGES crm_stage, or an actually-open `human_blockers` row
+        -- never a blocker inferred from a stale execution-session flag
+        (e.g. a CAPTCHA/MFA field on an old ApplicationExecutionResult JSON)
+        that was never recorded as a live CRM blocker."""
+        entries: dict[int, dict] = {}
+        for record in self.connection.execute(
+            "SELECT * FROM application_history WHERE crm_stage IN ({})".format(
+                ",".join("?" * len(ATTENTION_STAGES))
+            ),
+            tuple(ATTENTION_STAGES),
+        ):
+            row = dict(record)
+            entries[row["id"]] = {
+                "tracker_id": row["id"], "company": row.get("company") or "", "job_title": row.get("job_title") or "",
+                "crm_stage": row.get("crm_stage"), "crm_stage_updated_at": row.get("crm_stage_updated_at"),
+                "reasons": [f"Stage awaiting human action: {row.get('crm_stage')}"],
+            }
+        for blocker in self.list_open_blockers():
+            tracker_id = blocker["tracker_id"]
+            if tracker_id not in entries:
+                record = self.get_opportunity(tracker_id)
+                if not record:
+                    continue
+                entries[tracker_id] = {
+                    "tracker_id": tracker_id, "company": record.get("company") or "", "job_title": record.get("job_title") or "",
+                    "crm_stage": record.get("crm_stage"), "crm_stage_updated_at": record.get("crm_stage_updated_at"),
+                    "reasons": [],
+                }
+            entries[tracker_id]["reasons"].append(f"Open blocker: {blocker['blocker_type']}" + (f" -- {blocker['detail']}" if blocker.get("detail") else ""))
+        return sorted(entries.values(), key=lambda entry: entry["tracker_id"], reverse=True)
+
+    def pipeline_counts(self) -> dict[str, int]:
+        """Current crm_stage distribution, with every stage in
+        `PIPELINE_VIEW_STAGES` present (0 when nothing is there today) --
+        never silently dropping a stage just because it's currently empty."""
+        counts = {row["value"]: row["count"] for row in self.breakdown_by("crm_stage") if row["value"]}
+        return {stage: counts.get(stage, 0) for stage in PIPELINE_VIEW_STAGES}
+
+    def get_opportunity_detail(self, tracker_id: int) -> dict | None:
+        """Everything the dashboard's opportunity-detail view needs, in one
+        call -- the core record plus every related table's rows and the
+        merged timeline. Returns None (never a fabricated placeholder) when
+        the tracker doesn't exist."""
+        record = self.get_opportunity(tracker_id)
+        if not record:
+            return None
+        blockers = [dict(row) for row in self.connection.execute("SELECT * FROM human_blockers WHERE tracker_id = ? ORDER BY id", (tracker_id,))]
+        recruiter_contacts = [dict(row) for row in self.connection.execute("SELECT * FROM recruiter_contacts WHERE tracker_id = ? ORDER BY id", (tracker_id,))]
+        interviews = [dict(row) for row in self.connection.execute("SELECT * FROM interviews WHERE tracker_id = ? ORDER BY id", (tracker_id,))]
+        offers = [dict(row) for row in self.connection.execute("SELECT * FROM offers WHERE tracker_id = ? ORDER BY id", (tracker_id,))]
+        employer_responses = [dict(row) for row in self.connection.execute("SELECT * FROM employer_responses WHERE tracker_id = ? ORDER BY id", (tracker_id,))]
+        return {
+            "opportunity": record,
+            "blockers": blockers,
+            "recruiter_contacts": recruiter_contacts,
+            "interviews": interviews,
+            "offers": offers,
+            "employer_responses": employer_responses,
+            "timeline": self.get_timeline(tracker_id),
+        }
 
     def close(self) -> None:
         self.history.close()

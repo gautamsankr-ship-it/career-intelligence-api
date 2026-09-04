@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Career Intelligence CRM Dashboard</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, Segoe UI, Arial, sans-serif; background: #f5f7fa; margin: 0; color: #1f2937; }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0 0 4px; }
+    .subtitle { color: #6b7280; margin-bottom: 24px; }
+    h2 { font-size: 16px; text-transform: uppercase; letter-spacing: .04em; color: #374151; margin: 32px 0 12px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+    .card { background: white; border-radius: 10px; padding: 14px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .card .n { font-size: 26px; font-weight: 700; color: #2563eb; }
+    .card .l { font-size: 12px; color: #6b7280; margin-top: 2px; }
+    .rates { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+    .rate { background: white; border-radius: 10px; padding: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .rate .n { font-size: 20px; font-weight: 700; color: #059669; }
+    .rate .n.na { color: #9ca3af; }
+    .rate .l { font-size: 11px; color: #6b7280; }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eef0f2; font-size: 13px; }
+    th { background: #f3f4f6; font-weight: 600; color: #374151; }
+    tr:last-child td { border-bottom: none; }
+    .pipeline-table td.n { text-align: right; font-weight: 600; }
+    .pipeline-table td.n.zero { color: #cbd5e1; }
+    .attention-box { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 0; overflow: hidden; }
+    .attention-box .empty { padding: 16px; color: #6b7280; }
+    .attention-box table { box-shadow: none; }
+    a { color: #2563eb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; align-items: end; }
+    .filters .field { display: flex; flex-direction: column; font-size: 12px; color: #6b7280; }
+    select { padding: 6px 8px; border-radius: 6px; border: 1px solid #d1d5db; min-width: 140px; }
+    button.apply { padding: 7px 16px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    button.apply:hover { background: #1d4ed8; }
+    a.clear { align-self: center; font-size: 13px; color: #6b7280; margin-left: 4px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .p-A { background: #dcfce7; color: #166534; } .p-B { background: #dbeafe; color: #1e40af; }
+    .p-C { background: #fef3c7; color: #92400e; } .p-D { background: #f3f4f6; color: #374151; }
+    .p-E { background: #fee2e2; color: #991b1b; }
+    .attn-flag { color: #ea580c; font-weight: 700; }
+    .empty-state { padding: 20px; text-align: center; color: #6b7280; background: white; border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Career Intelligence CRM Dashboard</h1>
+    <div class="subtitle">Live view over the Application CRM (OpportunityCRMService) -- Task 21.33</div>
+
+    <h2>Summary</h2>
+    <div class="cards">
+      <div class="card"><div class="n">{{ counts.discovered }}</div><div class="l">Total Opportunities</div></div>
+      <div class="card"><div class="n">{{ counts.eligible }}</div><div class="l">Eligible</div></div>
+      <div class="card"><div class="n">{{ counts.shortlisted }}</div><div class="l">Shortlisted</div></div>
+      <div class="card"><div class="n">{{ counts.prepared }}</div><div class="l">Prepared</div></div>
+      <div class="card"><div class="n">{{ counts.applied }}</div><div class="l">Applied</div></div>
+      <div class="card"><div class="n">{{ counts.acknowledged }} / {{ counts.responses }}</div><div class="l">Acknowledged / Responses</div></div>
+      <div class="card"><div class="n">{{ counts.interviews }}</div><div class="l">Interviews</div></div>
+      <div class="card"><div class="n">{{ counts.offers }}</div><div class="l">Offers</div></div>
+      <div class="card"><div class="n">{{ counts.hired }}</div><div class="l">Hired</div></div>
+    </div>
+
+    <h2>Conversion Rates</h2>
+    <div class="rates">
+      {% for key, label in [
+        ("shortlisted_to_applied", "Shortlisted -> Applied"),
+        ("applied_to_response", "Applied -> Response"),
+        ("response_to_interview", "Response -> Interview"),
+        ("interview_to_offer", "Interview -> Offer"),
+        ("offer_to_hired", "Offer -> Hired"),
+      ] %}
+      <div class="rate">
+        {% if rates[key] is none %}
+          <div class="n na">N/A</div>
+        {% else %}
+          <div class="n">{{ (rates[key] * 100) | round(1) }}%</div>
+        {% endif %}
+        <div class="l">{{ label }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <h2>Pipeline (current stage)</h2>
+    <table class="pipeline-table">
+      <tr><th>Stage</th><th style="text-align:right">Count</th></tr>
+      {% for stage, n in pipeline.items() %}
+      <tr>
+        <td><a href="/?crm_stage={{ stage }}">{{ stage }}</a></td>
+        <td class="n {{ 'zero' if n == 0 else '' }}">{{ n }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+
+    <h2>Needs My Attention ({{ attention | length }})</h2>
+    <div class="attention-box">
+      {% if attention %}
+      <table>
+        <tr><th>Tracker</th><th>Company</th><th>Role</th><th>Stage</th><th>Reasons</th></tr>
+        {% for item in attention %}
+        <tr>
+          <td><a href="/opportunity/{{ item.tracker_id }}">#{{ item.tracker_id }}</a></td>
+          <td>{{ item.company }}</td>
+          <td>{{ item.job_title }}</td>
+          <td>{{ item.crm_stage }}</td>
+          <td>{% for reason in item.reasons %}{{ reason }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}
+      <div class="empty">Nothing needs your attention right now.</div>
+      {% endif %}
+    </div>
+
+    <h2>Opportunities ({{ opportunities | length }})</h2>
+    <form class="filters" method="get" action="/">
+      <div class="field">
+        <label>Stage</label>
+        <select name="crm_stage">
+          <option value="">All</option>
+          {% for v in filter_options.crm_stage %}<option value="{{ v }}" {{ "selected" if v == selected.crm_stage }}>{{ v }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Priority</label>
+        <select name="intelligence_priority">
+          <option value="">All</option>
+          {% for v in filter_options.intelligence_priority %}<option value="{{ v }}" {{ "selected" if v == selected.intelligence_priority }}>{{ v }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Market</label>
+        <select name="market">
+          <option value="">All</option>
+          {% for v in filter_options.market %}<option value="{{ v }}" {{ "selected" if v == selected.market }}>{{ v }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Source</label>
+        <select name="source">
+          <option value="">All</option>
+          {% for v in filter_options.source %}<option value="{{ v }}" {{ "selected" if v == selected.source }}>{{ v }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Route</label>
+        <select name="application_portal">
+          <option value="">All</option>
+          {% for v in filter_options.application_portal %}<option value="{{ v }}" {{ "selected" if v == selected.application_portal }}>{{ v }}</option>{% endfor %}
+        </select>
+      </div>
+      <button class="apply" type="submit">Filter</button>
+      <a class="clear" href="/">Clear</a>
+    </form>
+
+    {% if opportunities %}
+    <div style="overflow-x:auto">
+    <table>
+      <tr>
+        <th>Tracker</th><th>Company</th><th>Role</th><th>Market</th><th>Remote</th><th>Priority</th>
+        <th>Value</th><th>Competitiveness</th><th>Stage</th><th>Applied</th><th>Latest Activity</th><th>Route</th><th>Attention</th>
+      </tr>
+      {% for o in opportunities %}
+      <tr>
+        <td><a href="/opportunity/{{ o.id }}">#{{ o.id }}</a></td>
+        <td>{{ o.company or "-" }}</td>
+        <td>{{ o.job_title or "-" }}</td>
+        <td>{{ o.market or "-" }}</td>
+        <td>{{ o.work_arrangement or "-" }}{% if o.remote_eligibility %} / {{ o.remote_eligibility }}{% endif %}</td>
+        <td>{% if o.intelligence_priority %}<span class="badge p-{{ o.intelligence_priority }}">{{ o.intelligence_priority }}</span>{% else %}-{% endif %}</td>
+        <td>{{ o.opportunity_value or "-" }}</td>
+        <td>{{ o.candidate_competitiveness or "-" }}</td>
+        <td>{{ o.crm_stage or "-" }}</td>
+        <td>{{ o.applied_at[:10] if o.applied_at else "-" }}</td>
+        <td>{{ o.crm_stage_updated_at[:10] if o.crm_stage_updated_at else "-" }}</td>
+        <td>{{ o.application_portal or "-" }}</td>
+        <td>{% if o.open_blocker_count %}<span class="attn-flag">&#9888; {{ o.open_blocker_count }}</span>{% else %}-{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No opportunities match this filter.</div>
+    {% endif %}
+  </div>
+</body>
+</html>

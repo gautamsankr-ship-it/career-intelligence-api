@@ -107,6 +107,30 @@ EMPLOYER_RESPONSE_TYPES = frozenset({
 
 OFFER_PENDING, OFFER_ACCEPTED, OFFER_DECLINED = "PENDING", "ACCEPTED", "DECLINED"
 
+# --- Dashboard (Task 21.33) -------------------------------------------------
+# crm_stage values where the pipeline is, by design, waiting on a human
+# action (an eligibility call, a submit click, a recruiter/interview
+# response) -- distinct from an open `human_blockers` row, which is a
+# concrete, named reason. A dashboard "Needs My Attention" view surfaces the
+# union of both, never one alone.
+ATTENTION_STAGES = frozenset({
+    "ELIGIBILITY_REVIEW", "READY_FOR_REVIEW", "READY_FOR_HUMAN_SUBMIT",
+    "RECRUITER_RESPONSE", "SCREENING", "INTERVIEW_1", "INTERVIEW_2",
+    "FINAL_INTERVIEW", "OFFER",
+})
+
+# The stages shown on the dashboard's pipeline view, in lifecycle order --
+# every one is listed even when its current count is zero (never silently
+# dropped just because nothing is there today).
+PIPELINE_VIEW_STAGES = (
+    "DISCOVERED", "VERIFIED", "ELIGIBILITY_REVIEW", "ELIGIBLE", "SCORED",
+    "SHORTLISTED", "PREPARED", "READY_FOR_REVIEW", "READY_FOR_HUMAN_SUBMIT",
+    "APPLIED", "ACKNOWLEDGED", "RECRUITER_RESPONSE", "SCREENING",
+    "INTERVIEW_1", "INTERVIEW_2", "FINAL_INTERVIEW", "OFFER", "ACCEPTED",
+    "HIRED", "REJECTED", "INELIGIBLE", "WITHDRAWN", "WATCHED",
+    "INVALID_VACANCY", "DUPLICATE", "EXPIRED", "DECLINED_OFFER", "FAILED",
+)
+
 
 @dataclass(frozen=True)
 class OpportunityEvent:

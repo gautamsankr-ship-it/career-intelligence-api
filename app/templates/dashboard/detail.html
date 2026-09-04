@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>#{{ tracker_id }} -- {{ detail.opportunity.company }} -- CRM Dashboard</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, Segoe UI, Arial, sans-serif; background: #f5f7fa; margin: 0; color: #1f2937; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 24px; }
+    a.back { color: #2563eb; text-decoration: none; font-size: 13px; }
+    h1 { margin: 12px 0 2px; }
+    .subtitle { color: #6b7280; margin-bottom: 20px; }
+    h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: #374151; margin: 28px 0 10px; }
+    .section { background: white; border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .kv { display: grid; grid-template-columns: 220px 1fr; gap: 6px 12px; font-size: 13px; }
+    .kv dt { color: #6b7280; }
+    .kv dd { margin: 0; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #eef0f2; font-size: 13px; }
+    th { background: #f3f4f6; }
+    .empty { color: #9ca3af; font-size: 13px; padding: 6px 0; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .p-A { background: #dcfce7; color: #166534; } .p-B { background: #dbeafe; color: #1e40af; }
+    .p-C { background: #fef3c7; color: #92400e; } .p-D { background: #f3f4f6; color: #374151; }
+    .p-E { background: #fee2e2; color: #991b1b; }
+    ul.reasons { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
+    .timeline { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+    .timeline li { padding: 8px 0; border-bottom: 1px solid #eef0f2; }
+    .timeline .kind { font-weight: 600; color: #2563eb; }
+    .timeline .at { color: #9ca3af; float: right; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="/">&larr; Back to dashboard</a>
+    <h1>#{{ tracker_id }} -- {{ detail.opportunity.company }}</h1>
+    <div class="subtitle">{{ detail.opportunity.job_title }}
+      {% if detail.opportunity.intelligence_priority %}&nbsp;<span class="badge p-{{ detail.opportunity.intelligence_priority }}">{{ detail.opportunity.intelligence_priority }}</span>{% endif %}
+      &nbsp;-- crm_stage: <strong>{{ detail.opportunity.crm_stage or "UNKNOWN" }}</strong>
+    </div>
+
+    <h2>Vacancy</h2>
+    <div class="section kv">
+      <dt>Company</dt><dd>{{ detail.opportunity.company or "-" }}</dd>
+      <dt>Role</dt><dd>{{ detail.opportunity.job_title or "-" }}</dd>
+      <dt>Location</dt><dd>{{ detail.opportunity.location or "-" }}</dd>
+      <dt>Market</dt><dd>{{ detail.opportunity.market or "-" }}</dd>
+      <dt>Work arrangement</dt><dd>{{ detail.opportunity.work_arrangement or "-" }}</dd>
+      <dt>Source</dt><dd>{{ detail.opportunity.source or "-" }}</dd>
+      <dt>Posted date</dt><dd>{{ detail.opportunity.posted_date or "-" }}</dd>
+      <dt>Discovered at</dt><dd>{{ detail.opportunity.discovered_at or "-" }}</dd>
+      <dt>Job URL</dt><dd>{% if detail.opportunity.job_url %}<a href="{{ detail.opportunity.job_url }}" target="_blank">{{ detail.opportunity.job_url }}</a>{% else %}-{% endif %}</dd>
+    </div>
+
+    <h2>Intelligence</h2>
+    <div class="section kv">
+      <dt>Priority</dt><dd>{{ detail.opportunity.intelligence_priority or "UNSCORED" }}</dd>
+      <dt>Career score</dt><dd>{{ detail.opportunity.career_score if detail.opportunity.career_score is not none else "-" }}</dd>
+      <dt>ATS score</dt><dd>{{ detail.opportunity.ats_score if detail.opportunity.ats_score is not none else "-" }}</dd>
+      <dt>Vacancy validity</dt><dd>{{ detail.opportunity.vacancy_validity or "-" }}</dd>
+      <dt>Opportunity value</dt><dd>{{ detail.opportunity.opportunity_value or "-" }}</dd>
+      <dt>Candidate competitiveness</dt><dd>{{ detail.opportunity.candidate_competitiveness or "-" }}</dd>
+      <dt>Priority reasons</dt>
+      <dd>
+        {% if detail.opportunity.intelligence_priority_reasons_list %}
+        <ul class="reasons">{% for r in detail.opportunity.intelligence_priority_reasons_list %}<li>{{ r }}</li>{% endfor %}</ul>
+        {% else %}-{% endif %}
+      </dd>
+    </div>
+
+    <h2>Eligibility</h2>
+    <div class="section kv">
+      <dt>Remote eligibility</dt><dd>{{ detail.opportunity.remote_eligibility or "-" }}</dd>
+      <dt>Reason</dt><dd>{{ detail.opportunity.remote_eligibility_reason or "-" }}</dd>
+      <dt>Evidence</dt><dd>{{ detail.opportunity.remote_eligibility_evidence or "-" }}</dd>
+      <dt>Manual override</dt><dd>{{ detail.opportunity.remote_eligibility_override_note or "-" }}</dd>
+    </div>
+
+    <h2>Application Route &amp; Package</h2>
+    <div class="section kv">
+      <dt>Route / portal</dt><dd>{{ detail.opportunity.application_portal or "-" }}</dd>
+      <dt>Application URL</dt><dd>{% if detail.opportunity.application_url %}<a href="{{ detail.opportunity.application_url }}" target="_blank">{{ detail.opportunity.application_url }}</a>{% else %}-{% endif %}</dd>
+      <dt>Package ID</dt><dd>{{ detail.opportunity.package_id or "-" }}</dd>
+      <dt>Resume (docx)</dt><dd>{{ detail.opportunity.resume_path or "-" }}</dd>
+      <dt>Resume (pdf)</dt><dd>{{ detail.opportunity.resume_pdf_path or "-" }}</dd>
+      <dt>Cover letter</dt><dd>{{ detail.opportunity.cover_letter_path or "-" }}</dd>
+    </div>
+
+    <h2>Submission Confirmation</h2>
+    <div class="section kv">
+      <dt>Applied at</dt><dd>{{ detail.opportunity.applied_at or "-" }}</dd>
+      <dt>Confirmation source</dt><dd>{{ detail.opportunity.submission_confirmation_source or "-" }}</dd>
+      <dt>Confirmation reference</dt><dd>{{ detail.opportunity.submission_confirmation_reference or "-" }}</dd>
+      <dt>Notes</dt><dd>{{ detail.opportunity.notes or "-" }}</dd>
+    </div>
+
+    <h2>Human Blockers ({{ detail.blockers | length }})</h2>
+    <div class="section">
+      {% if detail.blockers %}
+      <table>
+        <tr><th>Type</th><th>Status</th><th>Detail</th><th>Created</th><th>Resolved</th><th>Resolution</th></tr>
+        {% for b in detail.blockers %}
+        <tr>
+          <td>{{ b.blocker_type }}</td><td>{{ b.status }}</td><td>{{ b.detail or "-" }}</td>
+          <td>{{ b.created_at[:16] if b.created_at else "-" }}</td>
+          <td>{{ b.resolved_at[:16] if b.resolved_at else "-" }}</td>
+          <td>{{ b.resolution_note or "-" }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}<div class="empty">No blockers recorded.</div>{% endif %}
+    </div>
+
+    <h2>Recruiter / Hiring Manager ({{ detail.recruiter_contacts | length }})</h2>
+    <div class="section">
+      {% if detail.recruiter_contacts %}
+      <table>
+        <tr><th>Name</th><th>Role</th><th>Contact</th><th>Outreach</th><th>Response</th><th>Notes</th></tr>
+        {% for c in detail.recruiter_contacts %}
+        <tr>
+          <td>{{ c.name or "-" }}</td><td>{{ c.role or "-" }}</td><td>{{ c.contact_reference or "-" }}</td>
+          <td>{{ c.outreach_status or "-" }}{% if c.outreach_date %} ({{ c.outreach_date[:10] }}){% endif %}</td>
+          <td>{{ c.response_status or "-" }}</td><td>{{ c.notes or "-" }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}<div class="empty">No recruiter/hiring-manager contact recorded.</div>{% endif %}
+    </div>
+
+    <h2>Employer Responses ({{ detail.employer_responses | length }})</h2>
+    <div class="section">
+      {% if detail.employer_responses %}
+      <table>
+        <tr><th>Type</th><th>Received</th><th>Source</th><th>Summary</th></tr>
+        {% for r in detail.employer_responses %}
+        <tr><td>{{ r.response_type }}</td><td>{{ r.received_at[:16] if r.received_at else "-" }}</td><td>{{ r.source or "-" }}</td><td>{{ r.summary or "-" }}</td></tr>
+        {% endfor %}
+      </table>
+      {% else %}<div class="empty">No employer response recorded yet.</div>{% endif %}
+    </div>
+
+    <h2>Interviews ({{ detail.interviews | length }})</h2>
+    <div class="section">
+      {% if detail.interviews %}
+      <table>
+        <tr><th>Stage</th><th>Scheduled</th><th>Completed</th><th>Outcome</th><th>Notes</th></tr>
+        {% for i in detail.interviews %}
+        <tr><td>{{ i.stage }}</td><td>{{ i.scheduled_at or "-" }}</td><td>{{ i.completed_at or "-" }}</td><td>{{ i.outcome or "-" }}</td><td>{{ i.notes or "-" }}</td></tr>
+        {% endfor %}
+      </table>
+      {% else %}<div class="empty">No interview recorded.</div>{% endif %}
+    </div>
+
+    <h2>Offer / Outcome</h2>
+    <div class="section">
+      {% if detail.offers %}
+      <table>
+        <tr><th>Offer date</th><th>Status</th><th>Decision date</th><th>Reference</th></tr>
+        {% for o in detail.offers %}
+        <tr><td>{{ o.offer_date or "-" }}</td><td>{{ o.status }}</td><td>{{ o.decision_date or "-" }}</td><td>{{ o.details_reference or "-" }}</td></tr>
+        {% endfor %}
+      </table>
+      {% else %}<div class="empty">No offer recorded.</div>{% endif %}
+      {% if detail.opportunity.crm_stage == "REJECTED" %}
+      <p style="font-size:13px;margin-top:10px"><strong>Rejected</strong> at stage {{ detail.opportunity.rejection_stage or "-" }}: {{ detail.opportunity.rejection_reason or "no reason recorded" }} ({{ detail.opportunity.rejection_at or "-" }})</p>
+      {% endif %}
+      {% if detail.opportunity.hired_at %}
+      <p style="font-size:13px;margin-top:10px"><strong>Hired</strong> at {{ detail.opportunity.hired_at }}</p>
+      {% endif %}
+    </div>
+
+    <h2>Timeline ({{ detail.timeline | length }})</h2>
+    <div class="section">
+      {% if detail.timeline %}
+      <ul class="timeline">
+        {% for entry in detail.timeline %}
+        <li>
+          <span class="at">{{ entry.at[:19] if entry.at else "" }}</span>
+          <span class="kind">{{ entry.kind }}</span>
+          {% if entry.kind == "EVENT" %}
+            -- {{ entry.detail.event_type }}{% if entry.detail.previous_stage or entry.detail.new_stage %} ({{ entry.detail.previous_stage or "?" }} &rarr; {{ entry.detail.new_stage or "?" }}){% endif %}
+            {% if entry.detail.reason %}<br><span style="color:#6b7280">{{ entry.detail.reason }}</span>{% endif %}
+          {% elif entry.kind == "BLOCKER" %}
+            -- {{ entry.detail.blocker_type }} ({{ entry.detail.status }})
+          {% elif entry.kind == "EMPLOYER_RESPONSE" %}
+            -- {{ entry.detail.response_type }}{% if entry.detail.summary %}: {{ entry.detail.summary }}{% endif %}
+          {% elif entry.kind == "INTERVIEW" %}
+            -- {{ entry.detail.stage }} ({{ entry.detail.outcome or "SCHEDULED" }})
+          {% elif entry.kind == "OFFER" %}
+            -- offer {{ entry.detail.status }}
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}<div class="empty">No timeline events recorded.</div>{% endif %}
+    </div>
+  </div>
+</body>
+</html>
