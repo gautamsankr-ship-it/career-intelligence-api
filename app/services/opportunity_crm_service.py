@@ -708,49 +708,122 @@ class OpportunityCRMService:
             "hired": reached("HIRED"),
         }
 
-    # -- Web App Phase 1: corrected cumulative funnel -------------------------
+    # -- Web App Phase 1.1: corrected, evidence-based cumulative funnel ------
     def cumulative_funnel_counts(self) -> dict[str, int]:
-        """Milestones an opportunity has EVER reached, correctly accounting
-        for legitimate skip-ahead transitions (see ALLOWED_TRANSITIONS'
-        module docstring: "do not force every opportunity through every
-        stage") and for legacy-migrated records that jumped straight to a
-        later stage without a discrete event at every earlier one.
+        """Cumulative application-outcome milestones, each backed by
+        direct, independently-verifiable evidence -- never inferred merely
+        because a LATER crm_stage was reached.
 
-        `funnel_counts()`'s `reached()` helper looks for a literal event
-        whose `new_stage` equals the milestone -- so a record migrated
-        straight from DISCOVERED to APPLIED (one MIGRATED_STAGE event, no
-        intermediate ELIGIBLE/SHORTLISTED event) under-counts: it correctly
-        shows "applied" but wrongly shows 0 for "eligible"/"shortlisted",
-        even though reaching APPLIED necessarily implies passing eligibility.
-        This method instead tracks, per tracker, the HIGHEST forward-order
-        stage index ever recorded (via any event's previous_stage/new_stage,
-        or the tracker's current crm_stage) and counts a milestone as reached
-        once that high-water mark is at or past the milestone's own index --
-        never fabricating a milestone from scratch, only correctly crediting
-        one already implied by a later, actually-recorded stage."""
-        order_index = {stage: i for i, stage in enumerate(ACTIVE_FORWARD_ORDER)}
-        milestones = ("ELIGIBLE", "SHORTLISTED", "PREPARED", "APPLIED", "OFFER", "HIRED")
-        highest_index: dict[int, int] = {}
+        Phase 1 originally inferred a milestone from a per-tracker
+        high-water-mark stage index (reasoning: reaching a later stage
+        implies passing the earlier ones). Reconciling that against real
+        production data (Task Phase 1.1 audit) proved it wrong: this CRM's
+        `ALLOWED_TRANSITIONS` deliberately permits skip-ahead ("do not force
+        every opportunity through every stage"), and every one of this
+        production database's 157 records either skip-ahead-transitioned
+        past ELIGIBLE/SHORTLISTED or was legacy-migrated straight to a later
+        stage -- there is not one single literal event, in this database's
+        entire history, of any tracker actually stopping at ELIGIBLE or
+        SHORTLISTED. The high-water-mark method credited 13 records with
+        "reached ELIGIBLE/SHORTLISTED" purely from later crm_stage labels
+        (9 legacy MANUAL_WEB_REQUIRED records with NULL remote_eligibility
+        AND NULL intelligence_priority, 1 legacy DRAFTED record, and the 3
+        real APPLIED records) -- a fabricated milestone this data cannot
+        actually support, not a genuine fact about the business process.
 
-        def consider(tracker_id: int, stage: str | None) -> None:
-            if not stage or stage not in order_index:
-                return
-            idx = order_index[stage]
-            if idx > highest_index.get(tracker_id, -1):
-                highest_index[tracker_id] = idx
+        Every figure below instead comes from its own dedicated, directly
+        queryable evidence, with no cross-stage inference at all:
+          * discovered: every application_history row (trivially true).
+          * applied: `applied_at IS NOT NULL` -- set only by
+            `record_submission_confirmation` on a confirmed real
+            submission, never by a stage label alone.
+          * acknowledged / meaningful_response: `employer_responses` rows,
+            the same per-tracker evidence `response_quality_counts()` uses.
+          * interview / offer: the dedicated `interviews`/`offers` tables.
+        "Eligible"/"Shortlisted"/"Prepared" are deliberately NOT included:
+        this production CRM has no discrete, verifiable evidence for either
+        as a distinct milestone today."""
+        quality = self.response_quality_counts()
+        return {
+            "DISCOVERED": self.connection.execute("SELECT COUNT(*) FROM application_history").fetchone()[0],
+            "APPLIED": self.connection.execute(
+                "SELECT COUNT(*) FROM application_history WHERE applied_at IS NOT NULL"
+            ).fetchone()[0],
+            "ACKNOWLEDGED": quality["acknowledgements"],
+            "MEANINGFUL_RESPONSE": quality["meaningful_responses"],
+            "INTERVIEW": self.connection.execute("SELECT COUNT(DISTINCT tracker_id) FROM interviews").fetchone()[0],
+            "OFFER": self.connection.execute("SELECT COUNT(DISTINCT tracker_id) FROM offers").fetchone()[0],
+        }
 
-        for row in self.connection.execute("SELECT tracker_id, previous_stage, new_stage FROM opportunity_events"):
-            consider(row["tracker_id"], row["previous_stage"])
-            consider(row["tracker_id"], row["new_stage"])
-        for row in self.connection.execute("SELECT id, crm_stage FROM application_history"):
-            consider(row["id"], row["crm_stage"])
+    def application_performance_rates(self) -> dict[str, float | None]:
+        """Decision-useful conversion rates computed only from
+        `cumulative_funnel_counts()`'s evidence-based figures -- replaces
+        Phase 1's shortlisted_to_applied/applied_to_response/... rates,
+        which either divided by a denominator this data has never actually
+        supported (shortlisted) or conflated an automated acknowledgement
+        with a genuine employer response (responses). None (not 0.0) when
+        the denominator is zero -- an undefined rate is never a fabricated
+        zero."""
+        counts = self.cumulative_funnel_counts()
 
-        counts = {milestone: 0 for milestone in milestones}
-        for reached_index in highest_index.values():
-            for milestone in milestones:
-                if reached_index >= order_index[milestone]:
-                    counts[milestone] += 1
-        return counts
+        def ratio(numerator: int, denominator: int) -> float | None:
+            return round(numerator / denominator, 4) if denominator else None
+
+        return {
+            "applied_to_acknowledged": ratio(counts["ACKNOWLEDGED"], counts["APPLIED"]),
+            "applied_to_meaningful_response": ratio(counts["MEANINGFUL_RESPONSE"], counts["APPLIED"]),
+            "applied_to_interview": ratio(counts["INTERVIEW"], counts["APPLIED"]),
+            "interview_to_offer": ratio(counts["OFFER"], counts["INTERVIEW"]),
+        }
+
+    # Every PIPELINE_VIEW_STAGES value must appear in exactly one group --
+    # verified at call time in `pipeline_group_counts()` and by
+    # `test_pipeline_group_counts_cover_every_stage_exactly_once` -- so the
+    # grouped totals are guaranteed to sum to exactly the same total
+    # `pipeline_counts()` already does (each opportunity has exactly one
+    # current crm_stage, so this is a pure relabeling, never a re-count).
+    PIPELINE_GROUPS = (
+        ("Screening & Eligibility", ("DISCOVERED", "VERIFIED", "ELIGIBILITY_REVIEW", "ELIGIBLE", "SCORED")),
+        ("Shortlisted", ("SHORTLISTED",)),
+        ("Preparing Application", ("PREPARED", "READY_FOR_REVIEW")),
+        ("Awaiting My Action", ("READY_FOR_HUMAN_SUBMIT",)),
+        ("Applied", ("APPLIED",)),
+        ("Employer Response", ("ACKNOWLEDGED", "RECRUITER_RESPONSE", "SCREENING")),
+        ("Interview", ("INTERVIEW_1", "INTERVIEW_2", "FINAL_INTERVIEW")),
+        ("Offer / Hired", ("OFFER", "ACCEPTED", "HIRED")),
+        ("On Hold", ("WATCHED",)),
+        ("Not Proceeding", ("REJECTED", "INELIGIBLE", "WITHDRAWN", "INVALID_VACANCY", "DUPLICATE", "EXPIRED", "DECLINED_OFFER", "FAILED")),
+    )
+
+    def pipeline_group_counts(self) -> list[dict]:
+        """The current, mutually-exclusive crm_stage distribution
+        (`pipeline_counts()`) relabeled into a small number of
+        business-facing groups for the Executive Dashboard -- never
+        exposing the full internal CRM state machine. A pure relabeling of
+        already-reconciled data (each opportunity contributes to exactly
+        one group), so the grouped counts always sum to the same total
+        `pipeline_counts()` does."""
+        stage_counts = self.pipeline_counts()
+        covered = {stage for _, stages in self.PIPELINE_GROUPS for stage in stages}
+        missing = set(PIPELINE_VIEW_STAGES) - covered
+        if missing:
+            raise AssertionError(f"pipeline_group_counts() is missing stage(s) from its grouping: {sorted(missing)}")
+        return [
+            {"label": label, "count": sum(stage_counts.get(stage, 0) for stage in stages), "stages": stages}
+            for label, stages in self.PIPELINE_GROUPS
+        ]
+
+    def priority_mix_counts(self) -> dict[str, int]:
+        """A/B/C/D/E distribution PLUS an explicit "UNSCORED" bucket for
+        any record with no recorded intelligence_priority -- so percentages
+        always account for every opportunity. Filtering out a falsy
+        intelligence_priority (as the Phase 1 dashboard did) silently
+        dropped ~20% of this production database's records from the mix."""
+        rows = self.connection.execute(
+            "SELECT COALESCE(NULLIF(intelligence_priority, ''), 'UNSCORED') AS value, COUNT(*) AS n "
+            "FROM application_history GROUP BY value"
+        ).fetchall()
+        return {row["value"]: row["n"] for row in rows}
 
     def response_quality_counts(self) -> dict[str, int]:
         """Distinguishes an automated ACKNOWLEDGEMENT from a genuinely
@@ -866,6 +939,7 @@ class OpportunityCRMService:
             entries[row["id"]] = {
                 "tracker_id": row["id"], "company": row.get("company") or "", "job_title": row.get("job_title") or "",
                 "crm_stage": row.get("crm_stage"), "crm_stage_updated_at": row.get("crm_stage_updated_at"),
+                "intelligence_priority": row.get("intelligence_priority"),
                 "reasons": [f"Stage awaiting human action: {row.get('crm_stage')}"],
             }
         for blocker in self.list_open_blockers():
@@ -877,10 +951,102 @@ class OpportunityCRMService:
                 entries[tracker_id] = {
                     "tracker_id": tracker_id, "company": record.get("company") or "", "job_title": record.get("job_title") or "",
                     "crm_stage": record.get("crm_stage"), "crm_stage_updated_at": record.get("crm_stage_updated_at"),
+                    "intelligence_priority": record.get("intelligence_priority"),
                     "reasons": [],
                 }
             entries[tracker_id]["reasons"].append(f"Open blocker: {blocker['blocker_type']}" + (f" -- {blocker['detail']}" if blocker.get("detail") else ""))
         return sorted(entries.values(), key=lambda entry: entry["tracker_id"], reverse=True)
+
+    # -- Web App Phase 1.1: compact, plain-language attention queue ---------
+    _STAGE_PLAIN_LANGUAGE = {
+        "ELIGIBILITY_REVIEW": "Awaiting eligibility review",
+        "READY_FOR_REVIEW": "Ready for your review",
+        "READY_FOR_HUMAN_SUBMIT": "Ready for you to submit",
+        "RECRUITER_RESPONSE": "Recruiter has responded",
+        "SCREENING": "Screening in progress",
+        "INTERVIEW_1": "Interview scheduled",
+        "INTERVIEW_2": "Second interview scheduled",
+        "FINAL_INTERVIEW": "Final interview scheduled",
+        "OFFER": "Offer received",
+    }
+    _BLOCKER_PLAIN_LANGUAGE = {
+        "HUMAN_CAPTCHA_REQUIRED": "CAPTCHA needs solving",
+        "HUMAN_MFA_REQUIRED": "Login / verification needed",
+        "HUMAN_ELIGIBILITY_REVIEW_REQUIRED": "Eligibility needs your review",
+        "HUMAN_SALARY_REVIEW_REQUIRED": "Salary needs your review",
+        "HUMAN_ANSWER_APPROVAL_REQUIRED": "An answer needs your approval",
+        "READY_FOR_HUMAN_SUBMIT": "Ready for you to submit",
+        "OTHER": "Needs your review",
+    }
+    # Most urgent first -- a live browser blocker outranks a routine
+    # human-submit/eligibility wait, which outranks anything uncategorized.
+    _URGENCY_ORDER = (
+        "HUMAN_CAPTCHA_REQUIRED", "HUMAN_MFA_REQUIRED", "HUMAN_ANSWER_APPROVAL_REQUIRED",
+        "HUMAN_ELIGIBILITY_REVIEW_REQUIRED", "HUMAN_SALARY_REVIEW_REQUIRED", "READY_FOR_HUMAN_SUBMIT", "OTHER",
+    )
+    _PRIORITY_ORDER = ("A", "B", "C", "D", "E")
+
+    @classmethod
+    def describe_attention_reason(cls, reason: str) -> str:
+        """Plain-business-language translation of one raw `needs_attention()`
+        reason string -- an executive view must never show a raw crm_stage
+        or blocker-type code."""
+        if reason.startswith("Stage awaiting human action: "):
+            stage = reason[len("Stage awaiting human action: "):]
+            return cls._STAGE_PLAIN_LANGUAGE.get(stage, f"Awaiting action ({stage.replace('_', ' ').title()})")
+        if reason.startswith("Open blocker: "):
+            blocker_type, _, detail = reason[len("Open blocker: "):].partition(" -- ")
+            label = cls._BLOCKER_PLAIN_LANGUAGE.get(blocker_type, blocker_type.replace("_", " ").title())
+            return f"{label}: {detail}" if detail else label
+        return reason
+
+    def _attention_urgency_rank(self, item: dict) -> int:
+        blocker_types = [
+            reason[len("Open blocker: "):].split(" -- ")[0]
+            for reason in item["reasons"] if reason.startswith("Open blocker: ")
+        ]
+        if not blocker_types:
+            # A stage-only wait (no open human_blockers row) -- e.g. the
+            # routine "ready for you to submit" state -- is real but less
+            # urgent than an active blocker stopping automated progress.
+            return self._URGENCY_ORDER.index("READY_FOR_HUMAN_SUBMIT") if item.get("crm_stage") == "READY_FOR_HUMAN_SUBMIT" else len(self._URGENCY_ORDER)
+        ranks = [self._URGENCY_ORDER.index(bt) if bt in self._URGENCY_ORDER else len(self._URGENCY_ORDER) for bt in blocker_types]
+        return min(ranks)
+
+    def _attention_priority_rank(self, item: dict) -> int:
+        priority = item.get("intelligence_priority")
+        return self._PRIORITY_ORDER.index(priority) if priority in self._PRIORITY_ORDER else len(self._PRIORITY_ORDER)
+
+    def attention_queue(self, *, priority: str | None = None, limit: int | None = None) -> list[dict]:
+        """`needs_attention()`'s items, ordered by (1) urgency/blocker type,
+        (2) intelligence priority, (3) recency (most recent first), with a
+        plain-language `plain_reasons` list added to each item -- optionally
+        filtered to one A/B/C/D/E `priority` and capped by `limit`. The
+        unfiltered, uncapped count is always `len(needs_attention())`."""
+        items = self.needs_attention()
+        if priority:
+            items = [item for item in items if item.get("intelligence_priority") == priority]
+
+        # Stable multi-key sort: recency (desc) first as the tie-breaker,
+        # then re-sort by (urgency, priority) ascending -- Python's sort is
+        # stable, so ties in the primary key preserve the recency ordering.
+        items = sorted(items, key=lambda item: item.get("crm_stage_updated_at") or "", reverse=True)
+        items = sorted(items, key=lambda item: (self._attention_urgency_rank(item), self._attention_priority_rank(item)))
+
+        for item in items:
+            item["plain_reasons"] = [self.describe_attention_reason(reason) for reason in item["reasons"]]
+
+        return items[:limit] if limit else items
+
+    def attention_priority_distribution(self) -> dict[str, int]:
+        """Needs-attention item counts by intelligence priority (A/B/C/D/E,
+        plus an explicit UNSCORED bucket) -- powers the Executive
+        Dashboard's priority filter chips."""
+        counts: dict[str, int] = {}
+        for item in self.needs_attention():
+            key = item.get("intelligence_priority") or "UNSCORED"
+            counts[key] = counts.get(key, 0) + 1
+        return counts
 
     def pipeline_counts(self) -> dict[str, int]:
         """Current crm_stage distribution, with every stage in

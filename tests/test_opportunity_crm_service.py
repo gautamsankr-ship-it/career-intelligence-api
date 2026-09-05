@@ -337,40 +337,175 @@ def test_update_opportunity_rejects_protected_fields(tmp_path):
     assert updated["notes"] == "candidate-authored note"
 
 
-# --- Web App Phase 1: corrected cumulative funnel / response quality --------
-def test_cumulative_funnel_credits_a_legacy_migrated_record_with_skipped_stages(tmp_path):
-    """The exact "0 eligible / 3 applied" bug: a record migrated straight
-    from DISCOVERED to APPLIED (one event, no discrete ELIGIBLE/SHORTLISTED
-    event) must still count as having reached ELIGIBLE/SHORTLISTED/PREPARED,
-    since reaching APPLIED necessarily implies passing them -- unlike the
-    literal per-stage `funnel_counts()`, which would show 0 for each."""
-    history, service = crm(tmp_path)
-    record = _create(service, external_id="skip-1")
-    # Simulate a legacy migration: one MIGRATED_STAGE event straight to
-    # APPLIED, no intermediate ELIGIBLE/SHORTLISTED/PREPARED event at all.
-    service._set_stage(record["id"], "APPLIED")
-    service.append_event(record["id"], "MIGRATED_STAGE", new_stage="APPLIED", source="MIGRATION")
-
-    assert service.funnel_counts()["eligible"] == 0  # the known bug, unchanged
-    cumulative = service.cumulative_funnel_counts()
-    assert cumulative["ELIGIBLE"] == 1
-    assert cumulative["SHORTLISTED"] == 1
-    assert cumulative["PREPARED"] == 1
-    assert cumulative["APPLIED"] == 1
-    assert cumulative["OFFER"] == 0
-    assert cumulative["HIRED"] == 0
-
-
-def test_cumulative_funnel_matches_literal_funnel_for_a_fully_stepped_record(tmp_path):
-    """No discrepancy when every stage really was recorded individually."""
+# --- Web App Phase 1.1: corrected, evidence-based cumulative funnel --------
+def test_cumulative_funnel_never_credits_a_stage_skip_as_an_unevidenced_milestone(tmp_path):
+    """Phase 1's high-water-mark inference (reaching a later stage implies
+    passing the earlier ones) was proven wrong against real production data:
+    this CRM's ALLOWED_TRANSITIONS deliberately permits skip-ahead, and a
+    stage reached is not proof an earlier named milestone actually happened.
+    A record fast-tracked straight from DISCOVERED to SHORTLISTED (no
+    eligibility ever assessed: no intelligence_priority, no ELIGIBLE event)
+    must NOT be counted as having reached any evidenced milestone here --
+    ELIGIBLE/SHORTLISTED aren't tracked in this evidence-based funnel at
+    all, and none of applied_at/employer_responses/interviews/offers exist
+    for it either."""
     _, service = crm(tmp_path)
-    record = _create(service, external_id="stepped-1")
-    for stage in ("VERIFIED", "ELIGIBILITY_REVIEW", "ELIGIBLE", "SCORED", "SHORTLISTED"):
-        service.transition_stage(record["id"], stage)
+    record = _create(service, external_id="skip-1")
+    service.transition_stage(record["id"], "SHORTLISTED", reason="fast-tracked")
+
     cumulative = service.cumulative_funnel_counts()
-    literal = service.funnel_counts()
-    assert cumulative["ELIGIBLE"] == literal["eligible"] == 1
-    assert cumulative["SHORTLISTED"] == literal["shortlisted"] == 1
+    assert cumulative["APPLIED"] == 0
+    assert cumulative["ACKNOWLEDGED"] == 0
+    assert cumulative["MEANINGFUL_RESPONSE"] == 0
+    assert cumulative["INTERVIEW"] == 0
+    assert cumulative["OFFER"] == 0
+    assert "ELIGIBLE" not in cumulative and "SHORTLISTED" not in cumulative
+
+
+def test_cumulative_funnel_applied_uses_applied_at_not_a_stage_label(tmp_path):
+    """A record migrated straight to APPLIED with real applied_at evidence
+    IS counted -- unlike the stage-skip case above, this has direct,
+    verifiable evidence (`record_submission_confirmation` sets applied_at)."""
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="applied-1")
+    service.record_submission_confirmation(record["id"], confirmation_evidence="confirmed", submission_reference="s1")
+
+    cumulative = service.cumulative_funnel_counts()
+    assert cumulative["DISCOVERED"] == 1
+    assert cumulative["APPLIED"] == 1
+
+
+def test_cumulative_funnel_tracks_acknowledgement_interview_and_offer_by_direct_evidence(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="full-1")
+    service.record_submission_confirmation(record["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    service.record_employer_response(record["id"], "ACKNOWLEDGEMENT")
+    service.record_interview(record["id"], "SCREENING")
+    service.record_offer(record["id"])
+
+    cumulative = service.cumulative_funnel_counts()
+    assert cumulative["ACKNOWLEDGED"] == 1
+    assert cumulative["INTERVIEW"] == 1
+    assert cumulative["OFFER"] == 1
+    assert cumulative["MEANINGFUL_RESPONSE"] == 0  # an acknowledgement alone is never "meaningful"
+
+
+def test_application_performance_rates_are_none_not_fabricated_zero_when_undefined(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="rate-1")
+    service.record_submission_confirmation(record["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    rates = service.application_performance_rates()
+    assert rates["applied_to_acknowledged"] == 0.0  # applied=1, acknowledged=0 -- a real, defined 0%
+    assert rates["interview_to_offer"] is None  # interview=0 -- undefined, never a fabricated 0%
+
+
+def test_application_performance_rates_reflect_real_conversions(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="rate-2")
+    service.record_submission_confirmation(record["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    service.record_employer_response(record["id"], "ACKNOWLEDGEMENT")
+    service.record_interview(record["id"], "SCREENING")
+    service.record_offer(record["id"])
+    rates = service.application_performance_rates()
+    assert rates["applied_to_acknowledged"] == 1.0
+    assert rates["applied_to_interview"] == 1.0
+    assert rates["interview_to_offer"] == 1.0
+
+
+# --- Web App Phase 1.1: pipeline grouping reconciles exactly ----------------
+def test_pipeline_group_counts_cover_every_stage_exactly_once():
+    from app.models.crm import PIPELINE_VIEW_STAGES
+
+    seen = []
+    for _, stages in OpportunityCRMService.PIPELINE_GROUPS:
+        seen.extend(stages)
+    assert sorted(seen) == sorted(PIPELINE_VIEW_STAGES)
+    assert len(seen) == len(set(seen))  # no stage assigned to two groups
+
+
+def test_pipeline_group_counts_sum_exactly_to_total_opportunities(tmp_path):
+    _, service = crm(tmp_path)
+    a = _create(service, external_id="grp-a")
+    service.transition_stage(a["id"], "SHORTLISTED")
+    b = _create(service, external_id="grp-b")
+    service.record_submission_confirmation(b["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    c = _create(service, external_id="grp-c")  # stays DISCOVERED
+
+    groups = service.pipeline_group_counts()
+    total = service.connection.execute("SELECT COUNT(*) FROM application_history").fetchone()[0]
+    assert sum(group["count"] for group in groups) == total == 3
+    by_label = {group["label"]: group["count"] for group in groups}
+    assert by_label["Shortlisted"] == 1
+    assert by_label["Applied"] == 1
+    assert by_label["Screening & Eligibility"] == 1
+
+
+# --- Web App Phase 1.1: priority mix includes an explicit UNSCORED bucket --
+def test_priority_mix_counts_includes_unscored_records(tmp_path):
+    _, service = crm(tmp_path)
+    a = _create(service, external_id="mix-a")
+    service.update_opportunity(a["id"], intelligence_priority="A")
+    _create(service, external_id="mix-b")  # no intelligence_priority set
+    mix = service.priority_mix_counts()
+    assert mix["A"] == 1
+    assert mix["UNSCORED"] == 1
+    assert sum(mix.values()) == 2
+
+
+# --- Web App Phase 1.1: plain-language, priority-ordered attention queue ---
+def test_describe_attention_reason_translates_stage_and_blocker_codes():
+    describe = OpportunityCRMService.describe_attention_reason
+    assert describe("Stage awaiting human action: READY_FOR_HUMAN_SUBMIT") == "Ready for you to submit"
+    assert describe("Open blocker: HUMAN_CAPTCHA_REQUIRED") == "CAPTCHA needs solving"
+    assert describe("Open blocker: HUMAN_SALARY_REVIEW_REQUIRED -- Confirm min rate") == "Salary needs your review: Confirm min rate"
+    assert describe("Open blocker: OTHER -- something unusual") == "Needs your review: something unusual"
+
+
+def test_attention_queue_orders_captcha_before_routine_ready_for_submit(tmp_path):
+    _, service = crm(tmp_path)
+    routine = _create(service, external_id="routine-1")
+    service.update_opportunity(routine["id"], intelligence_priority="A")
+    service.transition_stage(routine["id"], "READY_FOR_HUMAN_SUBMIT")
+    urgent = _create(service, external_id="urgent-1")
+    service.update_opportunity(urgent["id"], intelligence_priority="E")
+    service.transition_stage(urgent["id"], "READY_FOR_HUMAN_SUBMIT")
+    service.record_human_blocker(urgent["id"], "HUMAN_CAPTCHA_REQUIRED", detail="Solve to continue")
+
+    queue = service.attention_queue()
+    assert queue[0]["tracker_id"] == urgent["id"]  # CAPTCHA outranks a routine wait, even at lower priority
+    assert any("CAPTCHA needs solving" in reason for reason in queue[0]["plain_reasons"])
+
+
+def test_attention_queue_filters_by_priority_and_limits_results(tmp_path):
+    _, service = crm(tmp_path)
+    for i in range(3):
+        record = _create(service, external_id=f"prio-a-{i}")
+        service.update_opportunity(record["id"], intelligence_priority="A")
+        service.transition_stage(record["id"], "READY_FOR_HUMAN_SUBMIT")
+    b_record = _create(service, external_id="prio-b")
+    service.update_opportunity(b_record["id"], intelligence_priority="B")
+    service.transition_stage(b_record["id"], "READY_FOR_HUMAN_SUBMIT")
+
+    filtered = service.attention_queue(priority="B")
+    assert len(filtered) == 1
+    assert filtered[0]["tracker_id"] == b_record["id"]
+
+    limited = service.attention_queue(limit=2)
+    assert len(limited) == 2
+    assert len(service.attention_queue()) == 4  # limit never affects the true total
+
+
+def test_attention_priority_distribution_buckets_unscored_separately(tmp_path):
+    _, service = crm(tmp_path)
+    scored = _create(service, external_id="attn-scored")
+    service.update_opportunity(scored["id"], intelligence_priority="C")
+    service.transition_stage(scored["id"], "ELIGIBILITY_REVIEW")
+    unscored = _create(service, external_id="attn-unscored")
+    service.transition_stage(unscored["id"], "READY_FOR_HUMAN_SUBMIT")
+
+    distribution = service.attention_priority_distribution()
+    assert distribution["C"] == 1
+    assert distribution["UNSCORED"] == 1
 
 
 def test_response_quality_never_counts_an_acknowledgement_as_meaningful(tmp_path):

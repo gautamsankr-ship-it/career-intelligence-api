@@ -117,6 +117,32 @@
     .activity-feed__at { color: #9ca3af; font-size: 11px; margin-right: 8px; }
 
     .placeholder-box { background: var(--surface); border-radius: 10px; padding: 48px 24px; text-align: center; color: var(--text-muted); box-shadow: var(--shadow); border: 1px solid var(--border); }
+
+    .chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-size: 12px; color: var(--text); }
+    .chip:hover { background: #f3f4f6; text-decoration: none; }
+    .chip.is-active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    .attention-list { background: var(--surface); border-radius: 10px; overflow: hidden; }
+    .attention-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; border-bottom: 1px solid #eef0f2; font-size: 13px; gap: 12px; }
+    .attention-item:last-child { border-bottom: none; }
+    .attention-item__main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .attention-item__company { font-weight: 600; }
+    .attention-item__reason { color: var(--text-muted); font-size: 12px; }
+    .attention-item__side { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+    .priority-mix-list { display: flex; flex-direction: column; gap: 8px; }
+    .priority-mix-item { display: grid; grid-template-columns: 150px 1fr 90px; align-items: center; gap: 10px; font-size: 13px; }
+    .priority-mix-item a { color: inherit; }
+    .priority-mix-item a:hover { text-decoration: none; }
+    .priority-mix-bar { background: #eef0f2; border-radius: 4px; height: 10px; overflow: hidden; }
+    .priority-mix-fill { display: block; height: 100%; border-radius: 4px; background: var(--primary); }
+
+    .section-footer { margin-top: 10px; font-size: 12px; }
+    .snapshot-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+    .snapshot-card { background: var(--surface); border-radius: 10px; padding: 12px; text-align: center; border: 1px solid var(--border); }
+    .snapshot-card .n { font-size: 20px; font-weight: 700; color: var(--text); }
+    .snapshot-card .l { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
   </style>
   {% block extra_style %}{% endblock %}
 </head>
@@ -147,7 +173,7 @@
       <header class="topbar">
         <div class="topbar__status">
           <span class="status-dot"></span>
-          Automation: manual (<code>career_intelligence.py run</code>){% if last_activity_at %} &middot; Last activity {{ last_activity_at[:16] }}{% endif %}
+          Automation: On-demand{% if last_activity_at %} &middot; Last activity {{ last_activity_at[:16] }}{% endif %}
         </div>
         <div class="topbar__user">
           <span class="topbar__avatar">OP</span>

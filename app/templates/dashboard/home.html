@@ -3,18 +3,17 @@
 {% block content %}
   <div class="page-header">
     <h1>Executive Dashboard</h1>
-    <div class="subtitle">Live view over the Application CRM (OpportunityCRMService) -- real production data only</div>
+    <div class="subtitle">Real-time view of your job search -- {{ total_opportunities }} opportunities tracked</div>
   </div>
 
   <div class="section">
-    <h2 class="section-title">Summary</h2>
     <div class="cards">
-      <div class="card"><div class="n">{{ counts.discovered }}</div><div class="l">Total Opportunities</div></div>
-      <div class="card"><div class="n">{{ counts.applied }}</div><div class="l">Applications Submitted</div></div>
-      <div class="card"><div class="n">{{ response_quality.acknowledgements }}</div><div class="l">Acknowledgements</div></div>
-      <div class="card card--highlight"><div class="n">{{ response_quality.meaningful_responses }}</div><div class="l">Meaningful Responses</div></div>
-      <div class="card"><div class="n">{{ counts.interviews }}</div><div class="l">Interviews</div></div>
-      <div class="card"><div class="n">{{ counts.offers }}</div><div class="l">Offers</div></div>
+      <div class="card"><div class="n">{{ total_opportunities }}</div><div class="l">Total Opportunities</div></div>
+      <div class="card"><div class="n">{{ cumulative.APPLIED }}</div><div class="l">Applications Submitted</div></div>
+      <div class="card"><div class="n">{{ cumulative.ACKNOWLEDGED }}</div><div class="l">Acknowledgements</div></div>
+      <div class="card card--highlight"><div class="n">{{ cumulative.MEANINGFUL_RESPONSE }}</div><div class="l">Meaningful Responses</div></div>
+      <div class="card"><div class="n">{{ cumulative.INTERVIEW }}</div><div class="l">Interviews</div></div>
+      <div class="card"><div class="n">{{ cumulative.OFFER }}</div><div class="l">Offers</div></div>
     </div>
   </div>
 
@@ -22,11 +21,10 @@
     <h2 class="section-title">Application Performance</h2>
     <div class="rates">
       {% for key, label in [
-        ("shortlisted_to_applied", "Shortlisted -> Applied"),
-        ("applied_to_response", "Applied -> Response"),
-        ("response_to_interview", "Response -> Interview"),
-        ("interview_to_offer", "Interview -> Offer"),
-        ("offer_to_hired", "Offer -> Hired"),
+        ("applied_to_acknowledged", "Applied &rarr; Acknowledged"),
+        ("applied_to_meaningful_response", "Applied &rarr; Meaningful Response"),
+        ("applied_to_interview", "Applied &rarr; Interview"),
+        ("interview_to_offer", "Interview &rarr; Offer"),
       ] %}
       <div class="rate">
         {% if rates[key] is none %}
@@ -34,7 +32,7 @@
         {% else %}
           <div class="n">{{ (rates[key] * 100) | round(1) }}%</div>
         {% endif %}
-        <div class="l">{{ label }}</div>
+        <div class="l">{{ label | safe }}</div>
       </div>
       {% endfor %}
     </div>
@@ -42,25 +40,26 @@
 
   <div class="section">
     <h2 class="section-title">Current Pipeline vs. Cumulative Funnel</h2>
-    <p class="section-hint">Current Pipeline shows where each opportunity sits right now (mutually exclusive, one stage per opportunity). Cumulative Funnel shows every milestone ever reached, even after an opportunity has moved further along.</p>
+    <p class="section-hint">Current Pipeline: where each opportunity sits right now (every opportunity counted exactly once). Cumulative Funnel: milestones ever reached, backed only by direct evidence.</p>
     <div class="two-col-grid">
       <div class="funnel-card">
         <h3>Current Pipeline (live stage)</h3>
-        {% for stage, n in pipeline.items() %}
-        <a class="funnel-row" href="/?crm_stage={{ stage }}">
-          <span class="funnel-row__label">{{ stage }}</span>
-          <span class="funnel-row__bar"><span class="funnel-row__fill" style="width: {{ ((n / pipeline_max * 100) if pipeline_max else 0) | round(1) }}%"></span></span>
-          <span class="funnel-row__count {{ 'is-zero' if n == 0 else '' }}">{{ n }}</span>
-        </a>
+        {% for group in pipeline_groups %}
+        <div class="funnel-row">
+          <span class="funnel-row__label">{{ group.label }}</span>
+          <span class="funnel-row__bar"><span class="funnel-row__fill" style="width: {{ ((group.count / pipeline_group_max * 100) if pipeline_group_max else 0) | round(1) }}%"></span></span>
+          <span class="funnel-row__count {{ 'is-zero' if group.count == 0 else '' }}">{{ group.count }}</span>
+        </div>
         {% endfor %}
+        <p class="section-footer" style="color:var(--text-muted)">Sums to all {{ total_opportunities }} opportunities.</p>
       </div>
       <div class="funnel-card">
         <h3>Cumulative Funnel (ever reached)</h3>
-        {% for stage, n in cumulative.items() %}
+        {% for label, key in [("Discovered", "DISCOVERED"), ("Applied", "APPLIED"), ("Acknowledged", "ACKNOWLEDGED"), ("Meaningful Response", "MEANINGFUL_RESPONSE"), ("Interview", "INTERVIEW"), ("Offer", "OFFER")] %}
         <div class="funnel-row">
-          <span class="funnel-row__label">{{ stage }}</span>
-          <span class="funnel-row__bar"><span class="funnel-row__fill funnel-row__fill--cumulative" style="width: {{ ((n / cumulative_max * 100) if cumulative_max else 0) | round(1) }}%"></span></span>
-          <span class="funnel-row__count {{ 'is-zero' if n == 0 else '' }}">{{ n }}</span>
+          <span class="funnel-row__label">{{ label }}</span>
+          <span class="funnel-row__bar"><span class="funnel-row__fill funnel-row__fill--cumulative" style="width: {{ ((cumulative[key] / total_opportunities * 100) if total_opportunities else 0) | round(1) }}%"></span></span>
+          <span class="funnel-row__count {{ 'is-zero' if cumulative[key] == 0 else '' }}">{{ cumulative[key] }}</span>
         </div>
         {% endfor %}
       </div>
@@ -68,113 +67,94 @@
   </div>
 
   <div class="section">
-    <h2 class="section-title">Opportunity / Priority Mix</h2>
-    {% if priority_mix %}
-    <div class="cards">
-      {% for row in priority_mix %}
-      <div class="card">
-        <div class="n"><span class="badge p-{{ row.value }}">{{ row.value }}</span> {{ row.count }}</div>
-        <div class="l">{{ priority_labels.get(row.value, row.value) }}</div>
-      </div>
+    <h2 class="section-title">Opportunity Priority Mix</h2>
+    <div class="priority-mix-list">
+      {% for grade in ["A", "B", "C", "D", "E", "UNSCORED"] %}
+      {% set count = priority_mix.get(grade, 0) %}
+      <a class="priority-mix-item" href="/?intelligence_priority={{ grade if grade != 'UNSCORED' else '' }}">
+        <span>{% if grade != "UNSCORED" %}<span class="badge p-{{ grade }}">{{ grade }}</span>{% endif %} {{ priority_labels.get(grade, grade) }}</span>
+        <span class="priority-mix-bar"><span class="priority-mix-fill" style="width: {{ ((count / total_opportunities * 100) if total_opportunities else 0) | round(1) }}%"></span></span>
+        <span>{{ count }} ({{ ((count / total_opportunities * 100) if total_opportunities else 0) | round(0) | int }}%)</span>
+      </a>
       {% endfor %}
     </div>
-    {% else %}
-    <div class="empty-state">No scored opportunities yet.</div>
-    {% endif %}
   </div>
 
   <div class="section">
-    <h2 class="section-title">Needs My Attention ({{ attention | length }})</h2>
-    <div class="attention-box">
-      {% if attention %}
-      <table class="table">
-        <tr><th>Tracker</th><th>Company</th><th>Role</th><th>Stage</th><th>Reasons</th></tr>
-        {% for item in attention %}
-        <tr>
-          <td><a href="/opportunity/{{ item.tracker_id }}">#{{ item.tracker_id }}</a></td>
-          <td>{{ item.company }}</td>
-          <td>{{ item.job_title }}</td>
-          <td>{{ item.crm_stage }}</td>
-          <td>{% for reason in item.reasons %}{{ reason }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
-        </tr>
-        {% endfor %}
-      </table>
+    <h2 class="section-title">Needs My Attention ({{ attention_total }})</h2>
+    <div class="chip-row">
+      <a class="chip {{ 'is-active' if not attn_priority else '' }}" href="/">All</a>
+      {% for grade in ["A", "B", "C", "D", "E"] %}
+      <a class="chip {{ 'is-active' if attn_priority == grade else '' }}" href="/?attn_priority={{ grade }}">{{ grade }} ({{ attention_priority_distribution.get(grade, 0) }})</a>
+      {% endfor %}
+    </div>
+    <div class="attention-list">
+      {% if attention_items %}
+      {% for item in attention_items %}
+      <div class="attention-item">
+        <div class="attention-item__main">
+          <span class="attention-item__company">{{ item.company }} -- {{ item.job_title }}</span>
+          <span class="attention-item__reason">{{ item.plain_reasons | join(" &middot; ") | safe }}</span>
+        </div>
+        <div class="attention-item__side">
+          {% if item.intelligence_priority %}<span class="badge p-{{ item.intelligence_priority }}">{{ item.intelligence_priority }}</span>{% endif %}
+          <a href="/opportunity/{{ item.tracker_id }}">View &rarr;</a>
+        </div>
+      </div>
+      {% endfor %}
       {% else %}
       <div class="empty">Nothing needs your attention right now.</div>
       {% endif %}
     </div>
+    {% if attention_total > 5 %}
+    <p class="section-footer">
+      {% if show_all_attention %}
+      <a href="/{{ '?attn_priority=' + attn_priority if attn_priority else '' }}">Show fewer</a>
+      {% else %}
+      <a href="/?show_all_attention=1{{ '&attn_priority=' + attn_priority if attn_priority else '' }}">View All ({{ attention_total }}) &rarr;</a>
+      {% endif %}
+    </p>
+    {% endif %}
   </div>
 
   <div class="section">
-    <h2 class="section-title">Opportunities ({{ opportunities | length }})</h2>
-    <form class="filters" method="get" action="/">
-      <div class="field">
-        <label>Stage</label>
-        <select name="crm_stage">
-          <option value="">All</option>
-          {% for v in filter_options.crm_stage %}<option value="{{ v }}" {{ "selected" if v == selected.crm_stage }}>{{ v }}</option>{% endfor %}
-        </select>
+    <h2 class="section-title">Opportunities</h2>
+    {% if filters %}
+    <p class="section-hint">
+      Filtered by
+      {% if filters.crm_stage %}stage <strong>{{ filters.crm_stage }}</strong>{% endif %}
+      {% if filters.intelligence_priority %}priority <strong>{{ filters.intelligence_priority }}</strong>{% endif %}
+      -- <a href="/">Clear filter</a>
+    </p>
+    {% if filtered_opportunities %}
+    <div class="attention-list">
+      {% for o in filtered_opportunities[:20] %}
+      <div class="attention-item">
+        <div class="attention-item__main">
+          <span class="attention-item__company">{{ o.company or "-" }} -- {{ o.job_title or "-" }}</span>
+          <span class="attention-item__reason">{{ o.crm_stage or "-" }}</span>
+        </div>
+        <div class="attention-item__side">
+          {% if o.intelligence_priority %}<span class="badge p-{{ o.intelligence_priority }}">{{ o.intelligence_priority }}</span>{% endif %}
+          <a href="/opportunity/{{ o.id }}">View &rarr;</a>
+        </div>
       </div>
-      <div class="field">
-        <label>Priority</label>
-        <select name="intelligence_priority">
-          <option value="">All</option>
-          {% for v in filter_options.intelligence_priority %}<option value="{{ v }}" {{ "selected" if v == selected.intelligence_priority }}>{{ v }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="field">
-        <label>Market</label>
-        <select name="market">
-          <option value="">All</option>
-          {% for v in filter_options.market %}<option value="{{ v }}" {{ "selected" if v == selected.market }}>{{ v }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="field">
-        <label>Source</label>
-        <select name="source">
-          <option value="">All</option>
-          {% for v in filter_options.source %}<option value="{{ v }}" {{ "selected" if v == selected.source }}>{{ v }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="field">
-        <label>Route</label>
-        <select name="application_portal">
-          <option value="">All</option>
-          {% for v in filter_options.application_portal %}<option value="{{ v }}" {{ "selected" if v == selected.application_portal }}>{{ v }}</option>{% endfor %}
-        </select>
-      </div>
-      <button class="apply" type="submit">Filter</button>
-      <a class="clear" href="/">Clear</a>
-    </form>
-
-    {% if opportunities %}
-    <div style="overflow-x:auto">
-    <table class="table">
-      <tr>
-        <th>Tracker</th><th>Company</th><th>Role</th><th>Market</th><th>Remote</th><th>Priority</th>
-        <th>Value</th><th>Competitiveness</th><th>Stage</th><th>Applied</th><th>Latest Activity</th><th>Route</th><th>Attention</th>
-      </tr>
-      {% for o in opportunities %}
-      <tr>
-        <td><a href="/opportunity/{{ o.id }}">#{{ o.id }}</a></td>
-        <td>{{ o.company or "-" }}</td>
-        <td>{{ o.job_title or "-" }}</td>
-        <td>{{ o.market or "-" }}</td>
-        <td>{{ o.work_arrangement or "-" }}{% if o.remote_eligibility %} / {{ o.remote_eligibility }}{% endif %}</td>
-        <td>{% if o.intelligence_priority %}<span class="badge p-{{ o.intelligence_priority }}">{{ o.intelligence_priority }}</span>{% else %}-{% endif %}</td>
-        <td>{{ o.opportunity_value or "-" }}</td>
-        <td>{{ o.candidate_competitiveness or "-" }}</td>
-        <td>{{ o.crm_stage or "-" }}</td>
-        <td>{{ o.applied_at[:10] if o.applied_at else "-" }}</td>
-        <td>{{ o.crm_stage_updated_at[:10] if o.crm_stage_updated_at else "-" }}</td>
-        <td>{{ o.application_portal or "-" }}</td>
-        <td>{% if o.open_blocker_count %}<span class="attn-flag">&#9888; {{ o.open_blocker_count }}</span>{% else %}-{% endif %}</td>
-      </tr>
       {% endfor %}
-    </table>
     </div>
+    {% if filtered_opportunities | length > 20 %}
+    <p class="section-footer">Showing 20 of {{ filtered_opportunities | length }} matching opportunities.</p>
+    {% endif %}
     {% else %}
     <div class="empty-state">No opportunities match this filter.</div>
+    {% endif %}
+    {% else %}
+    <div class="snapshot-cards">
+      <div class="snapshot-card"><div class="n">{{ total_opportunities }}</div><div class="l">Total</div></div>
+      <div class="snapshot-card"><div class="n">{{ priority_mix.get("A", 0) + priority_mix.get("B", 0) }}</div><div class="l">A/B Priority</div></div>
+      <div class="snapshot-card"><div class="n">{{ priority_mix.get("C", 0) }}</div><div class="l">Human Review</div></div>
+      <div class="snapshot-card"><div class="n">{{ priority_mix.get("D", 0) + priority_mix.get("E", 0) }}</div><div class="l">Watch / Reject</div></div>
+    </div>
+    <p class="section-footer"><a href="/opportunities">View Opportunities &rarr;</a></p>
     {% endif %}
   </div>
 
@@ -185,14 +165,18 @@
       {% for event in recent_activity %}
       <li>
         <span class="activity-feed__at">{{ event.occurred_at[:16] if event.occurred_at else "" }}</span>
-        <a href="/opportunity/{{ event.tracker_id }}">#{{ event.tracker_id }} {{ event.company or "-" }}</a>
-        -- {{ event.event_type }}{% if event.previous_stage or event.new_stage %} ({{ event.previous_stage or "?" }} &rarr; {{ event.new_stage or "?" }}){% endif %}
-        {% if event.reason %}<span style="color:var(--text-muted)"> &mdash; {{ event.reason }}</span>{% endif %}
+        <a href="/opportunity/{{ event.tracker_id }}">{{ event.company or "-" }}</a>
+        -- {{ event.label }}
       </li>
       {% endfor %}
     </ul>
     {% else %}
     <div class="empty-state">No activity recorded yet.</div>
+    {% endif %}
+    {% if not show_all_activity %}
+    <p class="section-footer"><a href="/?show_all_activity=1">View All Activity &rarr;</a></p>
+    {% else %}
+    <p class="section-footer"><a href="/">Show fewer</a></p>
     {% endif %}
   </div>
 {% endblock %}
