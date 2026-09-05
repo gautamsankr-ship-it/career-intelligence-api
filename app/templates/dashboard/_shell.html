@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{% block title %}Career Intelligence{% endblock %}</title>
+  <style>
+    :root {
+      --sidebar-w: 240px;
+      --topbar-h: 60px;
+      --bg: #f5f7fa;
+      --surface: #ffffff;
+      --border: #e5e7eb;
+      --text: #1f2937;
+      --text-muted: #6b7280;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --success: #059669;
+      --warning: #ea580c;
+      --shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "Segoe UI", Arial, sans-serif; background: var(--bg); margin: 0; color: var(--text); }
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #f3f4f6; border-radius: 4px; padding: 1px 5px; font-size: 12px; }
+
+    .app-shell { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: var(--sidebar-w); flex-shrink: 0; background: #111827; color: #e5e7eb;
+      display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh;
+    }
+    .sidebar__brand { padding: 20px 20px 16px; font-weight: 700; font-size: 16px; color: #fff; border-bottom: 1px solid #1f2937; }
+    .sidebar__nav { list-style: none; margin: 0; padding: 12px 0; flex: 1; overflow-y: auto; }
+    .sidebar__nav-item a {
+      display: flex; align-items: center; gap: 10px; padding: 10px 20px; color: #cbd5e1; font-size: 14px;
+      border-left: 3px solid transparent;
+    }
+    .sidebar__nav-item a:hover { background: #1f2937; color: #fff; text-decoration: none; }
+    .sidebar__nav-item.is-active a { background: #1f2937; color: #fff; border-left-color: var(--primary); font-weight: 600; }
+
+    .main-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .topbar {
+      height: var(--topbar-h); background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 24px; position: sticky; top: 0; z-index: 5;
+    }
+    .topbar__status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); display: inline-block; flex-shrink: 0; }
+    .topbar__user { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
+    .topbar__avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0; }
+
+    .content { flex: 1; padding: 24px; max-width: 1280px; width: 100%; margin: 0 auto; }
+    .page-header { margin-bottom: 20px; }
+    .page-header h1 { margin: 0 0 4px; font-size: 22px; }
+    .subtitle { color: var(--text-muted); font-size: 13px; }
+
+    .section { margin-bottom: 28px; }
+    .section-title { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: #374151; margin: 0 0 12px; }
+    .section-hint { font-size: 12px; color: var(--text-muted); margin: -6px 0 12px; }
+
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+    .card { background: var(--surface); border-radius: 10px; padding: 16px; text-align: center; box-shadow: var(--shadow); border: 1px solid var(--border); }
+    .card .n { font-size: 26px; font-weight: 700; color: var(--primary); }
+    .card .n.na { color: #9ca3af; }
+    .card .l { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .card--highlight { border-color: var(--primary); background: #eff6ff; }
+
+    .rates { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+    .rate { background: var(--surface); border-radius: 10px; padding: 14px; text-align: center; box-shadow: var(--shadow); border: 1px solid var(--border); }
+    .rate .n { font-size: 20px; font-weight: 700; color: var(--success); }
+    .rate .n.na { color: #9ca3af; }
+    .rate .l { font-size: 11px; color: var(--text-muted); }
+
+    .table { width: 100%; border-collapse: collapse; background: var(--surface); }
+    .table th, .table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eef0f2; font-size: 13px; }
+    .table th { background: #f3f4f6; font-weight: 600; color: #374151; }
+    .table tr:last-child td { border-bottom: none; }
+
+    .attention-box { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; overflow: hidden; }
+    .attention-box .empty { padding: 16px; color: var(--text-muted); }
+    .attention-box table { box-shadow: none; }
+
+    .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; align-items: end; }
+    .filters .field { display: flex; flex-direction: column; font-size: 12px; color: var(--text-muted); }
+    select { padding: 6px 8px; border-radius: 6px; border: 1px solid #d1d5db; min-width: 140px; }
+    button.apply { padding: 7px 16px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; }
+    button.apply:hover { background: var(--primary-dark); }
+    a.clear { align-self: center; font-size: 13px; color: var(--text-muted); margin-left: 4px; }
+
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .p-A { background: #dcfce7; color: #166534; } .p-B { background: #dbeafe; color: #1e40af; }
+    .p-C { background: #fef3c7; color: #92400e; } .p-D { background: #f3f4f6; color: #374151; }
+    .p-E { background: #fee2e2; color: #991b1b; }
+    .attn-flag { color: var(--warning); font-weight: 700; }
+    .empty-state { padding: 20px; text-align: center; color: var(--text-muted); background: var(--surface); border-radius: 10px; border: 1px solid var(--border); }
+
+    .alert { border-radius: 8px; padding: 12px 16px; font-size: 13px; margin-bottom: 16px; }
+    .alert--info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+    .alert--warning { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; }
+
+    .two-col-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 900px) { .two-col-grid { grid-template-columns: 1fr; } }
+    .funnel-card { background: var(--surface); border-radius: 10px; padding: 16px; box-shadow: var(--shadow); border: 1px solid var(--border); max-height: 440px; overflow-y: auto; }
+    .funnel-card h3 { margin: 0 0 12px; font-size: 13px; color: #374151; }
+    .funnel-row { display: grid; grid-template-columns: 130px 1fr 40px; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; color: var(--text); }
+    a.funnel-row { color: inherit; }
+    a.funnel-row:hover { text-decoration: none; background: #f9fafb; }
+    .funnel-row__label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .funnel-row__bar { background: #eef0f2; border-radius: 4px; height: 10px; overflow: hidden; }
+    .funnel-row__fill { display: block; height: 100%; background: var(--primary); border-radius: 4px; }
+    .funnel-row__fill--cumulative { background: var(--success); }
+    .funnel-row__count { text-align: right; font-weight: 600; }
+    .funnel-row__count.is-zero { color: #cbd5e1; font-weight: 400; }
+
+    .activity-feed { list-style: none; margin: 0; padding: 0; font-size: 13px; background: var(--surface); border-radius: 10px; box-shadow: var(--shadow); border: 1px solid var(--border); }
+    .activity-feed li { padding: 10px 16px; border-bottom: 1px solid #eef0f2; }
+    .activity-feed li:last-child { border-bottom: none; }
+    .activity-feed__at { color: #9ca3af; font-size: 11px; margin-right: 8px; }
+
+    .placeholder-box { background: var(--surface); border-radius: 10px; padding: 48px 24px; text-align: center; color: var(--text-muted); box-shadow: var(--shadow); border: 1px solid var(--border); }
+  </style>
+  {% block extra_style %}{% endblock %}
+</head>
+<body>
+  {% set nav_items = [
+    {"key": "dashboard", "label": "Dashboard", "href": "/"},
+    {"key": "opportunities", "label": "Opportunities", "href": "/opportunities"},
+    {"key": "applications", "label": "Applications", "href": "/applications"},
+    {"key": "action_required", "label": "Action Required", "href": "/action-required"},
+    {"key": "employer_inbox", "label": "Employer Inbox", "href": "/employer-inbox"},
+    {"key": "interviews", "label": "Interviews", "href": "/interviews"},
+    {"key": "analytics", "label": "Analytics & Learning", "href": "/analytics"},
+    {"key": "automation", "label": "Automation", "href": "/automation"},
+    {"key": "settings", "label": "Settings", "href": "/settings"},
+  ] %}
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar__brand">Career Intelligence</div>
+      <ul class="sidebar__nav">
+        {% for item in nav_items %}
+        <li class="sidebar__nav-item {{ 'is-active' if item.key == active_nav else '' }}">
+          <a href="{{ item.href }}">{{ item.label }}</a>
+        </li>
+        {% endfor %}
+      </ul>
+    </aside>
+    <div class="main-col">
+      <header class="topbar">
+        <div class="topbar__status">
+          <span class="status-dot"></span>
+          Automation: manual (<code>career_intelligence.py run</code>){% if last_activity_at %} &middot; Last activity {{ last_activity_at[:16] }}{% endif %}
+        </div>
+        <div class="topbar__user">
+          <span class="topbar__avatar">OP</span>
+          Operator
+        </div>
+      </header>
+      <main class="content">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+</body>
+</html>

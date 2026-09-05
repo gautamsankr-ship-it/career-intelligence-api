@@ -1,68 +1,25 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Career Intelligence CRM Dashboard</title>
-  <style>
-    * { box-sizing: border-box; }
-    body { font-family: -apple-system, Segoe UI, Arial, sans-serif; background: #f5f7fa; margin: 0; color: #1f2937; }
-    .wrap { max-width: 1200px; margin: 0 auto; padding: 24px; }
-    h1 { margin: 0 0 4px; }
-    .subtitle { color: #6b7280; margin-bottom: 24px; }
-    h2 { font-size: 16px; text-transform: uppercase; letter-spacing: .04em; color: #374151; margin: 32px 0 12px; }
-    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
-    .card { background: white; border-radius: 10px; padding: 14px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-    .card .n { font-size: 26px; font-weight: 700; color: #2563eb; }
-    .card .l { font-size: 12px; color: #6b7280; margin-top: 2px; }
-    .rates { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
-    .rate { background: white; border-radius: 10px; padding: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-    .rate .n { font-size: 20px; font-weight: 700; color: #059669; }
-    .rate .n.na { color: #9ca3af; }
-    .rate .l { font-size: 11px; color: #6b7280; }
-    table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eef0f2; font-size: 13px; }
-    th { background: #f3f4f6; font-weight: 600; color: #374151; }
-    tr:last-child td { border-bottom: none; }
-    .pipeline-table td.n { text-align: right; font-weight: 600; }
-    .pipeline-table td.n.zero { color: #cbd5e1; }
-    .attention-box { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 0; overflow: hidden; }
-    .attention-box .empty { padding: 16px; color: #6b7280; }
-    .attention-box table { box-shadow: none; }
-    a { color: #2563eb; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; align-items: end; }
-    .filters .field { display: flex; flex-direction: column; font-size: 12px; color: #6b7280; }
-    select { padding: 6px 8px; border-radius: 6px; border: 1px solid #d1d5db; min-width: 140px; }
-    button.apply { padding: 7px 16px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
-    button.apply:hover { background: #1d4ed8; }
-    a.clear { align-self: center; font-size: 13px; color: #6b7280; margin-left: 4px; }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
-    .p-A { background: #dcfce7; color: #166534; } .p-B { background: #dbeafe; color: #1e40af; }
-    .p-C { background: #fef3c7; color: #92400e; } .p-D { background: #f3f4f6; color: #374151; }
-    .p-E { background: #fee2e2; color: #991b1b; }
-    .attn-flag { color: #ea580c; font-weight: 700; }
-    .empty-state { padding: 20px; text-align: center; color: #6b7280; background: white; border-radius: 10px; }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <h1>Career Intelligence CRM Dashboard</h1>
-    <div class="subtitle">Live view over the Application CRM (OpportunityCRMService) -- Task 21.33</div>
+{% extends "_shell.html" %}
+{% block title %}Executive Dashboard -- Career Intelligence{% endblock %}
+{% block content %}
+  <div class="page-header">
+    <h1>Executive Dashboard</h1>
+    <div class="subtitle">Live view over the Application CRM (OpportunityCRMService) -- real production data only</div>
+  </div>
 
-    <h2>Summary</h2>
+  <div class="section">
+    <h2 class="section-title">Summary</h2>
     <div class="cards">
       <div class="card"><div class="n">{{ counts.discovered }}</div><div class="l">Total Opportunities</div></div>
-      <div class="card"><div class="n">{{ counts.eligible }}</div><div class="l">Eligible</div></div>
-      <div class="card"><div class="n">{{ counts.shortlisted }}</div><div class="l">Shortlisted</div></div>
-      <div class="card"><div class="n">{{ counts.prepared }}</div><div class="l">Prepared</div></div>
-      <div class="card"><div class="n">{{ counts.applied }}</div><div class="l">Applied</div></div>
-      <div class="card"><div class="n">{{ counts.acknowledged }} / {{ counts.responses }}</div><div class="l">Acknowledged / Responses</div></div>
+      <div class="card"><div class="n">{{ counts.applied }}</div><div class="l">Applications Submitted</div></div>
+      <div class="card"><div class="n">{{ response_quality.acknowledgements }}</div><div class="l">Acknowledgements</div></div>
+      <div class="card card--highlight"><div class="n">{{ response_quality.meaningful_responses }}</div><div class="l">Meaningful Responses</div></div>
       <div class="card"><div class="n">{{ counts.interviews }}</div><div class="l">Interviews</div></div>
       <div class="card"><div class="n">{{ counts.offers }}</div><div class="l">Offers</div></div>
-      <div class="card"><div class="n">{{ counts.hired }}</div><div class="l">Hired</div></div>
     </div>
+  </div>
 
-    <h2>Conversion Rates</h2>
+  <div class="section">
+    <h2 class="section-title">Application Performance</h2>
     <div class="rates">
       {% for key, label in [
         ("shortlisted_to_applied", "Shortlisted -> Applied"),
@@ -81,22 +38,56 @@
       </div>
       {% endfor %}
     </div>
+  </div>
 
-    <h2>Pipeline (current stage)</h2>
-    <table class="pipeline-table">
-      <tr><th>Stage</th><th style="text-align:right">Count</th></tr>
-      {% for stage, n in pipeline.items() %}
-      <tr>
-        <td><a href="/?crm_stage={{ stage }}">{{ stage }}</a></td>
-        <td class="n {{ 'zero' if n == 0 else '' }}">{{ n }}</td>
-      </tr>
+  <div class="section">
+    <h2 class="section-title">Current Pipeline vs. Cumulative Funnel</h2>
+    <p class="section-hint">Current Pipeline shows where each opportunity sits right now (mutually exclusive, one stage per opportunity). Cumulative Funnel shows every milestone ever reached, even after an opportunity has moved further along.</p>
+    <div class="two-col-grid">
+      <div class="funnel-card">
+        <h3>Current Pipeline (live stage)</h3>
+        {% for stage, n in pipeline.items() %}
+        <a class="funnel-row" href="/?crm_stage={{ stage }}">
+          <span class="funnel-row__label">{{ stage }}</span>
+          <span class="funnel-row__bar"><span class="funnel-row__fill" style="width: {{ ((n / pipeline_max * 100) if pipeline_max else 0) | round(1) }}%"></span></span>
+          <span class="funnel-row__count {{ 'is-zero' if n == 0 else '' }}">{{ n }}</span>
+        </a>
+        {% endfor %}
+      </div>
+      <div class="funnel-card">
+        <h3>Cumulative Funnel (ever reached)</h3>
+        {% for stage, n in cumulative.items() %}
+        <div class="funnel-row">
+          <span class="funnel-row__label">{{ stage }}</span>
+          <span class="funnel-row__bar"><span class="funnel-row__fill funnel-row__fill--cumulative" style="width: {{ ((n / cumulative_max * 100) if cumulative_max else 0) | round(1) }}%"></span></span>
+          <span class="funnel-row__count {{ 'is-zero' if n == 0 else '' }}">{{ n }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Opportunity / Priority Mix</h2>
+    {% if priority_mix %}
+    <div class="cards">
+      {% for row in priority_mix %}
+      <div class="card">
+        <div class="n"><span class="badge p-{{ row.value }}">{{ row.value }}</span> {{ row.count }}</div>
+        <div class="l">{{ priority_labels.get(row.value, row.value) }}</div>
+      </div>
       {% endfor %}
-    </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No scored opportunities yet.</div>
+    {% endif %}
+  </div>
 
-    <h2>Needs My Attention ({{ attention | length }})</h2>
+  <div class="section">
+    <h2 class="section-title">Needs My Attention ({{ attention | length }})</h2>
     <div class="attention-box">
       {% if attention %}
-      <table>
+      <table class="table">
         <tr><th>Tracker</th><th>Company</th><th>Role</th><th>Stage</th><th>Reasons</th></tr>
         {% for item in attention %}
         <tr>
@@ -112,8 +103,10 @@
       <div class="empty">Nothing needs your attention right now.</div>
       {% endif %}
     </div>
+  </div>
 
-    <h2>Opportunities ({{ opportunities | length }})</h2>
+  <div class="section">
+    <h2 class="section-title">Opportunities ({{ opportunities | length }})</h2>
     <form class="filters" method="get" action="/">
       <div class="field">
         <label>Stage</label>
@@ -156,7 +149,7 @@
 
     {% if opportunities %}
     <div style="overflow-x:auto">
-    <table>
+    <table class="table">
       <tr>
         <th>Tracker</th><th>Company</th><th>Role</th><th>Market</th><th>Remote</th><th>Priority</th>
         <th>Value</th><th>Competitiveness</th><th>Stage</th><th>Applied</th><th>Latest Activity</th><th>Route</th><th>Attention</th>
@@ -184,5 +177,22 @@
     <div class="empty-state">No opportunities match this filter.</div>
     {% endif %}
   </div>
-</body>
-</html>
+
+  <div class="section">
+    <h2 class="section-title">Recent Activity</h2>
+    {% if recent_activity %}
+    <ul class="activity-feed">
+      {% for event in recent_activity %}
+      <li>
+        <span class="activity-feed__at">{{ event.occurred_at[:16] if event.occurred_at else "" }}</span>
+        <a href="/opportunity/{{ event.tracker_id }}">#{{ event.tracker_id }} {{ event.company or "-" }}</a>
+        -- {{ event.event_type }}{% if event.previous_stage or event.new_stage %} ({{ event.previous_stage or "?" }} &rarr; {{ event.new_stage or "?" }}){% endif %}
+        {% if event.reason %}<span style="color:var(--text-muted)"> &mdash; {{ event.reason }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty-state">No activity recorded yet.</div>
+    {% endif %}
+  </div>
+{% endblock %}

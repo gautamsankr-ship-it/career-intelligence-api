@@ -708,6 +708,94 @@ class OpportunityCRMService:
             "hired": reached("HIRED"),
         }
 
+    # -- Web App Phase 1: corrected cumulative funnel -------------------------
+    def cumulative_funnel_counts(self) -> dict[str, int]:
+        """Milestones an opportunity has EVER reached, correctly accounting
+        for legitimate skip-ahead transitions (see ALLOWED_TRANSITIONS'
+        module docstring: "do not force every opportunity through every
+        stage") and for legacy-migrated records that jumped straight to a
+        later stage without a discrete event at every earlier one.
+
+        `funnel_counts()`'s `reached()` helper looks for a literal event
+        whose `new_stage` equals the milestone -- so a record migrated
+        straight from DISCOVERED to APPLIED (one MIGRATED_STAGE event, no
+        intermediate ELIGIBLE/SHORTLISTED event) under-counts: it correctly
+        shows "applied" but wrongly shows 0 for "eligible"/"shortlisted",
+        even though reaching APPLIED necessarily implies passing eligibility.
+        This method instead tracks, per tracker, the HIGHEST forward-order
+        stage index ever recorded (via any event's previous_stage/new_stage,
+        or the tracker's current crm_stage) and counts a milestone as reached
+        once that high-water mark is at or past the milestone's own index --
+        never fabricating a milestone from scratch, only correctly crediting
+        one already implied by a later, actually-recorded stage."""
+        order_index = {stage: i for i, stage in enumerate(ACTIVE_FORWARD_ORDER)}
+        milestones = ("ELIGIBLE", "SHORTLISTED", "PREPARED", "APPLIED", "OFFER", "HIRED")
+        highest_index: dict[int, int] = {}
+
+        def consider(tracker_id: int, stage: str | None) -> None:
+            if not stage or stage not in order_index:
+                return
+            idx = order_index[stage]
+            if idx > highest_index.get(tracker_id, -1):
+                highest_index[tracker_id] = idx
+
+        for row in self.connection.execute("SELECT tracker_id, previous_stage, new_stage FROM opportunity_events"):
+            consider(row["tracker_id"], row["previous_stage"])
+            consider(row["tracker_id"], row["new_stage"])
+        for row in self.connection.execute("SELECT id, crm_stage FROM application_history"):
+            consider(row["id"], row["crm_stage"])
+
+        counts = {milestone: 0 for milestone in milestones}
+        for reached_index in highest_index.values():
+            for milestone in milestones:
+                if reached_index >= order_index[milestone]:
+                    counts[milestone] += 1
+        return counts
+
+    def response_quality_counts(self) -> dict[str, int]:
+        """Distinguishes an automated ACKNOWLEDGEMENT from a genuinely
+        meaningful employer/recruiter response (recruiter contact,
+        screening request, interview invitation, assessment request,
+        rejection, or offer) -- Web App Phase 1: an acknowledgement must
+        never be presented as, or counted toward, a recruiter response."""
+        meaningful_types = (
+            "RECRUITER_CONTACT", "SCREENING_REQUEST", "INTERVIEW_INVITATION",
+            "ASSESSMENT_REQUEST", "REJECTION", "OFFER",
+        )
+
+        def distinct_where_type_in(types: tuple[str, ...]) -> int:
+            placeholders = ",".join("?" * len(types))
+            row = self.connection.execute(
+                f"SELECT COUNT(DISTINCT tracker_id) FROM employer_responses WHERE response_type IN ({placeholders})",
+                types,
+            ).fetchone()
+            return row[0]
+
+        return {
+            "acknowledgements": distinct_where_type_in(("ACKNOWLEDGEMENT",)),
+            "meaningful_responses": distinct_where_type_in(meaningful_types),
+            "unknown_responses": distinct_where_type_in(("UNKNOWN",)),
+        }
+
+    def recent_activity(self, limit: int = 15, tracker_ids: list[int] | None = None) -> list[dict]:
+        """Most recent CRM events, newest first -- a read-only activity
+        feed; never mutates state. `tracker_ids=None` (the default) spans
+        every opportunity; an explicit list (e.g. the current dashboard
+        filter's result set) scopes the feed to just those trackers, so a
+        filtered view never leaks another opportunity's activity/company
+        name back onto the page."""
+        query = "SELECT e.*, ah.company, ah.job_title FROM opportunity_events e JOIN application_history ah ON ah.id = e.tracker_id"
+        params: tuple = ()
+        if tracker_ids is not None:
+            if not tracker_ids:
+                return []
+            placeholders = ",".join("?" * len(tracker_ids))
+            query += f" WHERE e.tracker_id IN ({placeholders})"
+            params = tuple(tracker_ids)
+        query += " ORDER BY e.occurred_at DESC LIMIT ?"
+        rows = self.connection.execute(query, params + (limit,)).fetchall()
+        return [dict(row) for row in rows]
+
     @staticmethod
     def conversion_rates(counts: dict[str, int] | None = None) -> dict[str, float | None]:
         """Ratios between consecutive funnel milestones. None (not 0.0) when

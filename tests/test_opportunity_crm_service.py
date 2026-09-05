@@ -335,3 +335,97 @@ def test_update_opportunity_rejects_protected_fields(tmp_path):
         service.update_opportunity(record["id"], crm_stage="HIRED")
     updated = service.update_opportunity(record["id"], notes="candidate-authored note")
     assert updated["notes"] == "candidate-authored note"
+
+
+# --- Web App Phase 1: corrected cumulative funnel / response quality --------
+def test_cumulative_funnel_credits_a_legacy_migrated_record_with_skipped_stages(tmp_path):
+    """The exact "0 eligible / 3 applied" bug: a record migrated straight
+    from DISCOVERED to APPLIED (one event, no discrete ELIGIBLE/SHORTLISTED
+    event) must still count as having reached ELIGIBLE/SHORTLISTED/PREPARED,
+    since reaching APPLIED necessarily implies passing them -- unlike the
+    literal per-stage `funnel_counts()`, which would show 0 for each."""
+    history, service = crm(tmp_path)
+    record = _create(service, external_id="skip-1")
+    # Simulate a legacy migration: one MIGRATED_STAGE event straight to
+    # APPLIED, no intermediate ELIGIBLE/SHORTLISTED/PREPARED event at all.
+    service._set_stage(record["id"], "APPLIED")
+    service.append_event(record["id"], "MIGRATED_STAGE", new_stage="APPLIED", source="MIGRATION")
+
+    assert service.funnel_counts()["eligible"] == 0  # the known bug, unchanged
+    cumulative = service.cumulative_funnel_counts()
+    assert cumulative["ELIGIBLE"] == 1
+    assert cumulative["SHORTLISTED"] == 1
+    assert cumulative["PREPARED"] == 1
+    assert cumulative["APPLIED"] == 1
+    assert cumulative["OFFER"] == 0
+    assert cumulative["HIRED"] == 0
+
+
+def test_cumulative_funnel_matches_literal_funnel_for_a_fully_stepped_record(tmp_path):
+    """No discrepancy when every stage really was recorded individually."""
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="stepped-1")
+    for stage in ("VERIFIED", "ELIGIBILITY_REVIEW", "ELIGIBLE", "SCORED", "SHORTLISTED"):
+        service.transition_stage(record["id"], stage)
+    cumulative = service.cumulative_funnel_counts()
+    literal = service.funnel_counts()
+    assert cumulative["ELIGIBLE"] == literal["eligible"] == 1
+    assert cumulative["SHORTLISTED"] == literal["shortlisted"] == 1
+
+
+def test_response_quality_never_counts_an_acknowledgement_as_meaningful(tmp_path):
+    _, service = crm(tmp_path)
+    acknowledged_only = _create(service, external_id="ack-1")
+    service.record_submission_confirmation(acknowledged_only["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    service.record_employer_response(acknowledged_only["id"], "ACKNOWLEDGEMENT")
+
+    recruiter_reply = _create(service, external_id="recruiter-1")
+    service.record_submission_confirmation(recruiter_reply["id"], confirmation_evidence="confirmed", submission_reference="s2")
+    service.record_employer_response(recruiter_reply["id"], "RECRUITER_CONTACT")
+
+    quality = service.response_quality_counts()
+    assert quality["acknowledgements"] == 1
+    assert quality["meaningful_responses"] == 1
+
+
+def test_response_quality_counts_rejection_and_offer_as_meaningful(tmp_path):
+    _, service = crm(tmp_path)
+    rejected = _create(service, external_id="rej-1")
+    service.record_submission_confirmation(rejected["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    service.record_employer_response(rejected["id"], "REJECTION")
+
+    offered = _create(service, external_id="offer-1")
+    service.record_submission_confirmation(offered["id"], confirmation_evidence="confirmed", submission_reference="s2")
+    service.record_employer_response(offered["id"], "OFFER")
+
+    quality = service.response_quality_counts()
+    assert quality["meaningful_responses"] == 2
+    assert quality["acknowledgements"] == 0
+
+
+def test_recent_activity_orders_newest_first_and_respects_limit(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="activity-1")
+    service.transition_stage(record["id"], "VERIFIED")
+    service.transition_stage(record["id"], "ELIGIBLE")
+
+    activity = service.recent_activity(limit=2)
+    assert len(activity) == 2
+    assert activity[0]["new_stage"] == "ELIGIBLE"  # most recent first
+    assert activity[0]["company"] == "Acme"
+
+
+def test_recent_activity_scoped_to_tracker_ids_excludes_others(tmp_path):
+    _, service = crm(tmp_path)
+    a = _create(service, external_id="scope-a")  # default company "Acme"
+    b = service.create_opportunity(
+        job_fingerprint(source="LinkedIn", external_job_id="scope-b"), company="Beta", job_title="Finance Manager",
+    )
+    service.transition_stage(b["id"], "VERIFIED")
+
+    scoped = service.recent_activity(limit=15, tracker_ids=[a["id"]])
+    assert all(event["tracker_id"] == a["id"] for event in scoped)
+    assert not any(event["company"] == "Beta" for event in scoped)
+
+    empty_scope = service.recent_activity(limit=15, tracker_ids=[])
+    assert empty_scope == []
