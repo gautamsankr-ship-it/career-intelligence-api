@@ -1,0 +1,122 @@
+{% extends "_shell.html" %}
+{% block title %}Opportunities -- Career Intelligence{% endblock %}
+{% block content %}
+  <div class="page-header">
+    <h1>Opportunities</h1>
+    <div class="subtitle">Should I pursue this job? -- {{ total_opportunities }} opportunities tracked</div>
+  </div>
+
+  <div class="section">
+    <div class="cards">
+      <div class="card"><div class="n">{{ total_opportunities }}</div><div class="l">Total Opportunities</div></div>
+      {% for grade in ["A", "B", "C", "D", "E"] %}
+      <div class="card"><div class="n"><span class="badge p-{{ grade }}">{{ grade }}</span> {{ priority_mix.get(grade, 0) }}</div><div class="l">{{ priority_labels[grade] }}</div></div>
+      {% endfor %}
+      <div class="card"><div class="n">{{ priority_mix.get("UNSCORED", 0) }}</div><div class="l">Not Yet Evaluated</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Search &amp; Filters</h2>
+    <form method="get" action="/opportunities">
+      <div class="filters">
+        <div class="field">
+          <label>Search (company / title)</label>
+          <input type="text" name="search" value="{{ selected.search }}" placeholder="e.g. Finance Manager" style="padding:6px 8px;border-radius:6px;border:1px solid #d1d5db;min-width:180px;">
+        </div>
+        <div class="field">
+          <label>Priority</label>
+          <select name="intelligence_priority">
+            <option value="">All</option>
+            {% for grade in ["A", "B", "C", "D", "E", "UNSCORED"] %}
+            <option value="{{ grade }}" {{ "selected" if grade == selected.intelligence_priority }}>{{ priority_labels[grade] }} ({{ grade }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select name="crm_stage">
+            <option value="">All</option>
+            {% for v in filter_options.crm_stage %}<option value="{{ v }}" {{ "selected" if v == selected.crm_stage }}>{{ v }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Market</label>
+          <select name="market">
+            <option value="">All</option>
+            {% for v in filter_options.market %}<option value="{{ v }}" {{ "selected" if v == selected.market }}>{{ v }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Work Arrangement</label>
+          <select name="work_arrangement">
+            <option value="">All</option>
+            {% for v in filter_options.work_arrangement %}<option value="{{ v }}" {{ "selected" if v == selected.work_arrangement }}>{{ v }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Job Family</label>
+          <select name="career_track">
+            <option value="">All</option>
+            {% for v in filter_options.career_track %}<option value="{{ v }}" {{ "selected" if v == selected.career_track }}>{{ v }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Source</label>
+          <select name="source">
+            <option value="">All</option>
+            {% for v in filter_options.source %}<option value="{{ v }}" {{ "selected" if v == selected.source }}>{{ v }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Min Career Score</label>
+          <input type="number" name="min_score" value="{{ selected.min_score if selected.min_score is not none else '' }}" min="0" max="100" style="padding:6px 8px;border-radius:6px;border:1px solid #d1d5db;width:80px;">
+        </div>
+        <div class="field">
+          <label>Max Career Score</label>
+          <input type="number" name="max_score" value="{{ selected.max_score if selected.max_score is not none else '' }}" min="0" max="100" style="padding:6px 8px;border-radius:6px;border:1px solid #d1d5db;width:80px;">
+        </div>
+        <button class="apply" type="submit">Apply Filters</button>
+        <a class="clear" href="/opportunities">Clear</a>
+      </div>
+    </form>
+    <p class="section-hint">{{ result.total }} opportunit{{ "y" if result.total == 1 else "ies" }} match{{ "es" if result.total == 1 else "" }} this filter.</p>
+  </div>
+
+  <div class="section">
+    {% if result.results %}
+    <div style="overflow-x:auto">
+    <table class="table">
+      <tr>
+        <th>Priority</th><th>Job / Company</th><th>Market</th><th>Work Arrangement</th>
+        <th>Opportunity Value</th><th>Competitiveness</th><th>ATS Score</th><th>Eligibility</th>
+        <th>Status</th><th>Date</th><th></th>
+      </tr>
+      {% for o in result.results %}
+      <tr>
+        <td>{% if o.intelligence_priority %}<span class="badge p-{{ o.intelligence_priority }}">{{ o.intelligence_priority }}</span>{% else %}<span class="badge" style="background:#f3f4f6;color:#6b7280;">-</span>{% endif %}</td>
+        <td><strong>{{ o.job_title or "-" }}</strong><br><span style="color:var(--text-muted);font-size:12px;">{{ o.company or "-" }}</span></td>
+        <td>{{ o.market or "-" }}</td>
+        <td>{{ o.work_arrangement or "-" }}</td>
+        <td>{{ o.opportunity_value or "-" }}</td>
+        <td>{{ o.candidate_competitiveness or "-" }}</td>
+        <td>{{ (o.ats_score | round(0) | int) if o.ats_score is not none else "-" }}</td>
+        <td><span class="badge" style="background:{{ {'PASS':'#dcfce7','REVIEW':'#fef3c7','FAIL':'#fee2e2','UNKNOWN':'#f3f4f6'}[o.eligibility_badge] }};color:{{ {'PASS':'#166534','REVIEW':'#92400e','FAIL':'#991b1b','UNKNOWN':'#374151'}[o.eligibility_badge] }};">{{ o.eligibility_badge }}</span></td>
+        <td>{{ o.status_label }}</td>
+        <td>{{ (o.discovered_at[:10]) if o.discovered_at else "-" }}</td>
+        <td><a href="/opportunity/{{ o.id }}">View &rarr;</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+    <p class="section-footer">
+      Page {{ result.page }} of {{ result.total_pages }} ({{ result.total }} total)
+      {% set base_qs = "search=" + selected.search + "&intelligence_priority=" + selected.intelligence_priority + "&crm_stage=" + selected.crm_stage + "&market=" + selected.market + "&work_arrangement=" + selected.work_arrangement + "&career_track=" + selected.career_track + "&source=" + selected.source + "&page_size=" + (selected.page_size | string) %}
+      {% if result.page > 1 %}<a href="/opportunities?{{ base_qs }}&page={{ result.page - 1 }}">&larr; Previous</a>{% endif %}
+      {% if result.page < result.total_pages %}<a href="/opportunities?{{ base_qs }}&page={{ result.page + 1 }}">Next &rarr;</a>{% endif %}
+    </p>
+    {% else %}
+    <div class="empty-state">No opportunities match this filter.</div>
+    {% endif %}
+  </div>
+{% endblock %}

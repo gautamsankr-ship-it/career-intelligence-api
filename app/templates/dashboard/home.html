@@ -45,11 +45,15 @@
       <div class="funnel-card">
         <h3>Current Pipeline (live stage)</h3>
         {% for group in pipeline_groups %}
+        {% if group.filter_stage %}
+        <a class="funnel-row" href="/opportunities?crm_stage={{ group.filter_stage }}">
+        {% else %}
         <div class="funnel-row">
+        {% endif %}
           <span class="funnel-row__label">{{ group.label }}</span>
           <span class="funnel-row__bar"><span class="funnel-row__fill" style="width: {{ ((group.count / pipeline_group_max * 100) if pipeline_group_max else 0) | round(1) }}%"></span></span>
           <span class="funnel-row__count {{ 'is-zero' if group.count == 0 else '' }}">{{ group.count }}</span>
-        </div>
+        {% if group.filter_stage %}</a>{% else %}</div>{% endif %}
         {% endfor %}
         <p class="section-footer" style="color:var(--text-muted)">Sums to all {{ total_opportunities }} opportunities.</p>
       </div>
@@ -71,7 +75,7 @@
     <div class="priority-mix-list">
       {% for grade in ["A", "B", "C", "D", "E", "UNSCORED"] %}
       {% set count = priority_mix.get(grade, 0) %}
-      <a class="priority-mix-item" href="/?intelligence_priority={{ grade if grade != 'UNSCORED' else '' }}">
+      <a class="priority-mix-item" href="/opportunities?intelligence_priority={{ grade }}">
         <span>{% if grade != "UNSCORED" %}<span class="badge p-{{ grade }}">{{ grade }}</span>{% endif %} {{ priority_labels.get(grade, grade) }}</span>
         <span class="priority-mix-bar"><span class="priority-mix-fill" style="width: {{ ((count / total_opportunities * 100) if total_opportunities else 0) | round(1) }}%"></span></span>
         <span>{{ count }} ({{ ((count / total_opportunities * 100) if total_opportunities else 0) | round(0) | int }}%)</span>
@@ -166,7 +170,7 @@
       <li>
         <span class="activity-feed__at">{{ event.occurred_at[:16] if event.occurred_at else "" }}</span>
         <a href="/opportunity/{{ event.tracker_id }}">{{ event.company or "-" }}</a>
-        -- {{ event.label }}
+        -- {{ event.label }}{% if event.count > 1 %} ({{ event.count }}x){% endif %}
       </li>
       {% endfor %}
     </ul>

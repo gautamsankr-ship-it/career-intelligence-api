@@ -133,7 +133,18 @@ _APPLICATION_HISTORY_ADDITIONS = {
 _ALLOWED_BREAKDOWN_FIELDS = frozenset({
     "source", "market", "career_track", "company", "application_portal",
     "intelligence_priority", "opportunity_value", "candidate_competitiveness",
-    "crm_stage", "resume_path", "application_method",
+    "crm_stage", "resume_path", "application_method", "work_arrangement",
+})
+
+# -- Web App Phase 2: user decisions ----------------------------------------
+# A controlled human signal, stored and audited SEPARATELY from the
+# intelligence engine's own A/B/C/D/E priority -- recording one here never
+# writes to intelligence_priority/crm_stage/any scoring column. Append-only,
+# same as opportunity_events: a changed mind is a NEW row, never an edit.
+USER_DECISIONS = frozenset({"APPLY", "WATCH", "REJECT"})
+USER_DECISION_REASON_CODES = frozenset({
+    "SALARY_TOO_LOW", "TOO_JUNIOR", "COMPANY_UNATTRACTIVE", "LOCATION",
+    "CAREER_VALUE", "NOT_GENUINELY_REMOTE", "ELIGIBILITY_WORK_RIGHT_CONCERN", "OTHER",
 })
 
 
@@ -240,6 +251,19 @@ class OpportunityCRMService:
                 decision_date TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
+            )
+            """
+        )
+        self.connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_decisions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tracker_id INTEGER NOT NULL,
+                decision TEXT NOT NULL,
+                reason_code TEXT,
+                note TEXT,
+                decided_at TEXT NOT NULL,
+                created_at TEXT NOT NULL
             )
             """
         )
@@ -1076,7 +1100,117 @@ class OpportunityCRMService:
             "offers": offers,
             "employer_responses": employer_responses,
             "timeline": self.get_timeline(tracker_id),
+            "user_decisions": self.list_user_decisions(tracker_id),
         }
+
+    # -- Web App Phase 2: user decisions (controlled human signal) ----------
+    def record_user_decision(
+        self, tracker_id: int, decision: str, *, reason_code: str = "", note: str = "", decided_by: str = "USER",
+    ) -> dict:
+        """Records a human screening decision (Apply/Watch/Reject) as its
+        own append-only fact, separate from the intelligence engine's
+        A/B/C/D/E priority -- never writes to intelligence_priority,
+        crm_stage, or any scoring column. A changed mind is a new row, the
+        same append-only convention `opportunity_events` already uses."""
+        if decision not in USER_DECISIONS:
+            raise ValueError(f"Unknown user decision: {decision!r}. Allowed: {sorted(USER_DECISIONS)}")
+        if reason_code and reason_code not in USER_DECISION_REASON_CODES:
+            raise ValueError(f"Unknown decision reason code: {reason_code!r}. Allowed: {sorted(USER_DECISION_REASON_CODES)}")
+        self._require(tracker_id)
+        now = _now()
+        cursor = self.connection.execute(
+            "INSERT INTO user_decisions (tracker_id, decision, reason_code, note, decided_at, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (tracker_id, decision, reason_code, note, now, now),
+        )
+        self.connection.commit()
+        self.append_event(
+            tracker_id, "USER_DECISION_RECORDED", reason=decision,
+            evidence_reference=reason_code or (note[:200] if note else ""), actor=decided_by,
+        )
+        return self._user_decision_row(cursor.lastrowid)
+
+    def get_latest_user_decision(self, tracker_id: int) -> dict | None:
+        row = self.connection.execute(
+            "SELECT * FROM user_decisions WHERE tracker_id = ? ORDER BY id DESC LIMIT 1", (tracker_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def list_user_decisions(self, tracker_id: int) -> list[dict]:
+        return [
+            dict(row) for row in
+            self.connection.execute("SELECT * FROM user_decisions WHERE tracker_id = ? ORDER BY id DESC", (tracker_id,))
+        ]
+
+    def _user_decision_row(self, decision_id: int) -> dict | None:
+        row = self.connection.execute("SELECT * FROM user_decisions WHERE id = ?", (decision_id,)).fetchone()
+        return dict(row) if row else None
+
+    # -- Web App Phase 2: Opportunities workspace read model -----------------
+    _PRIORITY_RANK_SQL = "CASE intelligence_priority WHEN 'A' THEN 0 WHEN 'B' THEN 1 WHEN 'C' THEN 2 WHEN 'D' THEN 3 WHEN 'E' THEN 4 ELSE 5 END"
+
+    def search_opportunities(
+        self, *, search: str = "", intelligence_priority: str = "", crm_stage: str = "",
+        market: str = "", work_arrangement: str = "", career_track: str = "", source: str = "",
+        min_score: float | None = None, max_score: float | None = None,
+        page: int = 1, page_size: int = 25,
+    ) -> dict:
+        """Paginated, filterable, searchable Opportunities workspace list --
+        reuses `application_history` exactly as `list_opportunities()` does;
+        adds only presentation-layer search/pagination/ordering concerns, no
+        new business/scoring logic. Default ordering surfaces actionable,
+        higher-value opportunities first (A/B/C/D/E priority rank, then
+        career_score) rather than raw tracker id."""
+        if page < 1:
+            raise ValueError("page must be >= 1")
+        if page_size < 1:
+            raise ValueError("page_size must be >= 1")
+        clauses: list[str] = []
+        params: dict[str, Any] = {}
+        if search:
+            clauses.append("(company LIKE :search OR job_title LIKE :search)")
+            params["search"] = f"%{search}%"
+        if intelligence_priority:
+            if intelligence_priority == "UNSCORED":
+                clauses.append("(intelligence_priority IS NULL OR intelligence_priority = '')")
+            else:
+                clauses.append("intelligence_priority = :intelligence_priority")
+                params["intelligence_priority"] = intelligence_priority
+        for column, value in (
+            ("crm_stage", crm_stage), ("market", market), ("work_arrangement", work_arrangement),
+            ("career_track", career_track), ("source", source),
+        ):
+            if value:
+                clauses.append(f"{column} = :{column}")
+                params[column] = value
+        if min_score is not None:
+            clauses.append("career_score >= :min_score")
+            params["min_score"] = min_score
+        if max_score is not None:
+            clauses.append("career_score <= :max_score")
+            params["max_score"] = max_score
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+
+        total = self.connection.execute(f"SELECT COUNT(*) FROM application_history {where}", params).fetchone()[0]
+        offset = (page - 1) * page_size
+        rows = self.connection.execute(
+            f"SELECT * FROM application_history {where} "
+            f"ORDER BY {self._PRIORITY_RANK_SQL} ASC, career_score DESC, id DESC "
+            "LIMIT :limit OFFSET :offset",
+            {**params, "limit": page_size, "offset": offset},
+        ).fetchall()
+        return {
+            "results": [dict(row) for row in rows],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": max(1, (total + page_size - 1) // page_size),
+        }
+
+    def opportunity_filter_options(self) -> dict[str, list[str]]:
+        """Distinct real values for the Opportunities workspace's filter
+        dropdowns -- never a fabricated/static filter dimension."""
+        fields = ("market", "work_arrangement", "career_track", "source", "crm_stage")
+        return {field: sorted({row["value"] for row in self.breakdown_by(field) if row["value"]}) for field in fields}
 
     def close(self) -> None:
         self.history.close()

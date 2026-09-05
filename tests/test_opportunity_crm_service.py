@@ -564,3 +564,122 @@ def test_recent_activity_scoped_to_tracker_ids_excludes_others(tmp_path):
 
     empty_scope = service.recent_activity(limit=15, tracker_ids=[])
     assert empty_scope == []
+
+
+# --- Web App Phase 2: user decisions (controlled, separate from priority) --
+def test_record_user_decision_never_touches_intelligence_priority_or_crm_stage(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="dec-1")
+    service.update_opportunity(record["id"], intelligence_priority="C")
+    before = service.get_opportunity(record["id"])
+
+    service.record_user_decision(record["id"], "APPLY", reason_code="CAREER_VALUE", note="Great growth path")
+
+    after = service.get_opportunity(record["id"])
+    assert after["intelligence_priority"] == before["intelligence_priority"] == "C"
+    assert after["crm_stage"] == before["crm_stage"]
+
+
+def test_record_user_decision_is_append_only_and_auditable(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="dec-2")
+
+    service.record_user_decision(record["id"], "WATCH", reason_code="LOCATION")
+    service.record_user_decision(record["id"], "APPLY", note="Changed my mind after research")
+
+    history = service.list_user_decisions(record["id"])
+    assert len(history) == 2  # a changed mind is a new row, never an edit
+    assert history[0]["decision"] == "APPLY"  # most recent first
+    assert history[1]["decision"] == "WATCH"
+    latest = service.get_latest_user_decision(record["id"])
+    assert latest["decision"] == "APPLY"
+    assert latest["note"] == "Changed my mind after research"
+
+    events = [e["detail"] for e in service.get_timeline(record["id"]) if e["detail"].get("event_type") == "USER_DECISION_RECORDED"]
+    assert len(events) == 2
+
+
+def test_record_user_decision_rejects_unknown_decision_and_reason_code(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="dec-3")
+    with pytest.raises(ValueError):
+        service.record_user_decision(record["id"], "MAYBE")
+    with pytest.raises(ValueError):
+        service.record_user_decision(record["id"], "APPLY", reason_code="NOT_A_REAL_CODE")
+
+
+def test_get_latest_user_decision_is_none_when_no_decision_recorded(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="dec-4")
+    assert service.get_latest_user_decision(record["id"]) is None
+
+
+# --- Web App Phase 2: Opportunities workspace search/pagination -----------
+def test_search_opportunities_filters_by_text_and_priority(tmp_path):
+    _, service = crm(tmp_path)
+    a = service.create_opportunity(
+        job_fingerprint(source="LinkedIn", external_job_id="search-a"), company="Acme Robotics", job_title="Finance Manager",
+    )
+    service.update_opportunity(a["id"], intelligence_priority="A")
+    b = service.create_opportunity(
+        job_fingerprint(source="LinkedIn", external_job_id="search-b"), company="Beta Corp", job_title="Controller",
+    )
+    service.update_opportunity(b["id"], intelligence_priority="C")
+
+    by_text = service.search_opportunities(search="Acme")
+    assert [r["id"] for r in by_text["results"]] == [a["id"]]
+
+    by_priority = service.search_opportunities(intelligence_priority="C")
+    assert [r["id"] for r in by_priority["results"]] == [b["id"]]
+
+    unscored = service.search_opportunities(intelligence_priority="UNSCORED")
+    assert unscored["total"] == 0  # both records here are scored
+
+
+def test_search_opportunities_orders_by_priority_rank_before_tracker_id(tmp_path):
+    _, service = crm(tmp_path)
+    low = _create(service, external_id="rank-low")
+    service.update_opportunity(low["id"], intelligence_priority="E")
+    high = _create(service, external_id="rank-high")
+    service.update_opportunity(high["id"], intelligence_priority="A")
+
+    result = service.search_opportunities()
+    # 'high' (A) has a LOWER tracker id than 'low' (E) is not guaranteed by
+    # creation order alone here, so assert on the actual rank, not position.
+    ids_in_order = [r["id"] for r in result["results"]]
+    assert ids_in_order.index(high["id"]) < ids_in_order.index(low["id"])
+
+
+def test_search_opportunities_paginates(tmp_path):
+    _, service = crm(tmp_path)
+    for i in range(5):
+        _create(service, external_id=f"page-{i}")
+
+    page1 = service.search_opportunities(page=1, page_size=2)
+    page2 = service.search_opportunities(page=2, page_size=2)
+    assert page1["total"] == 5
+    assert page1["total_pages"] == 3
+    assert len(page1["results"]) == 2
+    assert len(page2["results"]) == 2
+    assert {r["id"] for r in page1["results"]}.isdisjoint({r["id"] for r in page2["results"]})
+
+
+def test_search_opportunities_score_range_filter(tmp_path):
+    _, service = crm(tmp_path)
+    fingerprint = job_fingerprint(source="LinkedIn", external_job_id="score-1")
+    service.create_opportunity(fingerprint, company="Acme", job_title="Role", career_score=90.0)
+    fingerprint2 = job_fingerprint(source="LinkedIn", external_job_id="score-2")
+    service.create_opportunity(fingerprint2, company="Acme", job_title="Role", career_score=40.0)
+
+    high_only = service.search_opportunities(min_score=70)
+    assert high_only["total"] == 1
+    assert high_only["results"][0]["career_score"] == 90.0
+
+
+def test_opportunity_filter_options_reflects_real_distinct_values(tmp_path):
+    _, service = crm(tmp_path)
+    _create(service, external_id="opt-1", market="united_kingdom", work_arrangement="REMOTE", source="LinkedIn")
+    options = service.opportunity_filter_options()
+    assert "united_kingdom" in options["market"]
+    assert "REMOTE" in options["work_arrangement"]
+    assert "LinkedIn" in options["source"]
