@@ -33,12 +33,14 @@ class GmailService:
         dry_run: bool = GMAIL_DRY_RUN,
         auto_send: bool = GMAIL_AUTO_SEND,
         api_service=None,
+        scopes: Iterable[str] = GMAIL_SCOPES,
     ) -> None:
         self.credentials_path = Path(credentials_path)
         self.token_path = Path(token_path)
         self.dry_run = dry_run
         self.auto_send = auto_send
         self._api_service = api_service
+        self.scopes = tuple(scopes)
 
     def authenticate(self):
         if self._api_service is not None:
@@ -49,7 +51,7 @@ class GmailService:
             try:
                 credentials = Credentials.from_authorized_user_file(
                     self.token_path,
-                    GMAIL_SCOPES,
+                    self.scopes,
                 )
             except Exception as exc:
                 raise RuntimeError(
@@ -70,7 +72,7 @@ class GmailService:
             try:
                 flow = InstalledAppFlow.from_client_secrets_file(
                     self.credentials_path,
-                    GMAIL_SCOPES,
+                    self.scopes,
                 )
                 credentials = flow.run_local_server(port=0)
             except Exception as exc:
@@ -230,3 +232,28 @@ class GmailService:
             error_message=None,
         )
         return draft_id
+
+    # -- Task 21.34: read-only inbox access -------------------------------
+    # These two methods only ever call messages().list / messages().get --
+    # never send/modify/delete/label -- so Gmail Outcome Monitoring (which
+    # must stay strictly read-only) can reuse this same class's OAuth
+    # handling instead of duplicating it.
+    def list_message_ids(
+        self, query: str, max_results: int = 100, page_token: str | None = None
+    ) -> dict:
+        request = (
+            self.authenticate()
+            .users()
+            .messages()
+            .list(userId="me", q=query, maxResults=max_results, pageToken=page_token)
+        )
+        return request.execute()
+
+    def get_message(self, message_id: str, message_format: str = "full") -> dict:
+        return (
+            self.authenticate()
+            .users()
+            .messages()
+            .get(userId="me", id=message_id, format=message_format)
+            .execute()
+        )

@@ -101,6 +101,16 @@ GMAIL_AUTO_SEND = False
 GMAIL_CREDENTIALS_PATH = "credentials.json"
 GMAIL_TOKEN_PATH = "token.json"
 GMAIL_SCOPES = ("https://www.googleapis.com/auth/gmail.compose",)
+
+# Task 21.34: Gmail Outcome Monitoring reads messages (list/get) only -- it
+# never composes, sends, labels, or deletes anything -- so it authenticates
+# with its own narrower read-only scope, via its own token file. This is
+# deliberately never merged into GMAIL_SCOPES/GMAIL_TOKEN_PATH above: the
+# existing compose-scope token already used by draft/send flows must never be
+# silently upgraded (or downgraded) by this task, and a read-only credential
+# being compromised should never carry any send capability.
+GMAIL_READONLY_SCOPES = ("https://www.googleapis.com/auth/gmail.readonly",)
+GMAIL_READONLY_TOKEN_PATH = "token_readonly.json"
 # The authenticated account's own primary address. Without an explicit From
 # header, drafts/sends fall back to whichever "Send As" alias is currently
 # marked default in the account's own Gmail settings, which may not be this
