@@ -19,28 +19,31 @@
     .timeline .kind { font-weight: 600; color: #2563eb; }
     .timeline .at { color: #9ca3af; float: right; }
 
-    .memo-header { background: var(--surface); border-radius: 10px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.06); border: 1px solid var(--border); margin-bottom: 20px; }
+    .memo-header { background: var(--surface); border-radius: 10px; padding: 22px 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06); border: 1px solid var(--border); margin-bottom: 20px; }
     .memo-header__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
-    .memo-header h1 { margin: 0 0 4px; font-size: 20px; }
-    .memo-header__meta { font-size: 13px; color: var(--text-muted); }
-    .memo-header__facts { margin-top: 14px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; font-size: 13px; }
-    .memo-header__recommendation { font-weight: 700; }
-    .open-job-btn { display: inline-block; padding: 8px 16px; background: var(--primary); color: #fff; border-radius: 6px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+    .memo-header h1 { margin: 0 0 6px; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
+    .memo-header__meta { font-size: 13.5px; color: var(--text-muted); }
+    .memo-header__meta strong { color: var(--text); font-weight: 600; }
+    .memo-header__facts { margin-top: 16px; padding-top: 14px; border-top: 1px solid #eef0f2; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+    .memo-header__recommendation { font-weight: 700; padding: 5px 12px; border-radius: 6px; background: #eff6ff; color: var(--primary-dark); }
+    .open-job-btn { display: inline-block; padding: 9px 18px; background: var(--primary); color: #fff; border-radius: 6px; font-size: 13px; font-weight: 600; white-space: nowrap; }
     .open-job-btn:hover { background: var(--primary-dark); text-decoration: none; }
 
-    .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
-    .metric-card { background: var(--surface); border-radius: 10px; padding: 14px; border: 1px solid var(--border); }
+    .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+    .metric-card { background: var(--surface); border-radius: 10px; padding: 16px; border: 1px solid var(--border); }
     .metric-card .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; }
-    .metric-card .value { font-size: 16px; font-weight: 700; margin-top: 4px; }
+    .metric-card .value { font-size: 18px; font-weight: 700; margin-top: 6px; }
 
+    .reason-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 6px 16px; height: 100%; }
     .reason-list { list-style: none; margin: 0; padding: 0; font-size: 13px; }
-    .reason-list li { padding: 6px 0; border-bottom: 1px solid #eef0f2; }
+    .reason-list li { padding: 8px 0; border-bottom: 1px solid #eef0f2; }
     .reason-list li:last-child { border-bottom: none; }
     .reason-list.pursue li:before { content: "+ "; color: var(--success); font-weight: 700; }
     .reason-list.risk li:before { content: "! "; color: var(--warning); font-weight: 700; }
 
-    .eligibility-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eef0f2; font-size: 13px; gap: 12px; }
+    .eligibility-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 4px; border-bottom: 1px solid #eef0f2; font-size: 13px; gap: 12px; }
     .eligibility-row:last-child { border-bottom: none; }
+    .eligibility-row:hover { background: #f9fafb; }
     .eligibility-row__explanation { flex: 1; color: var(--text-muted); font-size: 12px; }
     .status-pill { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
     .status-pill.PASS { background: #dcfce7; color: #166534; }
@@ -48,6 +51,7 @@
     .status-pill.UNKNOWN { background: #f3f4f6; color: #374151; }
     .status-pill.FAIL { background: #fee2e2; color: #991b1b; }
 
+    .decision-card { background: #f8fafc; border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: 10px; padding: 16px; }
     .decision-buttons { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
     .decision-btn { display: inline-flex; align-items: center; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; cursor: pointer; }
     .decision-btn.apply { border-color: #059669; color: #059669; }
@@ -66,7 +70,7 @@
       <div>
         <h1>{{ detail.opportunity.job_title or "-" }}</h1>
         <div class="memo-header__meta">
-          {{ detail.opportunity.company or "-" }} &middot; {{ detail.opportunity.market or "-" }} &middot; {{ detail.opportunity.work_arrangement or "-" }} &middot; via {{ detail.opportunity.source or "-" }}
+          <strong>{{ detail.opportunity.company or "-" }}</strong> &middot; {{ detail.opportunity.market | humanize }} &middot; {{ detail.opportunity.work_arrangement | humanize }} &middot; via {{ detail.opportunity.source or "-" }}
         </div>
       </div>
       {% if detail.opportunity.job_url %}
@@ -83,27 +87,31 @@
   <div class="section">
     <h2 class="section-title">Intelligence Assessment</h2>
     <div class="metric-grid">
-      <div class="metric-card"><div class="label">Opportunity Value</div><div class="value">{{ detail.opportunity.opportunity_value or "Not Evaluated" }}</div></div>
-      <div class="metric-card"><div class="label">Candidate Competitiveness</div><div class="value">{{ (detail.opportunity.candidate_competitiveness or "Not Evaluated").replace("_", " ") }}</div></div>
+      <div class="metric-card"><div class="label">Opportunity Value</div><div class="value">{{ detail.opportunity.opportunity_value | humanize if detail.opportunity.opportunity_value else "Not Evaluated" }}</div></div>
+      <div class="metric-card"><div class="label">Candidate Competitiveness</div><div class="value">{{ detail.opportunity.candidate_competitiveness | humanize if detail.opportunity.candidate_competitiveness else "Not Evaluated" }}</div></div>
       <div class="metric-card"><div class="label">Application Alignment (ATS)</div><div class="value">{% if detail.opportunity.ats_score is not none %}{{ detail.opportunity.ats_score | round(0) | int }}/100{% else %}Not Evaluated{% endif %}</div></div>
       <div class="metric-card"><div class="label">Application Priority</div><div class="value">{{ detail.opportunity.intelligence_priority or "Unscored" }}</div></div>
     </div>
-    <p class="section-hint">Evidence Strength: {{ (detail.opportunity.candidate_competitiveness or "Not yet assessed").replace("_", " ").title() }} -- based on the candidate's verified evidence against this vacancy's requirements.</p>
+    <p class="section-hint">Evidence strength is not separately assessed -- Candidate Competitiveness above already reflects the candidate's verified evidence against this vacancy's requirements.</p>
   </div>
 
   <div class="section">
     <div class="two-col-grid">
       <div>
         <h2 class="section-title">Why Pursue</h2>
+        <div class="reason-card">
         {% if why_pursue %}
         <ul class="reason-list pursue">{% for r in why_pursue %}<li>{{ r }}</li>{% endfor %}</ul>
-        {% else %}<div class="empty-state">No positive evidence recorded yet.</div>{% endif %}
+        {% else %}<div class="empty" style="padding:12px 0;">No positive evidence recorded yet.</div>{% endif %}
+        </div>
       </div>
       <div>
         <h2 class="section-title">Risks / Uncertainties</h2>
+        <div class="reason-card">
         {% if risks %}
         <ul class="reason-list risk">{% for r in risks %}<li>{{ r }}</li>{% endfor %}</ul>
-        {% else %}<div class="empty-state">No risks flagged.</div>{% endif %}
+        {% else %}<div class="empty" style="padding:12px 0;">No risks flagged.</div>{% endif %}
+        </div>
       </div>
     </div>
     {% if detail.opportunity.intelligence_priority_reasons_list %}
@@ -128,7 +136,7 @@
 
   <div class="section">
     <h2 class="section-title">My Decision</h2>
-    <div class="detail-card">
+    <div class="decision-card">
       {% if latest_decision %}
       <p style="font-size:13px;margin:0 0 12px;">
         Current decision: <strong>{{ latest_decision.decision }}</strong>{% if latest_decision.reason_code %} -- {{ decision_reason_labels.get(latest_decision.reason_code, latest_decision.reason_code) }}{% endif %}{% if latest_decision.note %} ({{ latest_decision.note }}){% endif %}

@@ -853,3 +853,137 @@ def test_opportunities_reads_real_production_data():
     finally:
         service.close()
     assert f"{total} opportunities tracked" in body
+
+
+# --- Web App Phase 2.1: wide-content layout ---------------------------------
+def test_opportunities_page_uses_the_wide_content_layout(tmp_path):
+    db_path, _ = _seed(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get("/opportunities").text
+        assert 'class="content content--wide"' in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_dashboard_and_detail_pages_keep_the_default_narrower_layout(tmp_path):
+    """The Opportunities-specific wide mode must not leak onto the frozen
+    Executive Dashboard or Opportunity Detail page as a side effect."""
+    db_path, ids = _seed(tmp_path)
+    try:
+        client = _client(db_path)
+        home_body = client.get("/").text
+        assert 'class="content content--wide"' not in home_body
+        assert 'class="content "' in home_body
+        detail_body = client.get(f"/opportunity/{ids['a']}").text
+        assert 'class="content content--wide"' not in detail_body
+    finally:
+        app.dependency_overrides.clear()
+
+
+# --- Web App Phase 2.1: humanized enum-style values -------------------------
+def test_opportunities_table_humanizes_market_and_work_arrangement(tmp_path):
+    db_path, ids = _seed(tmp_path)
+    service = _open(db_path)
+    try:
+        service.update_opportunity(ids["a"], work_arrangement="REMOTE")
+    finally:
+        service.close()
+    try:
+        client = _client(db_path)
+        body = client.get("/opportunities").text
+        assert ">United Kingdom<" in body
+        assert ">united_kingdom<" not in body  # raw value never shown as visible text (value="" attrs/hrefs are fine)
+        assert ">Remote<" in body
+        assert ">REMOTE<" not in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_opportunities_table_humanizes_opportunity_value_and_competitiveness(tmp_path):
+    db_path, ids = _seed(tmp_path)
+    service = _open(db_path)
+    try:
+        service.update_opportunity(ids["a"], opportunity_value="HIGH", candidate_competitiveness="VERY_STRONG")
+    finally:
+        service.close()
+    try:
+        client = _client(db_path)
+        body = client.get("/opportunities").text
+        assert "Very Strong" in body
+        assert "VERY_STRONG" not in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_opportunities_filter_options_are_humanized_but_values_stay_raw(tmp_path):
+    db_path, _ = _seed(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get("/opportunities").text
+        assert '<option value="united_kingdom"' in body  # raw value preserved for filtering
+        assert '>United Kingdom<' in body  # humanized label shown
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_detail_page_humanizes_market_work_arrangement_and_dimension_values(tmp_path):
+    db_path, ids = _seed(tmp_path)
+    service = _open(db_path)
+    try:
+        service.update_opportunity(ids["b"], work_arrangement="REMOTE", opportunity_value="MEDIUM", candidate_competitiveness="STRETCH")
+    finally:
+        service.close()
+    try:
+        client = _client(db_path)
+        body = client.get(f"/opportunity/{ids['b']}").text
+        # The memo header/metric cards (before "Why Pursue") must never show
+        # a raw enum value as visible text.
+        header_and_metrics = body.split("Why Pursue")[0]
+        assert "United States" in header_and_metrics
+        assert "united_states" not in header_and_metrics  # no attrs/hrefs carry raw market in this zone
+        assert "STRETCH" not in header_and_metrics
+        assert "Stretch" in header_and_metrics
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_humanize_filter_never_mutates_stored_production_values():
+    """Presentation-only: filtering by the RAW value must still work exactly
+    as before -- humanization never touches what's persisted or queried."""
+    service = OpportunityCRMService()
+    try:
+        record = service.get_opportunity(61)
+        raw_market_before = record.get("market")
+    finally:
+        service.close()
+    client = TestClient(app)
+    response = client.get("/opportunities")
+    assert response.status_code == 200
+    service = OpportunityCRMService()
+    try:
+        record_after = service.get_opportunity(61)
+        assert record_after.get("market") == raw_market_before  # untouched
+    finally:
+        service.close()
+
+
+# --- Web App Phase 2.1: Evidence Strength correction ------------------------
+def test_evidence_strength_pseudo_metric_is_not_mislabeled_as_competitiveness(tmp_path):
+    """Candidate Competitiveness must remain its own dimension -- the page
+    must never present it under a separate "Evidence Strength" label, since
+    no genuine, distinct evidence-strength value exists in the persisted
+    CRM schema."""
+    db_path, ids = _seed(tmp_path)
+    service = _open(db_path)
+    try:
+        service.update_opportunity(ids["a"], candidate_competitiveness="VERY_STRONG")
+    finally:
+        service.close()
+    try:
+        client = _client(db_path)
+        body = client.get(f"/opportunity/{ids['a']}").text
+        assert "Evidence Strength: Very Strong" not in body
+        assert "Evidence Strength:" not in body
+    finally:
+        app.dependency_overrides.clear()

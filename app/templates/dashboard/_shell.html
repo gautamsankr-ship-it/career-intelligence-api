@@ -49,6 +49,11 @@
     .topbar__avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0; }
 
     .content { flex: 1; padding: 24px; max-width: 1280px; width: 100%; margin: 0 auto; }
+    /* Data-heavy workspace pages (e.g. Opportunities) opt into this wider
+       column via {"wide_content": True} in their route context -- the
+       Executive Dashboard and Opportunity Detail keep the narrower default
+       above, unaffected. */
+    .content--wide { max-width: 1800px; }
     .page-header { margin-bottom: 20px; }
     .page-header h1 { margin: 0 0 4px; font-size: 22px; }
     .subtitle { color: var(--text-muted); font-size: 13px; }
@@ -71,17 +76,22 @@
     .rate .l { font-size: 11px; color: var(--text-muted); }
 
     .table { width: 100%; border-collapse: collapse; background: var(--surface); }
-    .table th, .table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eef0f2; font-size: 13px; }
-    .table th { background: #f3f4f6; font-weight: 600; color: #374151; }
+    .table th, .table td { text-align: left; padding: 12px 16px; border-bottom: 1px solid #eef0f2; font-size: 14px; line-height: 1.4; vertical-align: middle; }
+    .table th { background: #f3f4f6; font-weight: 600; color: #374151; font-size: 12px; text-transform: uppercase; letter-spacing: .02em; }
     .table tr:last-child td { border-bottom: none; }
+    .table tbody tr:hover td { background: #f9fafb; }
+    .table td.col-center { text-align: center; }
+    .table td.col-num { text-align: right; font-variant-numeric: tabular-nums; }
+    .status-chip { display: inline-block; padding: 3px 10px; border-radius: 6px; background: #f3f4f6; color: #374151; font-size: 12px; font-weight: 600; white-space: nowrap; }
 
     .attention-box { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; overflow: hidden; }
     .attention-box .empty { padding: 16px; color: var(--text-muted); }
     .attention-box table { box-shadow: none; }
 
-    .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; align-items: end; }
-    .filters .field { display: flex; flex-direction: column; font-size: 12px; color: var(--text-muted); }
-    select { padding: 6px 8px; border-radius: 6px; border: 1px solid #d1d5db; min-width: 140px; }
+    .filters-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin-bottom: 12px; }
+    .filters { display: flex; gap: 14px; flex-wrap: wrap; align-items: end; }
+    .filters .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-muted); }
+    select { padding: 7px 10px; border-radius: 6px; border: 1px solid #d1d5db; min-width: 140px; font-size: 13px; }
     button.apply { padding: 7px 16px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; }
     button.apply:hover { background: var(--primary-dark); }
     a.clear { align-self: center; font-size: 13px; color: var(--text-muted); margin-left: 4px; }
@@ -180,7 +190,7 @@
           Operator
         </div>
       </header>
-      <main class="content">
+      <main class="content {{ 'content--wide' if wide_content else '' }}">
         {% block content %}{% endblock %}
       </main>
     </div>

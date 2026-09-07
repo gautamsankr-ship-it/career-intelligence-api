@@ -20,6 +20,20 @@ from app.services.opportunity_crm_service import OpportunityCRMService
 app = FastAPI(title="Career Intelligence CRM Dashboard")
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates" / "dashboard"))
 
+
+def _humanize(value: str | None) -> str:
+    """Presentation-only rendering of a raw, database-style enum value
+    (e.g. "united_states", "VERY_STRONG", "REMOTE") as plain, readable text
+    ("United States", "Very Strong", "Remote"). Never touches the stored
+    value itself -- callers still filter/persist on the raw string; this is
+    purely a Jinja display filter."""
+    if not value:
+        return "-"
+    return value.replace("_", " ").title()
+
+
+templates.env.filters["humanize"] = _humanize
+
 _PRIORITY_LABELS = {
     "A": "Priority Apply", "B": "Apply", "C": "Human Review", "D": "Watch", "E": "Reject", "UNSCORED": "Not Yet Evaluated",
 }
@@ -99,9 +113,9 @@ def _build_why_pursue(record: dict) -> list[str]:
     only -- never a speculative or generated reason."""
     reasons = []
     if record.get("opportunity_value") in ("HIGH", "MEDIUM"):
-        reasons.append(f"Opportunity value assessed as {record['opportunity_value'].title()}.")
+        reasons.append(f"Opportunity value assessed as {_humanize(record['opportunity_value'])}.")
     if record.get("candidate_competitiveness") in ("VERY_STRONG", "STRONG", "COMPETITIVE"):
-        reasons.append(f"Candidate competitiveness assessed as {record['candidate_competitiveness'].replace('_', ' ').title()}.")
+        reasons.append(f"Candidate competitiveness assessed as {_humanize(record['candidate_competitiveness'])}.")
     if record.get("vacancy_validity") in ("VERIFIED", "LIKELY_VALID"):
         reasons.append("Vacancy appears genuine and current.")
     if record.get("intelligence_priority") in ("A", "B"):
@@ -121,7 +135,7 @@ def _build_risks(record: dict) -> list[str]:
     if record.get("vacancy_validity") == "UNCERTAIN":
         risks.append("Vacancy validity could not be confirmed.")
     if record.get("candidate_competitiveness") in ("STRETCH", "INSUFFICIENT_DATA", "LOW"):
-        risks.append(f"Candidate competitiveness assessed as {record['candidate_competitiveness'].replace('_', ' ').title()}.")
+        risks.append(f"Candidate competitiveness assessed as {_humanize(record['candidate_competitiveness'])}.")
     if record.get("intelligence_priority") == "C":
         risks.append("Flagged by the intelligence engine for human review before proceeding.")
     if record.get("intelligence_priority") == "E":
@@ -384,6 +398,7 @@ def opportunities(
         "opportunities.html",
         {
             "active_nav": "opportunities",
+            "wide_content": True,
             "total_opportunities": total_opportunities,
             "priority_mix": priority_mix,
             "priority_labels": _PRIORITY_LABELS,

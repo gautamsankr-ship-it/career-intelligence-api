@@ -18,68 +18,70 @@
 
   <div class="section">
     <h2 class="section-title">Search &amp; Filters</h2>
-    <form method="get" action="/opportunities">
-      <div class="filters">
-        <div class="field">
-          <label>Search (company / title)</label>
-          <input type="text" name="search" value="{{ selected.search }}" placeholder="e.g. Finance Manager" style="padding:6px 8px;border-radius:6px;border:1px solid #d1d5db;min-width:180px;">
+    <div class="filters-card">
+      <form method="get" action="/opportunities">
+        <div class="filters">
+          <div class="field">
+            <label>Search (company / title)</label>
+            <input type="text" name="search" value="{{ selected.search }}" placeholder="e.g. Finance Manager" style="padding:7px 10px;border-radius:6px;border:1px solid #d1d5db;min-width:190px;font-size:13px;">
+          </div>
+          <div class="field">
+            <label>Priority</label>
+            <select name="intelligence_priority">
+              <option value="">All</option>
+              {% for grade in ["A", "B", "C", "D", "E", "UNSCORED"] %}
+              <option value="{{ grade }}" {{ "selected" if grade == selected.intelligence_priority }}>{{ priority_labels[grade] }} ({{ grade }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Status</label>
+            <select name="crm_stage">
+              <option value="">All</option>
+              {% for v in filter_options.crm_stage %}<option value="{{ v }}" {{ "selected" if v == selected.crm_stage }}>{{ v | humanize }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Market</label>
+            <select name="market">
+              <option value="">All</option>
+              {% for v in filter_options.market %}<option value="{{ v }}" {{ "selected" if v == selected.market }}>{{ v | humanize }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Work Arrangement</label>
+            <select name="work_arrangement">
+              <option value="">All</option>
+              {% for v in filter_options.work_arrangement %}<option value="{{ v }}" {{ "selected" if v == selected.work_arrangement }}>{{ v | humanize }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Job Family</label>
+            <select name="career_track">
+              <option value="">All</option>
+              {% for v in filter_options.career_track %}<option value="{{ v }}" {{ "selected" if v == selected.career_track }}>{{ v | humanize }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Source</label>
+            <select name="source">
+              <option value="">All</option>
+              {% for v in filter_options.source %}<option value="{{ v }}" {{ "selected" if v == selected.source }}>{{ v }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Min Career Score</label>
+            <input type="number" name="min_score" value="{{ selected.min_score if selected.min_score is not none else '' }}" min="0" max="100" style="padding:7px 10px;border-radius:6px;border:1px solid #d1d5db;width:80px;font-size:13px;">
+          </div>
+          <div class="field">
+            <label>Max Career Score</label>
+            <input type="number" name="max_score" value="{{ selected.max_score if selected.max_score is not none else '' }}" min="0" max="100" style="padding:7px 10px;border-radius:6px;border:1px solid #d1d5db;width:80px;font-size:13px;">
+          </div>
+          <button class="apply" type="submit">Apply Filters</button>
+          <a class="clear" href="/opportunities">Clear</a>
         </div>
-        <div class="field">
-          <label>Priority</label>
-          <select name="intelligence_priority">
-            <option value="">All</option>
-            {% for grade in ["A", "B", "C", "D", "E", "UNSCORED"] %}
-            <option value="{{ grade }}" {{ "selected" if grade == selected.intelligence_priority }}>{{ priority_labels[grade] }} ({{ grade }})</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="field">
-          <label>Status</label>
-          <select name="crm_stage">
-            <option value="">All</option>
-            {% for v in filter_options.crm_stage %}<option value="{{ v }}" {{ "selected" if v == selected.crm_stage }}>{{ v }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="field">
-          <label>Market</label>
-          <select name="market">
-            <option value="">All</option>
-            {% for v in filter_options.market %}<option value="{{ v }}" {{ "selected" if v == selected.market }}>{{ v }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="field">
-          <label>Work Arrangement</label>
-          <select name="work_arrangement">
-            <option value="">All</option>
-            {% for v in filter_options.work_arrangement %}<option value="{{ v }}" {{ "selected" if v == selected.work_arrangement }}>{{ v }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="field">
-          <label>Job Family</label>
-          <select name="career_track">
-            <option value="">All</option>
-            {% for v in filter_options.career_track %}<option value="{{ v }}" {{ "selected" if v == selected.career_track }}>{{ v }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="field">
-          <label>Source</label>
-          <select name="source">
-            <option value="">All</option>
-            {% for v in filter_options.source %}<option value="{{ v }}" {{ "selected" if v == selected.source }}>{{ v }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="field">
-          <label>Min Career Score</label>
-          <input type="number" name="min_score" value="{{ selected.min_score if selected.min_score is not none else '' }}" min="0" max="100" style="padding:6px 8px;border-radius:6px;border:1px solid #d1d5db;width:80px;">
-        </div>
-        <div class="field">
-          <label>Max Career Score</label>
-          <input type="number" name="max_score" value="{{ selected.max_score if selected.max_score is not none else '' }}" min="0" max="100" style="padding:6px 8px;border-radius:6px;border:1px solid #d1d5db;width:80px;">
-        </div>
-        <button class="apply" type="submit">Apply Filters</button>
-        <a class="clear" href="/opportunities">Clear</a>
-      </div>
-    </form>
+      </form>
+    </div>
     <p class="section-hint">{{ result.total }} opportunit{{ "y" if result.total == 1 else "ies" }} match{{ "es" if result.total == 1 else "" }} this filter.</p>
   </div>
 
@@ -94,15 +96,15 @@
       </tr>
       {% for o in result.results %}
       <tr>
-        <td>{% if o.intelligence_priority %}<span class="badge p-{{ o.intelligence_priority }}">{{ o.intelligence_priority }}</span>{% else %}<span class="badge" style="background:#f3f4f6;color:#6b7280;">-</span>{% endif %}</td>
-        <td><strong>{{ o.job_title or "-" }}</strong><br><span style="color:var(--text-muted);font-size:12px;">{{ o.company or "-" }}</span></td>
-        <td>{{ o.market or "-" }}</td>
-        <td>{{ o.work_arrangement or "-" }}</td>
-        <td>{{ o.opportunity_value or "-" }}</td>
-        <td>{{ o.candidate_competitiveness or "-" }}</td>
-        <td>{{ (o.ats_score | round(0) | int) if o.ats_score is not none else "-" }}</td>
-        <td><span class="badge" style="background:{{ {'PASS':'#dcfce7','REVIEW':'#fef3c7','FAIL':'#fee2e2','UNKNOWN':'#f3f4f6'}[o.eligibility_badge] }};color:{{ {'PASS':'#166534','REVIEW':'#92400e','FAIL':'#991b1b','UNKNOWN':'#374151'}[o.eligibility_badge] }};">{{ o.eligibility_badge }}</span></td>
-        <td>{{ o.status_label }}</td>
+        <td class="col-center">{% if o.intelligence_priority %}<span class="badge p-{{ o.intelligence_priority }}">{{ o.intelligence_priority }}</span>{% else %}<span class="badge" style="background:#f3f4f6;color:#6b7280;">-</span>{% endif %}</td>
+        <td><strong>{{ o.job_title or "-" }}</strong><br><span style="color:var(--text-muted);font-size:12.5px;">{{ o.company or "-" }}</span></td>
+        <td>{{ o.market | humanize }}</td>
+        <td>{{ o.work_arrangement | humanize }}</td>
+        <td>{{ o.opportunity_value | humanize }}</td>
+        <td>{{ o.candidate_competitiveness | humanize }}</td>
+        <td class="col-num">{{ (o.ats_score | round(0) | int) if o.ats_score is not none else "-" }}</td>
+        <td class="col-center"><span class="badge" style="background:{{ {'PASS':'#dcfce7','REVIEW':'#fef3c7','FAIL':'#fee2e2','UNKNOWN':'#f3f4f6'}[o.eligibility_badge] }};color:{{ {'PASS':'#166534','REVIEW':'#92400e','FAIL':'#991b1b','UNKNOWN':'#374151'}[o.eligibility_badge] }};">{{ o.eligibility_badge }}</span></td>
+        <td><span class="status-chip">{{ o.status_label }}</span></td>
         <td>{{ (o.discovered_at[:10]) if o.discovered_at else "-" }}</td>
         <td><a href="/opportunity/{{ o.id }}">View &rarr;</a></td>
       </tr>
