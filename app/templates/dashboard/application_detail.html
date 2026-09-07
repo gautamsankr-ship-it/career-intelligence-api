@@ -1,0 +1,272 @@
+{% extends "_shell.html" %}
+{% block title %}{{ detail.opportunity.job_title }} at {{ detail.opportunity.company }} -- Career Intelligence{% endblock %}
+{% block extra_style %}
+  <style>
+    a.back { color: #2563eb; text-decoration: none; font-size: 13px; }
+    h1 { margin: 12px 0 2px; }
+    h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: #374151; margin: 28px 0 10px; }
+    .detail-card { background: white; border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .kv { display: grid; grid-template-columns: 220px 1fr; gap: 6px 12px; font-size: 13px; }
+    .kv dt { color: #6b7280; }
+    .kv dd { margin: 0; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #eef0f2; font-size: 13px; }
+    th { background: #f3f4f6; }
+    .empty { color: #9ca3af; font-size: 13px; padding: 6px 0; }
+    ul.reasons { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
+    .timeline { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+    .timeline li { padding: 8px 0; border-bottom: 1px solid #eef0f2; }
+    .timeline .kind { font-weight: 600; color: #2563eb; }
+    .timeline .at { color: #9ca3af; float: right; }
+
+    .memo-header { background: var(--surface); border-radius: 10px; padding: 22px 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06); border: 1px solid var(--border); margin-bottom: 20px; }
+    .memo-header__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+    .memo-header h1 { margin: 0 0 6px; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
+    .memo-header__meta { font-size: 13.5px; color: var(--text-muted); }
+    .memo-header__meta strong { color: var(--text); font-weight: 600; }
+    .memo-header__facts { margin-top: 16px; padding-top: 14px; border-top: 1px solid #eef0f2; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+    .memo-header__recommendation { font-weight: 700; padding: 5px 12px; border-radius: 6px; background: #eff6ff; color: var(--primary-dark); }
+    .open-job-btn { display: inline-block; padding: 9px 18px; background: var(--primary); color: #fff; border-radius: 6px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+    .open-job-btn:hover { background: var(--primary-dark); text-decoration: none; }
+
+    .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+    .metric-card { background: var(--surface); border-radius: 10px; padding: 16px; border: 1px solid var(--border); }
+    .metric-card .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; }
+    .metric-card .value { font-size: 18px; font-weight: 700; margin-top: 6px; }
+
+    .reason-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 6px 16px; height: 100%; }
+    .reason-list { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+    .reason-list li { padding: 8px 0; border-bottom: 1px solid #eef0f2; }
+    .reason-list li:last-child { border-bottom: none; }
+    .reason-list.pursue li:before { content: "+ "; color: var(--success); font-weight: 700; }
+    .reason-list.risk li:before { content: "! "; color: var(--warning); font-weight: 700; }
+
+    .decision-card { background: #f8fafc; border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: 10px; padding: 16px; }
+    .decision-buttons { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    .decision-btn { display: inline-flex; align-items: center; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; cursor: pointer; }
+    .decision-btn.yes { border-color: #059669; color: #059669; }
+    .decision-btn.maybe { border-color: #d97706; color: #d97706; }
+    .decision-btn.no { border-color: #dc2626; color: #dc2626; }
+
+    .next-action-banner { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 14px 16px; font-size: 14px; color: #1e40af; font-weight: 600; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .next-action-banner a { color: #1e40af; text-decoration: underline; }
+
+    .evidence-note { font-size: 12px; color: var(--text-muted); font-style: italic; margin-top: 8px; }
+
+    details.technical { margin-top: 8px; }
+    details.technical summary { cursor: pointer; font-size: 13px; color: var(--text-muted); padding: 10px 0; }
+  </style>
+{% endblock %}
+{% block content %}
+  <a class="back" href="/applications">&larr; Back to Applications</a>
+
+  <div class="memo-header">
+    <div class="memo-header__top">
+      <div>
+        <h1>{{ detail.opportunity.job_title or "-" }}</h1>
+        <div class="memo-header__meta">
+          <strong>{{ detail.opportunity.company or "-" }}</strong> &middot; {{ detail.opportunity.market | humanize }} &middot; via {{ detail.opportunity.source or "-" }}
+          &middot; <a href="/opportunity/{{ tracker_id }}">View Opportunity</a>
+        </div>
+      </div>
+      {% if detail.opportunity.job_url %}
+      <a class="open-job-btn" href="{{ detail.opportunity.job_url }}" target="_blank" rel="noopener">Open Original Job &rarr;</a>
+      {% endif %}
+    </div>
+    <div class="memo-header__facts">
+      <span>Status: <strong>{{ status_label }}</strong></span>
+      {% if detail.opportunity.intelligence_priority %}<span class="badge p-{{ detail.opportunity.intelligence_priority }}">{{ detail.opportunity.intelligence_priority }}</span>{% endif %}
+      {% if detail.opportunity.applied_at %}<span>Submitted: <strong>{{ detail.opportunity.applied_at[:10] }}</strong></span>{% endif %}
+      {% if employer_feedback %}<span>Latest outcome: <strong>{{ employer_feedback[-1].classification_label }}</strong></span>{% endif %}
+    </div>
+  </div>
+
+  <div class="next-action-banner">
+    <span>Next Action: {{ next_action.text }}</span>
+    {% if next_action.link %}<a href="{{ next_action.link }}">Go to Action Required &rarr;</a>{% endif %}
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Why We Applied</h2>
+    <p class="section-hint">Reflects the intelligence engine's CURRENT assessment for this opportunity -- a separate point-in-time submission snapshot is not stored, so this is not necessarily the exact figure at the moment of application.</p>
+    <div class="metric-grid">
+      <div class="metric-card"><div class="label">Opportunity Value</div><div class="value">{{ detail.opportunity.opportunity_value | humanize if detail.opportunity.opportunity_value else "Not Evaluated" }}</div></div>
+      <div class="metric-card"><div class="label">Candidate Competitiveness</div><div class="value">{{ detail.opportunity.candidate_competitiveness | humanize if detail.opportunity.candidate_competitiveness else "Not Evaluated" }}</div></div>
+      <div class="metric-card"><div class="label">Application Alignment (ATS)</div><div class="value">{% if detail.opportunity.ats_score is not none %}{{ detail.opportunity.ats_score | round(0) | int }}/100{% else %}Not Evaluated{% endif %}</div></div>
+      <div class="metric-card"><div class="label">Application Priority</div><div class="value">{{ detail.opportunity.intelligence_priority or "Unscored" }}</div></div>
+    </div>
+    <div class="two-col-grid" style="margin-top:16px;">
+      <div>
+        <h2 class="section-title">Positive Reasons</h2>
+        <div class="reason-card">
+        {% if why_pursue %}<ul class="reason-list pursue">{% for r in why_pursue %}<li>{{ r }}</li>{% endfor %}</ul>
+        {% else %}<div class="empty">No positive evidence recorded.</div>{% endif %}
+        </div>
+      </div>
+      <div>
+        <h2 class="section-title">Risks / Uncertainties</h2>
+        <div class="reason-card">
+        {% if risks %}<ul class="reason-list risk">{% for r in risks %}<li>{{ r }}</li>{% endfor %}</ul>
+        {% else %}<div class="empty">No risks flagged.</div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Submitted Documents</h2>
+    <div class="detail-card">
+      {% if documents %}
+      <table>
+        <tr><th>Type</th><th>File</th><th>Status</th><th>Date</th><th>Version</th><th></th></tr>
+        {% for d in documents %}
+        <tr>
+          <td>{{ d.type }}</td>
+          <td>{{ d.filename }}</td>
+          <td>{{ d.status }}</td>
+          <td>{{ d.date[:10] if d.date else "-" }}</td>
+          <td><code>{{ d.version or "-" }}</code></td>
+          <td>{% if d.downloadable %}<a href="/application/{{ tracker_id }}/document/{{ d.download_key }}">Open &rarr;</a>{% else %}<span class="empty">File not available</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}<div class="empty">No application package/documents recorded for this opportunity.</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Screening Answers</h2>
+    <div class="detail-card">
+      {% if screening_answers.has_package_evidence %}
+      <p style="font-size:13px;margin:0 0 10px;">Field-resolution categories recorded when this application's package was generated:</p>
+      <ul class="reasons">
+        {% for category, count in screening_answers.answer_counts.items() %}
+        <li>{{ count }} field{{ "s" if count != 1 else "" }} -- {{ category | humanize }}</li>
+        {% endfor %}
+      </ul>
+      <p class="evidence-note">Exact question and answer text was not captured per-application; only these aggregate resolution categories are recorded historically. This section is audit-critical -- nothing below is fabricated from current profile data.</p>
+      {% else %}
+      <div class="empty">No application package evidence recorded for this opportunity.</div>
+      {% endif %}
+
+      {% if screening_answers.historical_notes %}
+      <h2 style="margin-top:20px;">Historical Submission Evidence</h2>
+      <p style="font-size:13px;background:#f9fafb;border-radius:8px;padding:10px 12px;">{{ screening_answers.historical_notes }}</p>
+      {% endif %}
+
+      <h2 style="margin-top:20px;">Current Answer Vault Reference</h2>
+      <p class="section-hint">Today's standing approved answer -- NOT verified as the literal historical submission text for this specific application unless confirmed above.</p>
+      {% if screening_answers.qualification_reference %}
+      <table>
+        <tr><th>Question</th><th>Current Answer</th><th>Source</th><th>Status</th></tr>
+        {% for row in screening_answers.qualification_reference %}
+        <tr><td>{{ row.question }}</td><td><strong>{{ row.value }}</strong></td><td>{{ row.source_label }}</td><td>{{ row.status | humanize }}</td></tr>
+        {% endfor %}
+      </table>
+      {% else %}<div class="empty">Not recorded.</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Employer Feedback</h2>
+    <div class="detail-card">
+      {% if employer_feedback %}
+      <table>
+        <tr><th>Classification</th><th>Date</th><th>Summary</th></tr>
+        {% for r in employer_feedback %}
+        <tr>
+          <td>{{ r.classification_label }}{% if not r.is_meaningful %} <span class="status-chip">Automated</span>{% endif %}</td>
+          <td>{{ r.received_at[:10] if r.received_at else "-" }}</td>
+          <td>{{ r.summary or "-" }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}<div class="empty">No employer response recorded yet.</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Human Feedback</h2>
+    <div class="decision-card">
+      {% if latest_feedback %}
+      <p style="font-size:13px;margin:0 0 12px;">
+        Latest: <strong>{{ latest_feedback.worth_pursuing }}</strong>{% if latest_feedback.interest_change %} -- interest {{ latest_feedback.interest_change | lower }}{% endif %}{% if latest_feedback.note %} ({{ latest_feedback.note }}){% endif %}
+        <span style="color:var(--text-muted);">on {{ latest_feedback.created_at[:16] }}</span>
+      </p>
+      {% else %}
+      <p style="font-size:13px;color:var(--text-muted);margin:0 0 12px;">No feedback recorded yet.</p>
+      {% endif %}
+      <form method="post" action="/application/{{ tracker_id }}/feedback">
+        <p style="font-size:12.5px;font-weight:600;margin:0 0 6px;">Was this opportunity worth pursuing?</p>
+        <div class="decision-buttons">
+          <label class="decision-btn yes"><input type="radio" name="worth_pursuing" value="YES" required style="margin-right:6px;">Yes</label>
+          <label class="decision-btn maybe"><input type="radio" name="worth_pursuing" value="MAYBE" style="margin-right:6px;">Maybe</label>
+          <label class="decision-btn no"><input type="radio" name="worth_pursuing" value="NO" style="margin-right:6px;">No</label>
+        </div>
+        <div class="filters">
+          <div class="field">
+            <label>Interest change (optional)</label>
+            <select name="interest_change">
+              <option value="">-- none --</option>
+              {% for opt in interest_change_options %}<option value="{{ opt }}">{{ opt | humanize }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field" style="flex:1;min-width:200px;">
+            <label>Note (optional)</label>
+            <input type="text" name="note" style="padding:6px 8px;border-radius:6px;border:1px solid #d1d5db;width:100%;">
+          </div>
+          <button class="apply" type="submit">Save Feedback</button>
+        </div>
+      </form>
+    </div>
+    <p class="section-hint">This is a post-outcome learning signal for later Analytics -- recorded separately from, and never alters, the intelligence engine's Priority.</p>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Application Timeline</h2>
+    {% if plain_timeline %}
+    <ul class="activity-feed">
+      {% for entry in plain_timeline %}
+      <li><span class="activity-feed__at">{{ entry.occurred_at[:16] if entry.occurred_at else "" }}</span>{{ entry.label }}{% if entry.count > 1 %} ({{ entry.count }} messages){% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty-state">No milestones recorded yet.</div>
+    {% endif %}
+  </div>
+
+  <details class="technical">
+    <summary>Technical Details</summary>
+    <h2>Feedback History ({{ feedback_history | length }})</h2>
+    <div class="detail-card">
+      {% if feedback_history %}
+      <table>
+        <tr><th>Worth Pursuing</th><th>Interest Change</th><th>Note</th><th>Recorded At</th></tr>
+        {% for f in feedback_history %}
+        <tr><td>{{ f.worth_pursuing }}</td><td>{{ f.interest_change or "-" }}</td><td>{{ f.note or "-" }}</td><td>{{ f.created_at[:16] }}</td></tr>
+        {% endfor %}
+      </table>
+      {% else %}<div class="empty">No feedback recorded.</div>{% endif %}
+    </div>
+
+    <h2>Raw Timeline ({{ detail.timeline | length }})</h2>
+    <div class="detail-card">
+      {% if detail.timeline %}
+      <ul class="timeline">
+        {% for entry in detail.timeline %}
+        <li>
+          <span class="at">{{ entry.at[:19] if entry.at else "" }}</span>
+          <span class="kind">{{ entry.kind }}</span>
+          {% if entry.kind == "EVENT" %}
+            -- {{ entry.detail.event_type }}{% if entry.detail.previous_stage or entry.detail.new_stage %} ({{ entry.detail.previous_stage or "?" }} &rarr; {{ entry.detail.new_stage or "?" }}){% endif %}
+            {% if entry.detail.reason %}<br><span style="color:#6b7280">{{ entry.detail.reason }}</span>{% endif %}
+          {% elif entry.kind == "EMPLOYER_RESPONSE" %}
+            -- {{ entry.detail.response_type }}{% if entry.detail.summary %}: {{ entry.detail.summary }}{% endif %} (evidence: {{ entry.detail.evidence_reference or "-" }})
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}<div class="empty">No timeline events recorded.</div>{% endif %}
+    </div>
+  </details>
+{% endblock %}

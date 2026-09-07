@@ -883,3 +883,147 @@ def test_action_required_never_mutates_production_data_on_read(tmp_path):
     service.action_required_counts()
     after = dict(service.get_opportunity(record["id"]))
     assert before == after
+
+
+# --- Web App Phase 4: Applications workspace read model ---------------------
+def _at_stage(service, external_id, stage, **fields):
+    record = _create(service, external_id=external_id, **fields)
+    service.transition_stage(record["id"], stage)
+    return record
+
+
+def test_applications_register_all_tab_scopes_to_workspace_stages_only(tmp_path):
+    """A record still at DISCOVERED/SHORTLISTED (never prepared) must never
+    appear -- the Applications workspace is not the full Opportunities list."""
+    _, service = crm(tmp_path)
+    _create(service, external_id="not-yet-1")  # stays at DISCOVERED
+    prepared = _at_stage(service, "prep-1", "PREPARED")
+
+    result = service.applications_register()
+    ids = {r["id"] for r in result["results"]}
+    assert prepared["id"] in ids
+    assert result["total"] == 1
+
+
+def test_applications_register_tabs_map_to_correct_stages(tmp_path):
+    _, service = crm(tmp_path)
+    preparing = _at_stage(service, "tab-prep", "PREPARED")
+    ready = _at_stage(service, "tab-ready", "READY_FOR_HUMAN_SUBMIT")
+    applied = _create(service, external_id="tab-applied")
+    service.record_submission_confirmation(applied["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    response = _create(service, external_id="tab-response")
+    service.record_submission_confirmation(response["id"], confirmation_evidence="confirmed", submission_reference="s2")
+    service.record_employer_response(response["id"], "ACKNOWLEDGEMENT")
+    interview = _create(service, external_id="tab-interview")
+    service.record_submission_confirmation(interview["id"], confirmation_evidence="confirmed", submission_reference="s3")
+    service.record_interview(interview["id"], "SCREENING")
+    service.transition_stage(interview["id"], "INTERVIEW_1")
+
+    assert {r["id"] for r in service.applications_register(tab="preparing")["results"]} == {preparing["id"]}
+    assert {r["id"] for r in service.applications_register(tab="ready")["results"]} == {ready["id"]}
+    assert {r["id"] for r in service.applications_register(tab="applied")["results"]} == {applied["id"]}
+    assert {r["id"] for r in service.applications_register(tab="response")["results"]} == {response["id"]}
+    assert {r["id"] for r in service.applications_register(tab="interview")["results"]} == {interview["id"]}
+
+
+def test_applications_register_unknown_tab_raises(tmp_path):
+    _, service = crm(tmp_path)
+    with pytest.raises(ValueError):
+        service.applications_register(tab="not_a_real_tab")
+
+
+def test_applications_register_default_order_surfaces_active_response_before_preparation(tmp_path):
+    _, service = crm(tmp_path)
+    preparing = _at_stage(service, "order-prep", "PREPARED")
+    responded = _create(service, external_id="order-resp")
+    service.record_submission_confirmation(responded["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    service.record_employer_response(responded["id"], "RECRUITER_CONTACT")  # -> crm_stage RECRUITER_RESPONSE
+
+    results = service.applications_register()["results"]
+    ids_in_order = [r["id"] for r in results]
+    assert ids_in_order.index(responded["id"]) < ids_in_order.index(preparing["id"])
+
+
+def test_applications_register_paginates(tmp_path):
+    _, service = crm(tmp_path)
+    for i in range(5):
+        _at_stage(service, f"page-{i}", "READY_FOR_HUMAN_SUBMIT")
+    page1 = service.applications_register(page=1, page_size=2)
+    page2 = service.applications_register(page=2, page_size=2)
+    assert page1["total"] == 5
+    assert page1["total_pages"] == 3
+    assert len(page1["results"]) == 2
+    assert {r["id"] for r in page1["results"]}.isdisjoint({r["id"] for r in page2["results"]})
+
+
+def test_latest_employer_response_returns_most_recent(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="latest-resp")
+    service.record_submission_confirmation(record["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    service.record_employer_response(record["id"], "ACKNOWLEDGEMENT")
+    service.record_employer_response(record["id"], "RECRUITER_CONTACT")
+    latest = service.latest_employer_response(record["id"])
+    assert latest["response_type"] == "RECRUITER_CONTACT"
+
+
+def test_latest_employer_response_none_when_no_response_recorded(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="no-resp")
+    assert service.latest_employer_response(record["id"]) is None
+
+
+# --- Web App Phase 4: human feedback (append-only, separate from decisions) -
+def test_record_application_feedback_is_append_only_and_never_touches_priority(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="fb-1")
+    service.update_opportunity(record["id"], intelligence_priority="C")
+    before = service.get_opportunity(record["id"])
+
+    service.record_application_feedback(record["id"], "YES", interest_change="HIGHER", note="Great culture fit")
+    service.record_application_feedback(record["id"], "MAYBE", note="Changed my mind slightly")
+
+    after = service.get_opportunity(record["id"])
+    assert after["intelligence_priority"] == before["intelligence_priority"] == "C"
+    assert after["crm_stage"] == before["crm_stage"]
+
+    history = service.list_application_feedback(record["id"])
+    assert len(history) == 2  # append-only -- never overwritten
+    assert history[0]["worth_pursuing"] == "MAYBE"  # most recent first
+    assert history[1]["worth_pursuing"] == "YES"
+    latest = service.get_latest_application_feedback(record["id"])
+    assert latest["worth_pursuing"] == "MAYBE"
+
+
+def test_record_application_feedback_rejects_unknown_values(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="fb-2")
+    with pytest.raises(ValueError):
+        service.record_application_feedback(record["id"], "DEFINITELY")
+    with pytest.raises(ValueError):
+        service.record_application_feedback(record["id"], "YES", interest_change="MUCH_HIGHER")
+
+
+def test_get_latest_application_feedback_none_when_not_recorded(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="fb-3")
+    assert service.get_latest_application_feedback(record["id"]) is None
+
+
+def test_application_feedback_is_auditable_via_opportunity_events(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="fb-4")
+    service.record_application_feedback(record["id"], "NO", note="Not a fit after all")
+    events = [e["detail"] for e in service.get_timeline(record["id"]) if e["kind"] == "EVENT" and e["detail"]["event_type"] == "APPLICATION_FEEDBACK_RECORDED"]
+    assert len(events) == 1
+    assert events[0]["reason"] == "NO"
+
+
+def test_application_feedback_is_distinct_from_user_decisions(tmp_path):
+    """Two genuinely separate append-only structures -- recording one never
+    creates or affects a row in the other."""
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="fb-5")
+    service.record_application_feedback(record["id"], "YES")
+    assert service.list_user_decisions(record["id"]) == []
+    service.record_user_decision(record["id"], "APPLY")
+    assert len(service.list_application_feedback(record["id"])) == 1  # unaffected by the decision write

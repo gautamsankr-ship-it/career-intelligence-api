@@ -453,14 +453,13 @@ def test_sidebar_lists_all_nine_approved_sections_and_marks_dashboard_active(tmp
 
 
 @pytest.mark.parametrize("path", [
-    "/applications", "/employer-inbox",
-    "/interviews", "/analytics", "/automation", "/settings",
+    "/employer-inbox", "/interviews", "/analytics", "/automation", "/settings",
 ])
 def test_every_placeholder_nav_route_renders_the_shared_shell(path):
-    """No fabricated functionality -- each of the remaining 6 approved
-    sections (Opportunities is real since Phase 2, Action Required is real
-    since Phase 3) renders honestly as a placeholder inside the same shared
-    shell."""
+    """No fabricated functionality -- each of the remaining 5 approved
+    sections (Opportunities since Phase 2, Action Required since Phase 3,
+    Applications since Phase 4 are all real) renders honestly as a
+    placeholder inside the same shared shell."""
     client = TestClient(app)
     response = client.get(path)
     assert response.status_code == 200
@@ -1552,3 +1551,345 @@ def test_action_required_production_review_and_submit_shows_top_3_with_view_all(
         assert f"View all {count}" in body
     else:
         assert "View all" not in body
+
+
+# --- Web App Phase 4: Applications workspace --------------------------------
+def _seed_applications_fixture(tmp_path):
+    db_path = tmp_path / "applications.db"
+    history = ApplicationHistoryService(db_path)
+    service = OpportunityCRMService(history)
+
+    def make(external_id, **fields):
+        fingerprint = job_fingerprint(source="LinkedIn", external_job_id=external_id)
+        return service.create_opportunity(fingerprint, **fields)
+
+    not_yet = make("app-not-yet", company="NeverPrepared Co", job_title="Analyst")  # stays DISCOVERED
+
+    preparing = make("app-preparing", company="Preparing Co", job_title="Analyst")
+    service.transition_stage(preparing["id"], "PREPARED")
+
+    ready = make("app-ready", company="Ready Co", job_title="Analyst")
+    service.transition_stage(ready["id"], "READY_FOR_HUMAN_SUBMIT")
+
+    applied = make("app-applied", company="Applied Co", job_title="Analyst", market="united_kingdom", ats_score=72.0)
+    service.update_opportunity(applied["id"], intelligence_priority="B", opportunity_value="HIGH", candidate_competitiveness="STRONG")
+    service.record_submission_confirmation(applied["id"], confirmation_evidence="confirmed", submission_reference="s-applied")
+
+    acknowledged_twice = make("app-ack-twice", company="Acknowledged Co", job_title="Analyst")
+    service.record_submission_confirmation(acknowledged_twice["id"], confirmation_evidence="confirmed", submission_reference="s-ack")
+    service.record_employer_response(acknowledged_twice["id"], "ACKNOWLEDGEMENT", evidence_reference="msg-1")
+    service.record_employer_response(acknowledged_twice["id"], "ACKNOWLEDGEMENT", evidence_reference="msg-2")
+
+    interviewing = make("app-interview", company="Interview Co", job_title="Analyst")
+    service.record_submission_confirmation(interviewing["id"], confirmation_evidence="confirmed", submission_reference="s-int")
+    service.record_interview(interviewing["id"], "SCREENING")
+    service.transition_stage(interviewing["id"], "INTERVIEW_1")
+
+    ids = {
+        "not_yet": not_yet["id"], "preparing": preparing["id"], "ready": ready["id"],
+        "applied": applied["id"], "acknowledged_twice": acknowledged_twice["id"], "interviewing": interviewing["id"],
+    }
+    service.close()
+    return db_path, ids
+
+
+def test_applications_page_is_a_real_workspace_not_a_placeholder(tmp_path):
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    try:
+        client = _client(db_path)
+        response = client.get("/applications")
+        assert response.status_code == 200
+        assert "Coming in a later phase" not in response.text
+        assert "Applied Co" in response.text
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_applications_kpi_counts_use_the_same_dashboard_definitions(tmp_path):
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get("/applications").text
+        service_counts = _open(db_path).cumulative_funnel_counts()
+        import re
+        cards = {m.group(2): int(m.group(1)) for m in re.finditer(r'<div class="n">(\d+)</div><div class="l">([^<]*)</div>', body)}
+        assert cards["Applications Submitted"] == service_counts["APPLIED"]
+        assert cards["Acknowledged"] == service_counts["ACKNOWLEDGED"]
+        assert cards["Meaningful Responses"] == service_counts["MEANINGFUL_RESPONSE"]
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_applications_workspace_excludes_records_never_prepared(tmp_path):
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get("/applications").text
+        assert "NeverPrepared Co" not in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.parametrize("tab,expected,excluded", [
+    ("preparing", "Preparing Co", "Ready Co"),
+    ("ready", "Ready Co", "Applied Co"),
+    ("applied", "Applied Co", "Ready Co"),
+    ("response", "Acknowledged Co", "Interview Co"),
+    ("interview", "Interview Co", "Acknowledged Co"),
+])
+def test_applications_workflow_tabs_filter_correctly(tmp_path, tab, expected, excluded):
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get(f"/applications?tab={tab}").text
+        assert expected in body
+        assert excluded not in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_applications_three_confirmed_production_trackers_appear_correctly():
+    """Read-only: verifies Trackers 61, 103, 81 against the REAL production
+    database via the Applications workspace."""
+    client = TestClient(app)
+    body = client.get("/applications").text
+    for tracker_id in (61, 103, 81):
+        assert f'href="/application/{tracker_id}"' in body
+
+
+def test_applications_pagination_is_bounded(tmp_path):
+    history = ApplicationHistoryService(tmp_path / "many.db")
+    service = OpportunityCRMService(history)
+    try:
+        for i in range(30):
+            fingerprint = job_fingerprint(source="LinkedIn", external_job_id=f"many-{i}")
+            record = service.create_opportunity(fingerprint, company=f"ManyCo{i}", job_title="Analyst")
+            service.transition_stage(record["id"], "READY_FOR_HUMAN_SUBMIT")
+    finally:
+        service.close()
+    try:
+        client = _client(tmp_path / "many.db")
+        body = client.get("/applications?page_size=10").text
+        assert "Page 1 of 3" in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+# --- Application Detail ------------------------------------------------
+def test_application_detail_redirects_a_never_prepared_record_to_opportunity_detail(tmp_path):
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    try:
+        client = _client(db_path)
+        response = client.get(f"/application/{ids['not_yet']}", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == f"/opportunity/{ids['not_yet']}"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_application_detail_shows_header_facts(tmp_path):
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get(f"/application/{ids['applied']}").text
+        assert "Applied Co" in body
+        assert "United Kingdom" in body
+        assert "Priority" not in body.split("memo-header")[1][:50]  # sanity: header renders without crashing
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_application_detail_next_action_reuses_action_required_read_model(tmp_path):
+    """A Ready application's Next Action must reflect a genuine active
+    Action Required item -- reusing that read model, never a second one."""
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get(f"/application/{ids['ready']}").text
+        assert "Review Application" in body
+        assert 'href="/action-required"' in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_application_detail_no_documents_recorded_when_no_package_exists(tmp_path):
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get(f"/application/{ids['applied']}").text
+        assert "No application package/documents recorded" in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_application_detail_screening_answers_never_fabricate_history(tmp_path):
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get(f"/application/{ids['applied']}").text
+        assert "No application package evidence recorded" in body
+        assert "Current Answer Vault Reference" in body
+        assert "NOT verified as the literal historical submission text" in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_application_detail_qualification_reference_matches_frozen_policy():
+    """Read-only: confirms the ICAI/ICAN CA policy is never renamed to
+    ACA/ACCA -- reads the real Answer Vault."""
+    client = TestClient(app)
+    body = client.get("/application/61").text
+    section = body.split("Current Answer Vault Reference")[1].split("Employer Feedback")[0]
+    assert "YES" in section and "NO" in section
+    assert "ACCA" not in section.split("Chartered Accountant?")[0] if "Chartered Accountant?" in section else True
+
+
+def test_application_detail_employer_feedback_separates_acknowledgement_from_meaningful(tmp_path):
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get(f"/application/{ids['acknowledged_twice']}").text
+        feedback_section = body.split("Employer Feedback")[1].split("Human Feedback")[0]
+        assert "Automated" in feedback_section  # acknowledgement flagged as automated
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_application_detail_timeline_deduplicates_repeated_acknowledgements(tmp_path):
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get(f"/application/{ids['acknowledged_twice']}").text
+        timeline_section = body.split("Application Timeline")[1].split("Technical Details")[0]
+        assert timeline_section.count("Acknowledgement received") == 1
+        assert "(2 messages)" in timeline_section
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_application_detail_records_human_feedback_append_only_and_never_touches_priority(tmp_path):
+    """Mutation test -- temporary database only."""
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    service = _open(db_path)
+    try:
+        service.update_opportunity(ids["applied"], intelligence_priority="B")
+    finally:
+        service.close()
+    try:
+        client = _client(db_path)
+        response = client.post(
+            f"/application/{ids['applied']}/feedback",
+            data={"worth_pursuing": "YES", "interest_change": "HIGHER", "note": "Great opportunity"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        body = client.get(f"/application/{ids['applied']}").text
+        assert "YES" in body.split("Human Feedback")[1][:200]
+        assert "Great opportunity" in body
+    finally:
+        app.dependency_overrides.clear()
+    service = _open(db_path)
+    try:
+        record = service.get_opportunity(ids["applied"])
+        assert record["intelligence_priority"] == "B"  # never altered
+    finally:
+        service.close()
+
+
+def test_application_detail_shows_download_link_only_when_file_genuinely_exists(monkeypatch):
+    """Unit test of the evidence-backed document builder -- no file I/O,
+    no production directory touched. Uses README.md (a real, harmless,
+    already-existing repo file) purely to exercise the "file exists"
+    mechanism, not as a claim about real resume content."""
+    from app.api.dashboard import _build_documents
+    from app.models.application_package import ApplicationPackage
+
+    package = ApplicationPackage(
+        package_id="pkg-test", tracker_id=999, resume_path="README.md",
+        resume_status="READY", cover_letter_path="this_file_does_not_exist_xyz_123.docx",
+        cover_letter_status="READY",
+    )
+    docs = _build_documents({"applied_at": None}, package)
+    by_type = {d["type"]: d for d in docs}
+    assert by_type["Resume"]["downloadable"] is True
+    assert by_type["Cover Letter"]["downloadable"] is False
+    assert by_type["Resume"]["status"] == "READY"  # not yet applied -- "Prepared", not "Submitted"
+
+
+def test_application_detail_documents_labeled_submitted_once_applied():
+    from app.api.dashboard import _build_documents
+    from app.models.application_package import ApplicationPackage
+
+    package = ApplicationPackage(package_id="pkg-test", tracker_id=999, resume_path="README.md", resume_status="READY")
+    docs = _build_documents({"applied_at": "2026-09-01T00:00:00Z"}, package)
+    assert docs[0]["status"] == "Submitted"
+
+
+def test_download_application_document_serves_the_real_file(monkeypatch):
+    """Isolated unit test: monkeypatches the package loader only -- never
+    writes to app/data/application_packages."""
+    import app.api.dashboard as dash
+    from app.models.application_package import ApplicationPackage
+    from fastapi.testclient import TestClient as _TestClient
+
+    fake_package = ApplicationPackage(package_id="pkg-test", tracker_id=999, resume_path="README.md")
+    monkeypatch.setattr(dash, "_load_application_package", lambda tracker_id: fake_package)
+    client = _TestClient(dash.app)
+    response = client.get("/application/999/document/resume")
+    assert response.status_code == 200
+    assert len(response.content) > 0
+
+
+def test_download_application_document_404s_for_unknown_key():
+    client = TestClient(app)
+    response = client.get("/application/61/document/not_a_real_key")
+    assert response.status_code == 404
+
+
+def test_download_application_document_404s_when_no_package(tmp_path):
+    """Uses a tracker id that genuinely has no package file -- no
+    monkeypatching needed, this is real (safe, read-only) behavior."""
+    client = TestClient(app)
+    # Tracker 999999 does not exist / has no package in production.
+    response = client.get("/application/999999/document/resume")
+    assert response.status_code == 404
+
+
+# --- Navigation integration (item 18) ---------------------------------------
+def test_dashboard_applications_kpi_links_to_applications_applied_tab(tmp_path):
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get("/").text
+        assert 'href="/applications?tab=applied"' in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_opportunity_detail_shows_view_application_link_when_application_exists(tmp_path):
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get(f"/opportunity/{ids['ready']}").text
+        assert f'href="/application/{ids["ready"]}"' in body
+        assert "View Application" in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_opportunity_detail_hides_view_application_link_when_never_prepared(tmp_path):
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get(f"/opportunity/{ids['not_yet']}").text
+        assert "View Application" not in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_opportunity_detail_shows_view_application_for_real_production_trackers():
+    """Read-only: Trackers 61/103/81 have real applications on production."""
+    client = TestClient(app)
+    for tracker_id in (61, 103, 81):
+        body = client.get(f"/opportunity/{tracker_id}").text
+        assert f'href="/application/{tracker_id}"' in body

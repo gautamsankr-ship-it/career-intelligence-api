@@ -11,12 +11,17 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from app.models.application_package import ApplicationPackage
+from app.services.application_answer_vault import ApplicationAnswerVault
 from app.services.application_eligibility_policy import intelligence_priority_gate
+from app.services.application_package_orchestrator import PACKAGE_DIR
 from app.services.opportunity_crm_service import OpportunityCRMService
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 app = FastAPI(title="Career Intelligence CRM Dashboard")
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates" / "dashboard"))
@@ -161,10 +166,12 @@ _ACTION_CATEGORY_PRIMARY_ACTION = {
     "EMPLOYER_ACTION": "Review Message",
 }
 _EMPLOYER_RESPONSE_PLAIN = {
+    "ACKNOWLEDGEMENT": "Acknowledgement (automated)",
     "RECRUITER_CONTACT": "Recruiter reached out",
     "SCREENING_REQUEST": "Screening call requested",
     "INTERVIEW_INVITATION": "Interview invitation received",
     "ASSESSMENT_REQUEST": "Assessment requested",
+    "REJECTION": "Rejection",
     "OFFER": "Offer received",
     "UNKNOWN": "Employer sent a message that needs your review",
 }
@@ -214,16 +221,21 @@ def _action_plain_reason(item: dict) -> str:
     """Translate one action item's raw stored reason into plain business
     language. Reuses OpportunityCRMService's OWN blocker-type vocabulary
     for BLOCKER-sourced items (never a second, divergent translation table)
-    and a small, Phase-3-specific mapping for employer responses."""
+    and a small, Phase-3-specific mapping for employer responses. Phase 3.1
+    housekeeping (item 17): any leading internal reason code (e.g.
+    "DIRECT_APPLICATION_ROUTE_NOT_VERIFIED: ...") is humanized here too --
+    presentation only, never touching the stored reason or classification."""
     if item["source"] == "BLOCKER" and item.get("blocker_type"):
         label = OpportunityCRMService._BLOCKER_PLAIN_LANGUAGE.get(item["blocker_type"])
         if label:
-            return f"{label}: {item['reason']}" if item.get("reason") and item["reason"] != item["blocker_type"] else label
+            reason = f"{label}: {item['reason']}" if item.get("reason") and item["reason"] != item["blocker_type"] else label
+            return _humanize_action_reason_prefix(reason)
     if item["source"] == "EMPLOYER_RESPONSE":
         label = _EMPLOYER_RESPONSE_PLAIN.get(item.get("response_type"), "Employer message received")
         detail = item.get("reason") or ""
-        return f"{label}: {detail}" if detail and detail != item.get("response_type") else label
-    return item.get("reason") or ""
+        reason = f"{label}: {detail}" if detail and detail != item.get("response_type") else label
+        return _humanize_action_reason_prefix(reason)
+    return _humanize_action_reason_prefix(item.get("reason") or "")
 
 
 def _decorate_action_item(item: dict) -> dict:
@@ -298,11 +310,6 @@ def _dashboard_attention_items(service: OpportunityCRMService, *, priority: str 
 # the shared shell with a short, honest "coming later" message -- no
 # fabricated functionality.
 _PLACEHOLDER_PAGES = {
-    "/applications": (
-        "applications", "Applications",
-        "A dedicated Applications tracker is coming in a later phase. "
-        "For now, see Applications Submitted and Application Performance on the Dashboard.",
-    ),
     "/employer-inbox": (
         "employer_inbox", "Employer Inbox",
         "A dedicated Employer Inbox is coming in a later phase. Employer/recruiter "
@@ -417,6 +424,10 @@ def _describe_timeline_entry(entry: dict) -> str | None:
     if event.get("event_type") == "USER_DECISION_RECORDED":
         reason = (event.get("reason") or "").title()
         return f"Decision recorded: {reason}" if reason else "Decision recorded"
+    if event.get("event_type") == "APPLICATION_FEEDBACK_RECORDED":
+        return None  # shown in its own Human Feedback section, not the milestone timeline
+    if event.get("event_type") == "EMPLOYER_ACTION_REVIEWED":
+        return None  # an internal review marker, not a business milestone
     return _describe_activity_event(event)
 
 
@@ -595,6 +606,10 @@ def opportunity_detail(request: Request, tracker_id: int, service: OpportunityCR
             "decision_reason_labels": _DECISION_REASON_LABELS,
             "plain_timeline": plain_timeline,
             "own_actions": own_actions,
+            # Web App Phase 4: a minimal cross-link, no redesign -- shown
+            # only once the opportunity genuinely reached the Applications
+            # workspace's own scope (package prepared or later).
+            "has_application": record.get("crm_stage") in OpportunityCRMService.APPLICATION_WORKSPACE_STAGES or bool(record.get("applied_at")),
         },
     )
 
@@ -716,6 +731,302 @@ def review_employer_action(
     except ValueError:
         pass
     return RedirectResponse(url="/action-required", status_code=303)
+
+
+# -- Web App Phase 4: Applications workspace ("digital working-paper file")-
+_QUALIFICATION_VAULT_QUESTIONS = {
+    "ACCOUNTING_QUALIFICATION": "Are you a Chartered Accountant?",
+    "ACCOUNTING_QUALIFICATION_ACA_ACCA": "Are you ACA or ACCA specifically?",
+    "ACCOUNTING_QUALIFICATION_OR_EQUIVALENT": "Do you hold an equivalent accounting qualification?",
+}
+_ANSWER_SOURCE_LABELS = {
+    "PROFILE_FACT": "Candidate Fact", "USER_APPROVED_ANSWER": "Human Answer",
+    "APPROVED_RULE": "Answer Vault Rule", "MANUAL_REQUIRED": "Human review required",
+}
+_APPLICATION_NEXT_ACTION_BY_STAGE = {
+    "PREPARED": "Complete application preparation.",
+    "READY_FOR_REVIEW": "Complete application preparation.",
+    "READY_FOR_HUMAN_SUBMIT": "Review & Submit.",
+    "APPLIED": "Await employer response.",
+    "ACKNOWLEDGED": "Await further employer response.",
+    "REJECTED": "Application rejected -- review outcome.",
+    "DECLINED_OFFER": "Offer declined -- review outcome.",
+    "ACCEPTED": "Offer accepted -- prepare for onboarding.",
+    "HIRED": "Hired.",
+}
+# Phase 3.1 housekeeping (item 17): a real production Action Required
+# outlier reason surfaces this raw internal code verbatim -- humanized here,
+# presentation-only, never touching the stored reason/blocker logic itself.
+_ACTION_REASON_HUMANIZE_PREFIXES = {
+    "DIRECT_APPLICATION_ROUTE_NOT_VERIFIED": "No independently verified application route could be established for this vacancy",
+}
+
+
+def _humanize_action_reason_prefix(reason: str) -> str:
+    """Presentation-only: if a raw reason string begins with a known
+    internal code (e.g. "DIRECT_APPLICATION_ROUTE_NOT_VERIFIED: ..."),
+    replace just that leading code with plain business language, keeping
+    the rest of the real evidence text intact. Never changes the stored
+    value or Action Required's own classification logic."""
+    for code, plain in _ACTION_REASON_HUMANIZE_PREFIXES.items():
+        if reason.startswith(code):
+            rest = reason[len(code):].lstrip(": ")
+            return f"{plain}. {rest}" if rest else plain
+    return reason
+
+
+def _load_application_package(tracker_id: int) -> ApplicationPackage | None:
+    """Reads the SAME package JSON file `ApplicationPackageOrchestrator`
+    already produces/owns (reusing its model and directory constant) --
+    read-only, and deliberately avoids constructing the full orchestrator
+    (which eagerly builds an ApplicationService/OpenAI client this
+    read-only page never needs)."""
+    path = Path(PACKAGE_DIR) / f"tracker-{tracker_id}.json"
+    if not path.exists():
+        return None
+    try:
+        return ApplicationPackage.from_dict(json.loads(path.read_text(encoding="utf-8")))
+    except (json.JSONDecodeError, TypeError, KeyError):
+        return None
+
+
+def _qualification_vault_reference() -> list[dict]:
+    """Current Answer Vault entries for the frozen accounting-qualification
+    policy -- explicitly the CURRENT standing answer, never presented as
+    verified historical submission text for one specific application (see
+    `_build_screening_answers`'s notes-based historical evidence for that
+    distinction)."""
+    vault = ApplicationAnswerVault()
+    rows = []
+    for concept, question in _QUALIFICATION_VAULT_QUESTIONS.items():
+        answer = vault.get_answer(concept)
+        if not answer:
+            continue
+        rows.append({
+            "question": question, "value": answer.value,
+            "source_label": _ANSWER_SOURCE_LABELS.get(answer.answer_source, answer.answer_source),
+            "status": answer.status, "evidence_reference": answer.evidence_reference,
+        })
+    return rows
+
+
+def _build_documents(record: dict, package: ApplicationPackage | None) -> list[dict]:
+    """Submitted/prepared documents, evidence-backed only -- a document is
+    only offered for download when the actual local file still exists
+    (never a broken/fabricated link), and is only labeled "Submitted"
+    (rather than "Prepared") once the opportunity's own applied_at
+    confirms a real submission occurred."""
+    if not package:
+        return []
+    submitted = bool(record.get("applied_at"))
+
+    def _entry(doc_type: str, raw_path: str, status: str, date: str, version_seed: str) -> dict | None:
+        if not raw_path:
+            return None
+        resolved = (PROJECT_ROOT / raw_path).resolve()
+        exists = resolved.is_file() and PROJECT_ROOT.resolve() in resolved.parents
+        return {
+            "type": doc_type, "filename": Path(raw_path).name,
+            "status": "Submitted" if submitted else status, "date": date,
+            "version": (version_seed or "")[:12], "downloadable": exists,
+            "download_key": doc_type.lower().replace(" ", "_"),
+        }
+
+    docs = []
+    # PDF preferred as the submitted artifact where it exists (item 7).
+    resume = _entry("Resume (PDF)", package.resume_pdf_path, package.resume_status, package.resume_generated_at, package.resume_vacancy_identity) \
+        or _entry("Resume", package.resume_path, package.resume_status, package.resume_generated_at, package.resume_vacancy_identity)
+    if resume:
+        docs.append(resume)
+    cover_letter = _entry("Cover Letter", package.cover_letter_path, package.cover_letter_status, package.updated_at, package.vacancy_identity)
+    if cover_letter:
+        docs.append(cover_letter)
+    return docs
+
+
+_DOCUMENT_DOWNLOAD_FIELDS = {
+    "resume_(pdf)": "resume_pdf_path", "resume": "resume_path", "cover_letter": "cover_letter_path",
+}
+
+
+def _build_screening_answers(record: dict, package: ApplicationPackage | None) -> dict:
+    """Audit-critical (item 9): shows only what is genuinely evidenced.
+    `answer_counts`/`manual_answer_count` are real, package-level evidence
+    (the actual field-resolution categories recorded when this specific
+    package was generated). Historical notes (when present) are the
+    tracker's own recorded evidence of what was actually approved/submitted
+    -- e.g. Tracker 81's notes literally confirm "ACA-ACCA=No" was the
+    approved answer for that application. The qualification vault reference
+    is ALWAYS labeled as the CURRENT standing answer, never claimed as the
+    verified historical submission text unless the notes field says so."""
+    return {
+        "answer_counts": dict(package.answer_counts) if package else {},
+        "manual_answer_count": package.manual_answer_count if package else None,
+        "has_package_evidence": package is not None,
+        "historical_notes": record.get("notes") or "",
+        "qualification_reference": _qualification_vault_reference(),
+    }
+
+
+def _next_action(tracker_id: int, record: dict, service: OpportunityCRMService) -> dict:
+    """Reuses the SAME Action Required read model (item 14) -- never a
+    second blocker/action classification. An active, concrete Action
+    Required item for this tracker always takes precedence over the
+    generic per-stage fallback text."""
+    own_actions = [item for item in service.action_required_items() if item["tracker_id"] == tracker_id]
+    if own_actions:
+        decorated = _decorate_action_item(own_actions[0])
+        return {"text": decorated["primary_action"], "link": "/action-required", "urgency": decorated["urgency"]}
+    text = _APPLICATION_NEXT_ACTION_BY_STAGE.get(record.get("crm_stage"), "No further action currently recorded.")
+    return {"text": text, "link": None, "urgency": None}
+
+
+@app.get("/applications", response_class=HTMLResponse)
+def applications(
+    request: Request,
+    tab: str = "",
+    page: int = 1,
+    page_size: int = 25,
+    service: OpportunityCRMService = Depends(get_crm_service),
+):
+    page = max(page, 1)
+    page_size = min(max(page_size, 10), 100)
+    try:
+        result = service.applications_register(tab=tab, page=page, page_size=page_size)
+    except ValueError:
+        tab = ""
+        result = service.applications_register(page=page, page_size=page_size)
+
+    # Same accepted Dashboard definitions, reused verbatim (item 2).
+    cumulative = service.cumulative_funnel_counts()
+    ready_for_submit = service.action_required_counts()["REVIEW_AND_SUBMIT"]
+
+    own_actions_by_tracker: dict[int, dict] = {}
+    for item in service.action_required_items():
+        own_actions_by_tracker.setdefault(item["tracker_id"], _decorate_action_item(item))
+
+    for row in result["results"]:
+        tracker_id = row["id"]
+        row["status_label"] = _STAGE_TO_GROUP_LABEL.get(row.get("crm_stage"), row.get("crm_stage") or "Unknown")
+        latest_response = service.latest_employer_response(tracker_id)
+        row["latest_outcome"] = _EMPLOYER_RESPONSE_PLAIN.get(latest_response["response_type"], latest_response["response_type"]) if latest_response else "None yet"
+        active_action = own_actions_by_tracker.get(tracker_id)
+        if active_action:
+            row["next_action"] = active_action["primary_action"]
+            row["next_action_link"] = "/action-required"
+        else:
+            row["next_action"] = _APPLICATION_NEXT_ACTION_BY_STAGE.get(row.get("crm_stage"), "-")
+            row["next_action_link"] = None
+
+    return templates.TemplateResponse(
+        request,
+        "applications.html",
+        {
+            "active_nav": "applications",
+            "wide_content": True,
+            "cumulative": cumulative,
+            "ready_for_submit": ready_for_submit,
+            "result": result,
+            "tab": tab,
+            "page_size": page_size,
+        },
+    )
+
+
+@app.get("/application/{tracker_id}", response_class=HTMLResponse)
+def application_detail(request: Request, tracker_id: int, service: OpportunityCRMService = Depends(get_crm_service)):
+    detail = service.get_opportunity_detail(tracker_id)
+    if detail is None:
+        return templates.TemplateResponse(
+            request, "not_found.html", {"tracker_id": tracker_id, "active_nav": "applications"}, status_code=404,
+        )
+    record = detail["opportunity"]
+    # This working-paper view is only meaningful once an opportunity
+    # genuinely reached package preparation or later -- never fabricate an
+    # empty application file for something still just discovered/scored.
+    if record.get("crm_stage") not in OpportunityCRMService.APPLICATION_WORKSPACE_STAGES and not record.get("applied_at"):
+        return RedirectResponse(url=f"/opportunity/{tracker_id}", status_code=303)
+
+    record["intelligence_priority_reasons_list"] = _safe_json_list(record.get("intelligence_priority_reasons"))
+    package = _load_application_package(tracker_id)
+
+    plain_entries = []
+    for entry in detail["timeline"]:
+        label = _describe_timeline_entry(entry)
+        if label:
+            plain_entries.append({"tracker_id": tracker_id, "label": label, "occurred_at": entry.get("at")})
+    plain_timeline = _collapse_repeated_activity(plain_entries)
+
+    employer_feedback = [
+        {
+            **response,
+            "classification_label": _humanize_action_reason_prefix(_EMPLOYER_RESPONSE_PLAIN.get(response["response_type"], response["response_type"])),
+            "is_meaningful": response["response_type"] not in ("ACKNOWLEDGEMENT", "UNKNOWN"),
+        }
+        for response in detail["employer_responses"]
+    ]
+
+    return templates.TemplateResponse(
+        request,
+        "application_detail.html",
+        {
+            "detail": detail,
+            "tracker_id": tracker_id,
+            "active_nav": "applications",
+            "status_label": _STAGE_TO_GROUP_LABEL.get(record.get("crm_stage"), record.get("crm_stage") or "Unknown"),
+            "why_pursue": _build_why_pursue(record),
+            "risks": [_humanize_action_reason_prefix(r) for r in _build_risks(record)],
+            "package": package,
+            "documents": _build_documents(record, package),
+            "screening_answers": _build_screening_answers(record, package),
+            "employer_feedback": employer_feedback,
+            "plain_timeline": plain_timeline,
+            "next_action": _next_action(tracker_id, record, service),
+            "latest_feedback": service.get_latest_application_feedback(tracker_id),
+            "feedback_history": service.list_application_feedback(tracker_id),
+            "worth_pursuing_options": sorted(OpportunityCRMService.APPLICATION_FEEDBACK_WORTH_PURSUING),
+            "interest_change_options": sorted(OpportunityCRMService.APPLICATION_FEEDBACK_INTEREST_CHANGE),
+        },
+    )
+
+
+@app.get("/application/{tracker_id}/document/{doc_key}")
+def download_application_document(tracker_id: int, doc_key: str):
+    """Serves ONLY a file path already recorded in this tracker's OWN
+    package JSON (never an arbitrary user-supplied path) -- `doc_key` is a
+    fixed selector, not a filesystem path."""
+    field_name = _DOCUMENT_DOWNLOAD_FIELDS.get(doc_key)
+    if not field_name:
+        raise HTTPException(status_code=404)
+    package = _load_application_package(tracker_id)
+    if package is None:
+        raise HTTPException(status_code=404)
+    raw_path = getattr(package, field_name, "") or ""
+    if not raw_path:
+        raise HTTPException(status_code=404)
+    resolved = (PROJECT_ROOT / raw_path).resolve()
+    if PROJECT_ROOT.resolve() not in resolved.parents or not resolved.is_file():
+        raise HTTPException(status_code=404)
+    return FileResponse(resolved, filename=resolved.name)
+
+
+@app.post("/application/{tracker_id}/feedback")
+def record_application_feedback(
+    tracker_id: int,
+    worth_pursuing: str = Form(...),
+    interest_change: str = Form(""),
+    note: str = Form(""),
+    service: OpportunityCRMService = Depends(get_crm_service),
+):
+    """Append-only human learning signal (item 13) -- separate from the
+    Phase 2 pre-application user_decisions table, and never alters
+    intelligence_priority/crm_stage."""
+    if service.get_opportunity(tracker_id) is not None:
+        try:
+            service.record_application_feedback(tracker_id, worth_pursuing, interest_change=interest_change, note=note, actor="USER")
+        except ValueError:
+            pass
+    return RedirectResponse(url=f"/application/{tracker_id}", status_code=303)
 
 
 def _register_placeholder_route(path: str, key: str, label: str, description: str) -> None:

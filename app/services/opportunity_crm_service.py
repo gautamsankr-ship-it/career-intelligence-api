@@ -267,6 +267,18 @@ class OpportunityCRMService:
             )
             """
         )
+        self.connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS application_feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tracker_id INTEGER NOT NULL,
+                worth_pursuing TEXT NOT NULL,
+                interest_change TEXT,
+                note TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
         self.connection.commit()
 
     # -- opportunity CRUD -------------------------------------------------
@@ -1285,6 +1297,123 @@ class OpportunityCRMService:
             (str(employer_response_id),),
         ).fetchone()
         return row is not None
+
+    # -- Web App Phase 4: Applications workspace read model -----------------
+    # An "application" (business sense) is any opportunity that reached
+    # actual package preparation or later -- a superset of "submitted"
+    # (item 15: Preparing/Ready records belong here too, since a package
+    # not yet submitted is still an application in progress). Business-
+    # facing tab -> the real, unchanged crm_stage values that belong to it;
+    # never a new lifecycle, purely a display grouping over the existing
+    # CRM stages (same pattern as PIPELINE_GROUPS).
+    APPLICATION_TABS = {
+        "preparing": ("PREPARED", "READY_FOR_REVIEW"),
+        "ready": ("READY_FOR_HUMAN_SUBMIT",),
+        "applied": ("APPLIED",),
+        "response": ("ACKNOWLEDGED", "RECRUITER_RESPONSE", "SCREENING", "REJECTED", "DECLINED_OFFER"),
+        "interview": ("INTERVIEW_1", "INTERVIEW_2", "FINAL_INTERVIEW", "OFFER", "ACCEPTED", "HIRED"),
+    }
+    APPLICATION_WORKSPACE_STAGES = tuple(stage for stages in APPLICATION_TABS.values() for stage in stages)
+    # Default ordering (spec: active employer/interview action, then recent
+    # submissions/responses, then preparation work, then older records) --
+    # a display-ranking concern only, never a scoring system.
+    _APPLICATION_RANK_SQL = (
+        "CASE crm_stage "
+        "WHEN 'RECRUITER_RESPONSE' THEN 0 WHEN 'SCREENING' THEN 0 WHEN 'INTERVIEW_1' THEN 0 WHEN 'INTERVIEW_2' THEN 0 "
+        "WHEN 'FINAL_INTERVIEW' THEN 0 WHEN 'OFFER' THEN 0 WHEN 'ACCEPTED' THEN 0 "
+        "WHEN 'APPLIED' THEN 1 WHEN 'ACKNOWLEDGED' THEN 1 "
+        "WHEN 'PREPARED' THEN 2 WHEN 'READY_FOR_REVIEW' THEN 2 WHEN 'READY_FOR_HUMAN_SUBMIT' THEN 2 "
+        "ELSE 3 END"
+    )
+
+    def applications_register(self, *, tab: str = "", page: int = 1, page_size: int = 25) -> dict:
+        """Paginated Applications workspace list, scoped to the business
+        tabs above. `tab=""` ("All") still scopes to the application
+        workspace (never every raw opportunity) -- crm_stage in one of the
+        known tabs' stages, OR applied_at is set (belt-and-suspenders for
+        any legacy record whose current stage moved outside that set, e.g.
+        WATCHED-but-once-applied)."""
+        if page < 1:
+            raise ValueError("page must be >= 1")
+        if page_size < 1:
+            raise ValueError("page_size must be >= 1")
+        if tab:
+            stages = self.APPLICATION_TABS.get(tab)
+            if not stages:
+                raise ValueError(f"Unknown applications tab: {tab!r}. Allowed: {sorted(self.APPLICATION_TABS)}")
+            placeholders = ",".join("?" * len(stages))
+            where = f"WHERE crm_stage IN ({placeholders})"
+            params: tuple = stages
+        else:
+            placeholders = ",".join("?" * len(self.APPLICATION_WORKSPACE_STAGES))
+            where = f"WHERE crm_stage IN ({placeholders}) OR applied_at IS NOT NULL"
+            params = self.APPLICATION_WORKSPACE_STAGES
+
+        total = self.connection.execute(f"SELECT COUNT(*) FROM application_history {where}", params).fetchone()[0]
+        offset = (page - 1) * page_size
+        rows = self.connection.execute(
+            f"SELECT * FROM application_history {where} "
+            f"ORDER BY {self._APPLICATION_RANK_SQL} ASC, crm_stage_updated_at DESC, id DESC "
+            "LIMIT ? OFFSET ?",
+            (*params, page_size, offset),
+        ).fetchall()
+        return {
+            "results": [dict(row) for row in rows],
+            "total": total, "page": page, "page_size": page_size,
+            "total_pages": max(1, (total + page_size - 1) // page_size),
+        }
+
+    def latest_employer_response(self, tracker_id: int) -> dict | None:
+        row = self.connection.execute(
+            "SELECT * FROM employer_responses WHERE tracker_id = ? ORDER BY id DESC LIMIT 1", (tracker_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    # -- Web App Phase 4: human feedback (post-outcome learning signal) -----
+    # Deliberately a SEPARATE append-only structure from `user_decisions`
+    # (Phase 2's pre-application Apply/Watch/Reject screening triage): this
+    # is a post-outcome reflection signal ("was this worth pursuing,
+    # in hindsight"), for later Analytics learning -- never conflated with
+    # the earlier screening decision, and never altering intelligence_
+    # priority/crm_stage.
+    APPLICATION_FEEDBACK_WORTH_PURSUING = frozenset({"YES", "MAYBE", "NO"})
+    APPLICATION_FEEDBACK_INTEREST_CHANGE = frozenset({"HIGHER", "SAME", "LOWER"})
+
+    def record_application_feedback(
+        self, tracker_id: int, worth_pursuing: str, *, interest_change: str = "", note: str = "", actor: str = "USER",
+    ) -> dict:
+        if worth_pursuing not in self.APPLICATION_FEEDBACK_WORTH_PURSUING:
+            raise ValueError(f"Unknown worth_pursuing value: {worth_pursuing!r}. Allowed: {sorted(self.APPLICATION_FEEDBACK_WORTH_PURSUING)}")
+        if interest_change and interest_change not in self.APPLICATION_FEEDBACK_INTEREST_CHANGE:
+            raise ValueError(f"Unknown interest_change value: {interest_change!r}. Allowed: {sorted(self.APPLICATION_FEEDBACK_INTEREST_CHANGE)}")
+        self._require(tracker_id)
+        now = _now()
+        cursor = self.connection.execute(
+            "INSERT INTO application_feedback (tracker_id, worth_pursuing, interest_change, note, created_at) VALUES (?, ?, ?, ?, ?)",
+            (tracker_id, worth_pursuing, interest_change, note, now),
+        )
+        self.connection.commit()
+        self.append_event(
+            tracker_id, "APPLICATION_FEEDBACK_RECORDED", reason=worth_pursuing,
+            evidence_reference=interest_change or "", actor=actor,
+        )
+        return self._application_feedback_row(cursor.lastrowid)
+
+    def list_application_feedback(self, tracker_id: int) -> list[dict]:
+        return [
+            dict(row) for row in
+            self.connection.execute("SELECT * FROM application_feedback WHERE tracker_id = ? ORDER BY id DESC", (tracker_id,))
+        ]
+
+    def get_latest_application_feedback(self, tracker_id: int) -> dict | None:
+        row = self.connection.execute(
+            "SELECT * FROM application_feedback WHERE tracker_id = ? ORDER BY id DESC LIMIT 1", (tracker_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def _application_feedback_row(self, feedback_id: int) -> dict | None:
+        row = self.connection.execute("SELECT * FROM application_feedback WHERE id = ?", (feedback_id,)).fetchone()
+        return dict(row) if row else None
 
     def pipeline_counts(self) -> dict[str, int]:
         """Current crm_stage distribution, with every stage in

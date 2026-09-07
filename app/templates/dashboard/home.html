@@ -9,7 +9,7 @@
   <div class="section">
     <div class="cards">
       <div class="card"><div class="n">{{ total_opportunities }}</div><div class="l">Total Opportunities</div></div>
-      <div class="card"><div class="n">{{ cumulative.APPLIED }}</div><div class="l">Applications Submitted</div></div>
+      <a class="card" href="/applications?tab=applied" style="text-decoration:none;color:inherit;"><div class="n">{{ cumulative.APPLIED }}</div><div class="l">Applications Submitted</div></a>
       <div class="card"><div class="n">{{ cumulative.ACKNOWLEDGED }}</div><div class="l">Acknowledgements</div></div>
       <div class="card card--highlight"><div class="n">{{ cumulative.MEANINGFUL_RESPONSE }}</div><div class="l">Meaningful Responses</div></div>
       <div class="card"><div class="n">{{ cumulative.INTERVIEW }}</div><div class="l">Interviews</div></div>

@@ -1,0 +1,66 @@
+{% extends "_shell.html" %}
+{% block title %}Applications -- Career Intelligence{% endblock %}
+{% block content %}
+  <div class="page-header">
+    <h1>Applications</h1>
+    <div class="subtitle">What did we submit, what happened, and what can we learn from it?</div>
+  </div>
+
+  <div class="section">
+    <div class="cards">
+      <div class="card card--highlight"><div class="n">{{ cumulative.APPLIED }}</div><div class="l">Applications Submitted</div></div>
+      <div class="card"><div class="n">{{ cumulative.ACKNOWLEDGED }}</div><div class="l">Acknowledged</div></div>
+      <div class="card"><div class="n">{{ cumulative.MEANINGFUL_RESPONSE }}</div><div class="l">Meaningful Responses</div></div>
+      <div class="card"><div class="n">{{ cumulative.INTERVIEW }}</div><div class="l">Interviews</div></div>
+      <div class="card"><div class="n">{{ cumulative.OFFER }}</div><div class="l">Offers</div></div>
+      <div class="card"><div class="n">{{ ready_for_submit }}</div><div class="l">Ready for Submit</div></div>
+    </div>
+    <p class="section-hint">Same definitions as the Executive Dashboard -- an automated acknowledgement is never counted as a meaningful response.</p>
+  </div>
+
+  <div class="section">
+    <div class="chip-row">
+      <a class="chip {{ 'is-active' if not tab else '' }}" href="/applications">All</a>
+      <a class="chip {{ 'is-active' if tab == 'preparing' else '' }}" href="/applications?tab=preparing">Preparing</a>
+      <a class="chip {{ 'is-active' if tab == 'ready' else '' }}" href="/applications?tab=ready">Ready</a>
+      <a class="chip {{ 'is-active' if tab == 'applied' else '' }}" href="/applications?tab=applied">Applied</a>
+      <a class="chip {{ 'is-active' if tab == 'response' else '' }}" href="/applications?tab=response">Response</a>
+      <a class="chip {{ 'is-active' if tab == 'interview' else '' }}" href="/applications?tab=interview">Interview</a>
+    </div>
+  </div>
+
+  <div class="section">
+    {% if result.results %}
+    <div style="overflow-x:auto">
+    <table class="table">
+      <tr>
+        <th>Job / Company</th><th>Priority</th><th>Application Status</th><th>Submitted</th>
+        <th>Latest Employer Outcome</th><th>ATS Score</th><th>Market</th><th>Next Action</th><th></th>
+      </tr>
+      {% for a in result.results %}
+      <tr>
+        <td><strong>{{ a.job_title or "-" }}</strong><br><span style="color:var(--text-muted);font-size:12.5px;">{{ a.company or "-" }}</span></td>
+        <td class="col-center">{% if a.intelligence_priority %}<span class="badge p-{{ a.intelligence_priority }}">{{ a.intelligence_priority }}</span>{% else %}<span class="badge" style="background:#f3f4f6;color:#6b7280;">-</span>{% endif %}</td>
+        <td><span class="status-chip">{{ a.status_label }}</span></td>
+        <td>{{ (a.applied_at[:10]) if a.applied_at else "-" }}</td>
+        <td>{{ a.latest_outcome }}</td>
+        <td class="col-num">{{ (a.ats_score | round(0) | int) if a.ats_score is not none else "-" }}</td>
+        <td>{{ a.market | humanize }}</td>
+        <td>
+          {% if a.next_action_link %}<a href="{{ a.next_action_link }}">{{ a.next_action }} &rarr;</a>{% else %}<span style="color:var(--text-muted);font-size:12.5px;">{{ a.next_action }}</span>{% endif %}
+        </td>
+        <td><a href="/application/{{ a.id }}">View &rarr;</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+    <p class="section-footer">
+      Page {{ result.page }} of {{ result.total_pages }} ({{ result.total }} total)
+      {% if result.page > 1 %}<a href="/applications?tab={{ tab }}&page={{ result.page - 1 }}&page_size={{ page_size }}">&larr; Previous</a>{% endif %}
+      {% if result.page < result.total_pages %}<a href="/applications?tab={{ tab }}&page={{ result.page + 1 }}&page_size={{ page_size }}">Next &rarr;</a>{% endif %}
+    </p>
+    {% else %}
+    <div class="empty-state">No applications match this view.</div>
+    {% endif %}
+  </div>
+{% endblock %}

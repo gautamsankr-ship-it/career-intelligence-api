@@ -84,6 +84,9 @@
       {% if own_actions %}
       <a href="/action-required" class="urgency-badge urgency-{{ own_actions[0].urgency }}" style="text-decoration:none;">Action Required: {{ own_actions[0].category_label }}{% if own_actions | length > 1 %} (+{{ own_actions | length - 1 }} more){% endif %}</a>
       {% endif %}
+      {% if has_application %}
+      <a href="/application/{{ tracker_id }}">View Application &rarr;</a>
+      {% endif %}
     </div>
   </div>
 
