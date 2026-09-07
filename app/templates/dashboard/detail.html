@@ -81,6 +81,9 @@
       <span>Status: <strong>{{ status_label }}</strong></span>
       {% if detail.opportunity.intelligence_priority %}<span class="badge p-{{ detail.opportunity.intelligence_priority }}">{{ detail.opportunity.intelligence_priority }}</span>{% endif %}
       <span class="memo-header__recommendation">Recommendation: {{ recommendation }}</span>
+      {% if own_actions %}
+      <a href="/action-required" class="urgency-badge urgency-{{ own_actions[0].urgency }}" style="text-decoration:none;">Action Required: {{ own_actions[0].category_label }}{% if own_actions | length > 1 %} (+{{ own_actions | length - 1 }} more){% endif %}</a>
+      {% endif %}
     </div>
   </div>
 
@@ -92,7 +95,6 @@
       <div class="metric-card"><div class="label">Application Alignment (ATS)</div><div class="value">{% if detail.opportunity.ats_score is not none %}{{ detail.opportunity.ats_score | round(0) | int }}/100{% else %}Not Evaluated{% endif %}</div></div>
       <div class="metric-card"><div class="label">Application Priority</div><div class="value">{{ detail.opportunity.intelligence_priority or "Unscored" }}</div></div>
     </div>
-    <p class="section-hint">Evidence strength is not separately assessed -- Candidate Competitiveness above already reflects the candidate's verified evidence against this vacancy's requirements.</p>
   </div>
 
   <div class="section">

@@ -223,13 +223,19 @@ def test_needs_attention_never_shows_stale_execution_flags_without_a_real_blocke
         service.close()
 
 
-def test_needs_attention_view_all_link_appears_only_when_more_than_five(tmp_path):
+def test_needs_attention_view_all_link_appears_only_when_more_than_five_and_points_to_action_required(tmp_path):
+    """Web App Phase 3: Needs My Attention is now backed by the Action
+    Required read model -- bare ELIGIBILITY_REVIEW stage membership alone
+    (no remote_eligibility=MANUAL_REVIEW, no blocker) is no longer
+    sufficient to appear here at all, so genuinely actionable records must
+    be seeded to exercise the "View All" link."""
     history = ApplicationHistoryService(tmp_path / "history.db")
     service = OpportunityCRMService(history)
     try:
         for i in range(7):
             fingerprint = job_fingerprint(source="LinkedIn", external_job_id=f"attn-{i}")
             record = service.create_opportunity(fingerprint, company=f"Co{i}", job_title="Role")
+            service.update_opportunity(record["id"], intelligence_priority="C", remote_eligibility="MANUAL_REVIEW")
             service.transition_stage(record["id"], "ELIGIBILITY_REVIEW")
     finally:
         service.close()
@@ -237,8 +243,7 @@ def test_needs_attention_view_all_link_appears_only_when_more_than_five(tmp_path
         client = _client(tmp_path / "history.db")
         body = client.get("/").text
         assert "View All (7)" in body
-        full = client.get("/?show_all_attention=1").text
-        assert "Show fewer" in full
+        assert 'href="/action-required"' in body
     finally:
         app.dependency_overrides.clear()
 
@@ -448,13 +453,14 @@ def test_sidebar_lists_all_nine_approved_sections_and_marks_dashboard_active(tmp
 
 
 @pytest.mark.parametrize("path", [
-    "/applications", "/action-required", "/employer-inbox",
+    "/applications", "/employer-inbox",
     "/interviews", "/analytics", "/automation", "/settings",
 ])
 def test_every_placeholder_nav_route_renders_the_shared_shell(path):
-    """No fabricated functionality -- each of the remaining 7 approved
-    sections (Opportunities is now real, Phase 2) renders honestly as a
-    placeholder inside the same shared shell."""
+    """No fabricated functionality -- each of the remaining 6 approved
+    sections (Opportunities is real since Phase 2, Action Required is real
+    since Phase 3) renders honestly as a placeholder inside the same shared
+    shell."""
     client = TestClient(app)
     response = client.get(path)
     assert response.status_code == 200
@@ -987,3 +993,327 @@ def test_evidence_strength_pseudo_metric_is_not_mislabeled_as_competitiveness(tm
         assert "Evidence Strength:" not in body
     finally:
         app.dependency_overrides.clear()
+
+
+# --- Web App Phase 3: Action Required workspace -----------------------------
+def _seed_action_required(tmp_path):
+    """A hermetic DB shaped to exercise all five categories plus the
+    critical-principle guard (a bare ELIGIBILITY_REVIEW record with no
+    genuine eligibility question, which must NEVER appear)."""
+    db_path = tmp_path / "action.db"
+    history = ApplicationHistoryService(db_path)
+    service = OpportunityCRMService(history)
+
+    def make(external_id, **fields):
+        fingerprint = job_fingerprint(source="LinkedIn", external_job_id=external_id)
+        return service.create_opportunity(fingerprint, **fields)
+
+    # Not an action: Priority C, ELIGIBILITY_REVIEW, but no real eligibility
+    # question (borderline-score review only) -- the critical-principle case.
+    not_actionable = make("noop-1", company="Quiet Co", job_title="Analyst")
+    service.update_opportunity(not_actionable["id"], intelligence_priority="C", remote_eligibility="ELIGIBLE")
+    service.transition_stage(not_actionable["id"], "ELIGIBILITY_REVIEW")
+
+    # A: Eligibility Decision (genuine).
+    eligibility = make("elig-1", company="Acme Robotics", job_title="Controller")
+    service.update_opportunity(eligibility["id"], intelligence_priority="C", remote_eligibility="MANUAL_REVIEW")
+    service.transition_stage(eligibility["id"], "ELIGIBILITY_REVIEW")
+
+    # B: Review & Submit.
+    ready = make("ready-1", company="Robert Half", job_title="Finance Manager")
+    service.transition_stage(ready["id"], "READY_FOR_HUMAN_SUBMIT")
+
+    # C: Browser Action (CAPTCHA).
+    captcha_record = make("captcha-1", company="Greenhouse Corp", job_title="Staff Accountant")
+    captcha_blocker = service.record_human_blocker(captcha_record["id"], "HUMAN_CAPTCHA_REQUIRED", detail="CAPTCHA on final submit page")
+
+    # D: Answer Required (salary review).
+    answer_record = make("answer-1", company="Beta Industries", job_title="Bookkeeper")
+    answer_blocker = service.record_human_blocker(answer_record["id"], "HUMAN_SALARY_REVIEW_REQUIRED", detail="What is your minimum acceptable salary?")
+
+    # E: Employer Action (interview invitation).
+    employer_record = make("employer-1", company="Gamma Finance", job_title="Treasury Analyst")
+    service.record_submission_confirmation(employer_record["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    employer_response = service.record_employer_response(employer_record["id"], "INTERVIEW_INVITATION", summary="Interview scheduled for Tuesday 2pm")
+
+    ids = {
+        "not_actionable": not_actionable["id"], "eligibility": eligibility["id"], "ready": ready["id"],
+        "captcha": captcha_record["id"], "answer": answer_record["id"], "employer": employer_record["id"],
+    }
+    refs = {"captcha_blocker_id": captcha_blocker["id"], "answer_blocker_id": answer_blocker["id"],
+            "employer_response_id": employer_response["id"]}
+    service.close()
+    return db_path, ids, refs
+
+
+def test_action_required_page_is_a_real_workspace_not_a_placeholder(tmp_path):
+    db_path, ids, refs = _seed_action_required(tmp_path)
+    try:
+        client = _client(db_path)
+        response = client.get("/action-required")
+        assert response.status_code == 200
+        body = response.text
+        assert "Coming in a later phase" not in body
+        assert "Acme Robotics" in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_action_required_never_lists_a_bare_priority_c_review_without_a_concrete_blocker(tmp_path):
+    """The critical product principle: Priority C / ELIGIBILITY_REVIEW alone
+    is never enough."""
+    db_path, ids, refs = _seed_action_required(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required").text
+        assert "Quiet Co" not in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_action_required_summary_counts_reconcile_to_active_queue(tmp_path):
+    db_path, ids, refs = _seed_action_required(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required").text
+        import re
+        cards = {m.group(2): int(m.group(1)) for m in re.finditer(r'<div class="n">(\d+)</div><div class="l">([^<]*)</div>', body)}
+        assert cards["Total Actions Required"] == 5
+        assert cards["Review &amp; Submit"] == 1
+        assert cards["Answer Required"] == 1
+        assert cards["Eligibility Decision"] == 1
+        assert cards["Browser Action Required"] == 1
+        assert cards["Employer Action"] == 1
+        assert cards["Total Actions Required"] == sum(
+            cards[k] for k in ("Review &amp; Submit", "Answer Required", "Eligibility Decision", "Browser Action Required", "Employer Action")
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_action_required_shows_all_five_categories_with_real_content(tmp_path):
+    db_path, ids, refs = _seed_action_required(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required").text
+        assert "Acme Robotics" in body  # Eligibility Decision
+        assert "Robert Half" in body  # Review & Submit
+        assert "Greenhouse Corp" in body  # Browser Action
+        assert "Beta Industries" in body  # Answer Required
+        assert "Gamma Finance" in body  # Employer Action
+        assert "CAPTCHA on final submit page" in body
+        assert "What is your minimum acceptable salary?" in body
+        assert "Interview scheduled for Tuesday 2pm" in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_action_required_priority_filter_chips_work(tmp_path):
+    db_path, ids, refs = _seed_action_required(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required?priority=C").text
+        assert "Acme Robotics" in body  # the only C-priority actionable item
+        assert "Robert Half" not in body  # unscored
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_action_required_browser_action_never_offers_captcha_bypass_or_credential_fields(tmp_path):
+    db_path, ids, refs = _seed_action_required(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required").text
+        assert 'type="password"' not in body
+        assert "bypass" not in body.lower()
+        assert "solve the captcha" not in body.lower()  # "resolve"/"Resolved" legitimately appear elsewhere
+        assert "I&#39;ve Completed This" in body or "I've Completed This" in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_action_required_employer_action_never_offers_an_autonomous_reply(tmp_path):
+    db_path, ids, refs = _seed_action_required(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required").text
+        assert "Mark Reviewed" in body
+        assert "<textarea" not in body  # no reply-composition field anywhere on this page
+        assert 'action="/action-required/employer-response' in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_resolving_a_browser_blocker_via_action_required_removes_it_from_active_queue(tmp_path):
+    """Mutation test -- uses a temporary DB only, never production."""
+    db_path, ids, refs = _seed_action_required(tmp_path)
+    try:
+        client = _client(db_path)
+        response = client.post(f"/action-required/blocker/{refs['captcha_blocker_id']}/resolve", data={"note": "Solved manually"}, follow_redirects=False)
+        assert response.status_code == 303
+        active_body = client.get("/action-required").text
+        assert "Greenhouse Corp" not in active_body
+        resolved_body = client.get("/action-required?view=resolved").text
+        assert "Greenhouse Corp" in resolved_body
+        assert "Solved manually" in resolved_body or "CAPTCHA on final submit page" in resolved_body
+    finally:
+        app.dependency_overrides.clear()
+    service = _open(db_path)
+    try:
+        blocker = service._blocker_row(refs["captcha_blocker_id"])
+        assert blocker["status"] == "RESOLVED"
+        assert blocker["resolved_by"] == "USER"
+    finally:
+        service.close()
+
+
+def test_marking_an_employer_action_reviewed_removes_it_from_active_queue(tmp_path):
+    db_path, ids, refs = _seed_action_required(tmp_path)
+    try:
+        client = _client(db_path)
+        response = client.post(
+            f"/action-required/employer-response/{ids['employer']}/{refs['employer_response_id']}/review",
+            data={"note": "Confirmed the interview"}, follow_redirects=False,
+        )
+        assert response.status_code == 303
+        active_body = client.get("/action-required").text
+        assert "Gamma Finance" not in active_body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_eligibility_decision_action_resolves_via_the_existing_decision_endpoint(tmp_path):
+    """No second decision system: the Action Required page's "Review
+    Eligibility" link goes to Opportunity Detail, where the EXISTING My
+    Decision panel (Phase 2) is reused to resolve it."""
+    db_path, ids, refs = _seed_action_required(tmp_path)
+    try:
+        client = _client(db_path)
+        client.post(f"/opportunity/{ids['eligibility']}/decision", data={"decision": "WATCH", "reason_code": "LOCATION"}, follow_redirects=False)
+        active_body = client.get("/action-required").text
+        assert "Acme Robotics" not in active_body
+    finally:
+        app.dependency_overrides.clear()
+    service = _open(db_path)
+    try:
+        record = service.get_opportunity(ids["eligibility"])
+        assert record["remote_eligibility"] == "MANUAL_REVIEW"  # never fabricated/mutated
+    finally:
+        service.close()
+
+
+def test_action_required_groups_a_large_set_of_identical_eligibility_questions(tmp_path):
+    db_path = tmp_path / "grouping.db"
+    history = ApplicationHistoryService(db_path)
+    service = OpportunityCRMService(history)
+    try:
+        for i in range(20):
+            fingerprint = job_fingerprint(source="LinkedIn", external_job_id=f"group-{i}")
+            record = service.create_opportunity(fingerprint, company=f"Co{i}", job_title="Analyst")
+            service.update_opportunity(record["id"], intelligence_priority="C", remote_eligibility="MANUAL_REVIEW")
+            service.transition_stage(record["id"], "ELIGIBILITY_REVIEW")
+    finally:
+        service.close()
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required").text
+        assert "20 opportunities" in body
+        assert 'class="action-group"' in body
+        # No bulk decision control is ever offered for the grouped row.
+        assert "Apply to All" not in body and "Reject All" not in body and "Watch All" not in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_action_required_never_groups_review_and_submit_items(tmp_path):
+    """Review & Submit items are each a distinct, already-ready application
+    -- never collapsed into a homogeneous group even if several share
+    identical generic reason text."""
+    db_path = tmp_path / "no_group.db"
+    history = ApplicationHistoryService(db_path)
+    service = OpportunityCRMService(history)
+    try:
+        for i in range(20):
+            fingerprint = job_fingerprint(source="LinkedIn", external_job_id=f"rs-group-{i}")
+            record = service.create_opportunity(fingerprint, company=f"ReadyCo{i}", job_title="Analyst")
+            service.transition_stage(record["id"], "READY_FOR_HUMAN_SUBMIT")
+    finally:
+        service.close()
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required").text
+        assert "ReadyCo0" in body
+        assert "ReadyCo19" in body
+        assert 'class="action-group"' not in body  # the CSS class name is always in <style>; only its use as markup matters
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_dashboard_needs_my_attention_uses_the_action_required_read_model(tmp_path):
+    """Dashboard integration: the corrected count and content come from the
+    same read model /action-required uses, not the old
+    ATTENTION_STAGES-membership check."""
+    db_path, ids, refs = _seed_action_required(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get("/").text
+        assert "Needs My Attention (5)" in body
+        assert "Quiet Co" not in body.split("Needs My Attention")[1].split("Opportunities</h2>")[0]
+        assert "Acme Robotics" in body  # a genuine action shows up
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_opportunity_detail_shows_action_required_indicator_when_active(tmp_path):
+    db_path, ids, refs = _seed_action_required(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get(f"/opportunity/{ids['eligibility']}").text
+        assert "Action Required: Eligibility Decision" in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_opportunity_detail_never_shows_action_required_for_a_bare_priority_c_review(tmp_path):
+    db_path, ids, refs = _seed_action_required(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get(f"/opportunity/{ids['not_actionable']}").text
+        assert "Action Required:" not in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+# --- Web App Phase 3: production verification (READ-ONLY) ------------------
+def test_action_required_reads_real_production_data_read_only():
+    """GET only -- makes no writes. Cross-checks the rendered page against
+    the same service-level read model computed independently."""
+    client = TestClient(app)
+    response = client.get("/action-required")
+    assert response.status_code == 200
+    body = response.text
+
+    service = OpportunityCRMService()
+    try:
+        counts = service.action_required_counts()
+    finally:
+        service.close()
+
+    import re
+    cards = {m.group(2): int(m.group(1)) for m in re.finditer(r'<div class="n">(\d+)</div><div class="l">([^<]*)</div>', body)}
+    assert cards["Total Actions Required"] == counts["TOTAL"]
+    assert cards["Eligibility Decision"] == counts["ELIGIBILITY_DECISION"]
+    assert cards["Review &amp; Submit"] == counts["REVIEW_AND_SUBMIT"]
+
+
+def test_dashboard_needs_my_attention_matches_action_required_total_on_production():
+    """Read-only: the Dashboard's corrected count must equal
+    /action-required's total for the SAME real production database."""
+    client = TestClient(app)
+    home_body = client.get("/").text
+    service = OpportunityCRMService()
+    try:
+        total = service.action_required_counts()["TOTAL"]
+    finally:
+        service.close()
+    assert f"Needs My Attention ({total})" in home_body

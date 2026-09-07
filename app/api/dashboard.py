@@ -8,6 +8,7 @@ Launch: `python dashboard.py` from the repo root -> http://127.0.0.1:8000
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Form, Request
@@ -143,6 +144,144 @@ def _build_risks(record: dict) -> list[str]:
     return risks
 
 
+# -- Web App Phase 3: Action Required presentation (all derived, nothing
+# persisted here) --------------------------------------------------------
+_ACTION_CATEGORY_LABELS = {
+    "REVIEW_AND_SUBMIT": "Review & Submit",
+    "ANSWER_REQUIRED": "Answer Required",
+    "ELIGIBILITY_DECISION": "Eligibility Decision",
+    "BROWSER_ACTION": "Browser Action Required",
+    "EMPLOYER_ACTION": "Employer Action",
+}
+_ACTION_CATEGORY_PRIMARY_ACTION = {
+    "REVIEW_AND_SUBMIT": "Review Application",
+    "ANSWER_REQUIRED": "Answer Question",
+    "ELIGIBILITY_DECISION": "Review Eligibility",
+    "BROWSER_ACTION": "Open Browser & Continue",
+    "EMPLOYER_ACTION": "Review Message",
+}
+_EMPLOYER_RESPONSE_PLAIN = {
+    "RECRUITER_CONTACT": "Recruiter reached out",
+    "SCREENING_REQUEST": "Screening call requested",
+    "INTERVIEW_INVITATION": "Interview invitation received",
+    "ASSESSMENT_REQUEST": "Assessment requested",
+    "OFFER": "Offer received",
+    "UNKNOWN": "Employer sent a message that needs your review",
+}
+_URGENCY_RANK = {"Critical": 0, "High": 1, "Normal": 2}
+# Grouping is for navigation/triage only (Phase 3 section 4): a large,
+# homogeneous set of identical eligibility questions is collapsed into one
+# expandable row rather than rendered as 100+ separate cards -- never a
+# bulk decision, since each remains individually vacancy-specific. Review &
+# Submit items are never auto-grouped: each is a distinct, already-ready
+# application with its own company/job title, not a repeated homogeneous
+# question, and the production count (10) is small enough to review
+# individually.
+_GROUPING_THRESHOLD = 15
+_GROUPABLE_CATEGORIES = {"ELIGIBILITY_DECISION", "ANSWER_REQUIRED"}
+
+
+def _action_urgency(item: dict) -> str:
+    """Presentation-only urgency (Critical/High/Normal), derived purely
+    from the action's own category/response-type -- never a new scoring
+    system, and never invented from an unknown/absent deadline."""
+    category = item["category"]
+    if category == "EMPLOYER_ACTION":
+        return "Critical" if item.get("response_type") in ("INTERVIEW_INVITATION", "OFFER") else "High"
+    if category in ("BROWSER_ACTION", "REVIEW_AND_SUBMIT"):
+        return "High"
+    return "Normal"  # ANSWER_REQUIRED / ELIGIBILITY_DECISION: non-time-sensitive by default
+
+
+def _action_primary_label(item: dict) -> str:
+    if item["category"] == "EMPLOYER_ACTION" and item.get("response_type") == "INTERVIEW_INVITATION":
+        return "Prepare for Interview"
+    return _ACTION_CATEGORY_PRIMARY_ACTION.get(item["category"], "Review")
+
+
+def _action_plain_reason(item: dict) -> str:
+    """Translate one action item's raw stored reason into plain business
+    language. Reuses OpportunityCRMService's OWN blocker-type vocabulary
+    for BLOCKER-sourced items (never a second, divergent translation table)
+    and a small, Phase-3-specific mapping for employer responses."""
+    if item["source"] == "BLOCKER" and item.get("blocker_type"):
+        label = OpportunityCRMService._BLOCKER_PLAIN_LANGUAGE.get(item["blocker_type"])
+        if label:
+            return f"{label}: {item['reason']}" if item.get("reason") and item["reason"] != item["blocker_type"] else label
+    if item["source"] == "EMPLOYER_RESPONSE":
+        label = _EMPLOYER_RESPONSE_PLAIN.get(item.get("response_type"), "Employer message received")
+        detail = item.get("reason") or ""
+        return f"{label}: {detail}" if detail and detail != item.get("response_type") else label
+    return item.get("reason") or ""
+
+
+def _decorate_action_item(item: dict) -> dict:
+    return {
+        **item,
+        "category_label": _ACTION_CATEGORY_LABELS[item["category"]],
+        "urgency": _action_urgency(item),
+        "primary_action": _action_primary_label(item),
+        "plain_reason": _action_plain_reason(item),
+    }
+
+
+def _group_action_items(items: list[dict]) -> list[dict]:
+    """Groups items sharing the same (category, plain_reason) when the
+    group is large -- a navigation/triage aid only. A single vacancy-
+    specific decision is still required per opportunity inside the group;
+    no bulk action is ever offered for a grouped row."""
+    buckets: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    for item in items:
+        buckets[(item["category"], item["plain_reason"])].append(item)
+
+    rows: list[dict] = []
+    for (category, reason), bucket in buckets.items():
+        if category in _GROUPABLE_CATEGORIES and len(bucket) >= _GROUPING_THRESHOLD:
+            rows.append({
+                "is_group": True, "category": category, "category_label": _ACTION_CATEGORY_LABELS[category],
+                "plain_reason": reason, "urgency": bucket[0]["urgency"], "opportunities": bucket, "count": len(bucket),
+                "arose_at": max(i.get("arose_at") or "" for i in bucket),
+            })
+        else:
+            rows.extend({"is_group": False, **item} for item in bucket)
+
+    # Stable two-pass sort: most-recent-first within an urgency band, then
+    # urgency ascending (Critical first) -- Python's sort is stable, so the
+    # recency ordering from the first pass survives within each band.
+    rows.sort(key=lambda row: row.get("arose_at") or "", reverse=True)
+    rows.sort(key=lambda row: _URGENCY_RANK.get(row["urgency"], 3))
+    return rows
+
+
+def _dashboard_attention_items(service: OpportunityCRMService, *, priority: str = "", limit: int | None = None):
+    """Rebuilds the Dashboard's "Needs My Attention" widget from the SAME
+    Action Required read model /action-required uses -- replacing the
+    Phase 1 `needs_attention()`/`ATTENTION_STAGES`-membership count, which
+    the Phase 3 production audit found conflated "the intelligence engine
+    may eventually want a look" (bare crm_stage membership, 127 items, ZERO
+    backed by an actual open blocker) with "a concrete action is ready
+    right now" (see OpportunityCRMService.action_required_items's own
+    docstring for the full audit). Returns (rows, total, priority_distribution)."""
+    all_items = service.action_required_items()
+    distribution: dict[str, int] = {}
+    for item in all_items:
+        key = item.get("intelligence_priority") or "UNSCORED"
+        distribution[key] = distribution.get(key, 0) + 1
+
+    filtered = [i for i in all_items if (i.get("intelligence_priority") or "UNSCORED") == priority] if priority else all_items
+    decorated = [_decorate_action_item(item) for item in filtered]
+    decorated.sort(key=lambda item: item.get("arose_at") or "", reverse=True)
+    decorated.sort(key=lambda item: _URGENCY_RANK.get(item["urgency"], 3))
+    rows = [
+        {
+            "tracker_id": item["tracker_id"], "company": item["company"], "job_title": item["job_title"],
+            "intelligence_priority": item.get("intelligence_priority"), "plain_reasons": [item["plain_reason"]],
+        }
+        for item in decorated
+    ]
+    return (rows[:limit] if limit else rows), len(all_items), distribution
+
+
 # Phase 1 web app: navigation placeholders for every approved sidebar section
 # beyond the Executive Dashboard and (Phase 2) Opportunities. Each renders
 # the shared shell with a short, honest "coming later" message -- no
@@ -152,11 +291,6 @@ _PLACEHOLDER_PAGES = {
         "applications", "Applications",
         "A dedicated Applications tracker is coming in a later phase. "
         "For now, see Applications Submitted and Application Performance on the Dashboard.",
-    ),
-    "/action-required": (
-        "action_required", "Action Required",
-        "A dedicated Action Required queue is coming in a later phase. "
-        "For now, see “Needs My Attention” on the Dashboard.",
     ),
     "/employer-inbox": (
         "employer_inbox", "Employer Inbox",
@@ -300,7 +434,6 @@ def home(
     crm_stage: str = "",
     intelligence_priority: str = "",
     attn_priority: str = "",
-    show_all_attention: bool = False,
     show_all_activity: bool = False,
     service: OpportunityCRMService = Depends(get_crm_service),
 ):
@@ -313,10 +446,9 @@ def home(
     priority_mix = service.priority_mix_counts()
     total_opportunities = cumulative["DISCOVERED"]
 
-    attention_total = len(service.needs_attention())
-    attention_priority_distribution = service.attention_priority_distribution()
-    attention_limit = None if show_all_attention else 5
-    attention_items = service.attention_queue(priority=attn_priority or None, limit=attention_limit)
+    attention_items, attention_total, attention_priority_distribution = _dashboard_attention_items(
+        service, priority=attn_priority, limit=5,
+    )
 
     activity_limit = 50 if show_all_activity else 15  # over-fetch: business-event filtering below trims further
     raw_activity = service.recent_activity(limit=activity_limit)
@@ -352,7 +484,6 @@ def home(
             "attention_total": attention_total,
             "attention_priority_distribution": attention_priority_distribution,
             "attn_priority": attn_priority,
-            "show_all_attention": show_all_attention,
             "recent_activity": recent_activity,
             "show_all_activity": show_all_activity,
             "filters": filters,
@@ -431,6 +562,12 @@ def opportunity_detail(request: Request, tracker_id: int, service: OpportunityCR
             plain_entries.append({"tracker_id": tracker_id, "label": label, "occurred_at": entry.get("at")})
     plain_timeline = _collapse_repeated_activity(plain_entries)
 
+    # Web App Phase 3: a compact "Action Required" indicator, using the SAME
+    # read model as /action-required -- never a fresh Priority-C-implies-
+    # urgent inference. Absent here means no concrete action exists yet,
+    # regardless of intelligence_priority.
+    own_actions = [_decorate_action_item(item) for item in service.action_required_items() if item["tracker_id"] == tracker_id]
+
     return templates.TemplateResponse(
         request,
         "detail.html",
@@ -446,6 +583,7 @@ def opportunity_detail(request: Request, tracker_id: int, service: OpportunityCR
             "latest_decision": detail["user_decisions"][0] if detail["user_decisions"] else None,
             "decision_reason_labels": _DECISION_REASON_LABELS,
             "plain_timeline": plain_timeline,
+            "own_actions": own_actions,
         },
     )
 
@@ -470,6 +608,86 @@ def record_decision(
         except ValueError:
             pass  # invalid/tampered form input -- ignored, never crashes or corrupts state
     return RedirectResponse(url=f"/opportunity/{tracker_id}", status_code=303)
+
+
+@app.get("/action-required", response_class=HTMLResponse)
+def action_required(
+    request: Request,
+    priority: str = "",
+    view: str = "active",
+    service: OpportunityCRMService = Depends(get_crm_service),
+):
+    active_counts = service.action_required_counts()
+    raw_items = service.action_required_items(include_resolved=(view == "resolved"))
+    if view == "resolved":
+        raw_items = [item for item in raw_items if item["resolved"]]
+    if priority:
+        if priority == "UNSCORED":
+            raw_items = [item for item in raw_items if not item.get("intelligence_priority")]
+        else:
+            raw_items = [item for item in raw_items if item.get("intelligence_priority") == priority]
+
+    decorated = [_decorate_action_item(item) for item in raw_items]
+    rows = _group_action_items(decorated) if view == "active" else sorted(decorated, key=lambda i: i.get("arose_at") or "", reverse=True)
+
+    # Automation state: the closest truthful signal existing services can
+    # give -- there is no live worker/daemon process this page can observe,
+    # so it never claims "Running"/"Worker Offline" (which would be
+    # fabricated). It reports what IS genuinely knowable: whether the queue
+    # is empty (nothing to act on) or non-empty (waiting on a human).
+    automation_state = "Waiting for You" if active_counts["TOTAL"] > 0 else "Up to Date"
+
+    return templates.TemplateResponse(
+        request,
+        "action_required.html",
+        {
+            "active_nav": "action_required",
+            "wide_content": True,
+            "counts": active_counts,
+            "category_labels": _ACTION_CATEGORY_LABELS,
+            "automation_state": automation_state,
+            "rows": rows,
+            "view": view,
+            "priority": priority,
+            "priority_labels": _PRIORITY_LABELS,
+        },
+    )
+
+
+@app.post("/action-required/blocker/{blocker_id}/resolve")
+def resolve_action_blocker(
+    blocker_id: int,
+    note: str = Form(""),
+    service: OpportunityCRMService = Depends(get_crm_service),
+):
+    """Reuses the EXISTING `resolve_human_blocker()` exactly as-is -- the
+    same mechanism `python job_tracker.py`/the CLI already use. Never
+    solves/bypasses the underlying CAPTCHA or MFA itself; this only records
+    that a human has already handled it outside this page (e.g. in a
+    terminal or a live browser session) so the existing automation runner
+    can continue from where it paused."""
+    try:
+        service.resolve_human_blocker(blocker_id, resolution_note=note, resolved_by="USER")
+    except ValueError:
+        pass
+    return RedirectResponse(url="/action-required", status_code=303)
+
+
+@app.post("/action-required/employer-response/{tracker_id}/{response_id}/review")
+def review_employer_action(
+    tracker_id: int,
+    response_id: int,
+    note: str = Form(""),
+    service: OpportunityCRMService = Depends(get_crm_service),
+):
+    """Marks one employer message reviewed -- an audited event, never an
+    autonomous reply. Composing/sending any response to the employer is
+    never done by this endpoint or anywhere else in this application."""
+    try:
+        service.mark_employer_response_reviewed(tracker_id, response_id, note=note, actor="USER")
+    except ValueError:
+        pass
+    return RedirectResponse(url="/action-required", status_code=303)
 
 
 def _register_placeholder_route(path: str, key: str, label: str, description: str) -> None:

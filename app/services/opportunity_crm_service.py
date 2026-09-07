@@ -1072,6 +1072,220 @@ class OpportunityCRMService:
             counts[key] = counts.get(key, 0) + 1
         return counts
 
+    # -- Web App Phase 3: Action Required read model --------------------------
+    # Critical product principle (see Phase 3 audit): Priority C
+    # (HUMAN_REVIEW) is an intelligence/application-priority signal, NOT
+    # proof of a concrete, ready-to-act human intervention. The Phase 1
+    # `needs_attention()`/`ATTENTION_STAGES` membership check treats bare
+    # crm_stage membership as "needs attention" -- for this production
+    # database that produced 127 items, but a read-only audit found ZERO of
+    # them backed by an actual OPEN `human_blockers` row, and the 118
+    # ELIGIBILITY_REVIEW-stage records include 9 that were never even
+    # eligibility-assessed (remote_eligibility NULL) and 4 already marked
+    # ELIGIBLE (stuck there only for an unrelated borderline-score review,
+    # per LEGACY_STATUS_TO_CRM_STAGE's shared "REVIEW"/"REMOTE_ELIGIBILITY_
+    # REVIEW" -> ELIGIBILITY_REVIEW mapping) -- i.e. that count conflates
+    # "the intelligence engine will eventually want a human look" with "a
+    # concrete question is ready for you right now".
+    #
+    # `action_required_items()` instead builds the queue ONLY from already-
+    # recorded, independently-verifiable facts, one path per category:
+    #   REVIEW_AND_SUBMIT   -- crm_stage genuinely reached PREPARED/
+    #                          READY_FOR_REVIEW/READY_FOR_HUMAN_SUBMIT (a
+    #                          package or route was actually resolved).
+    #   ANSWER_REQUIRED /
+    #   BROWSER_ACTION /
+    #   (an eligibility blocker, if one is ever recorded)
+    #                       -- an OPEN human_blockers row, mapped by its
+    #                          own blocker_type (never fabricated).
+    #   ELIGIBILITY_DECISION -- remote_eligibility == "MANUAL_REVIEW" (the
+    #                          eligibility CLASSIFIER's own "a human must
+    #                          decide" value -- see remote_work_eligibility.py
+    #                          -- never bare ELIGIBILITY_REVIEW stage
+    #                          membership) AND crm_stage is still
+    #                          ELIGIBILITY_REVIEW (excludes the 3 records
+    #                          that already progressed to
+    #                          ACKNOWLEDGED/APPLIED, the 1 already
+    #                          INVALID_VACANCY, and the 2 already WATCHED --
+    #                          the question is moot for all of those).
+    #   EMPLOYER_ACTION     -- an employer_responses row whose response_type
+    #                          is genuinely meaningful (reuses
+    #                          `response_quality_counts()`'s own
+    #                          acknowledgement-is-never-meaningful rule),
+    #                          not yet marked reviewed.
+    #
+    # Resolution reuses existing mechanisms wherever one already exists --
+    # no parallel/competing state machine is introduced:
+    #   BLOCKER-sourced      -> the existing `resolve_human_blocker()`.
+    #   REVIEW_AND_SUBMIT    -> resolves itself once crm_stage progresses
+    #                          past those three stages, or a user_decision
+    #                          (existing, Phase 2) is recorded.
+    #   ELIGIBILITY_DECISION -> resolves once ANY user_decision (existing,
+    #                          Phase 2 Apply/Watch/Reject) is recorded for
+    #                          that tracker -- reuses the SAME decision
+    #                          mechanism the Opportunity Detail page already
+    #                          writes to, rather than a second one.
+    #   EMPLOYER_ACTION      -> the one case with no existing "reviewed"
+    #                          concept; resolved via a new
+    #                          EMPLOYER_ACTION_REVIEWED entry in the
+    #                          EXISTING, already-immutable opportunity_events
+    #                          audit trail (see `mark_employer_response_
+    #                          reviewed()`) -- no new table.
+
+    ACTION_CATEGORIES = ("REVIEW_AND_SUBMIT", "ANSWER_REQUIRED", "ELIGIBILITY_DECISION", "BROWSER_ACTION", "EMPLOYER_ACTION")
+
+    _BLOCKER_TYPE_TO_ACTION_CATEGORY = {
+        "READY_FOR_HUMAN_SUBMIT": "REVIEW_AND_SUBMIT",
+        "HUMAN_ANSWER_APPROVAL_REQUIRED": "ANSWER_REQUIRED",
+        "HUMAN_SALARY_REVIEW_REQUIRED": "ANSWER_REQUIRED",
+        "HUMAN_ELIGIBILITY_REVIEW_REQUIRED": "ELIGIBILITY_DECISION",
+        "HUMAN_CAPTCHA_REQUIRED": "BROWSER_ACTION",
+        "HUMAN_MFA_REQUIRED": "BROWSER_ACTION",
+        # A conservative default: an unclassified blocker still genuinely
+        # needs a human look, so it is never silently dropped from the
+        # queue -- it lands in Answer Required rather than a 6th category.
+        "OTHER": "ANSWER_REQUIRED",
+    }
+    _EMPLOYER_ACTION_RESPONSE_TYPES = (
+        "RECRUITER_CONTACT", "SCREENING_REQUEST", "INTERVIEW_INVITATION", "ASSESSMENT_REQUEST", "OFFER", "UNKNOWN",
+    )
+    _REVIEW_AND_SUBMIT_STAGES = ("PREPARED", "READY_FOR_REVIEW", "READY_FOR_HUMAN_SUBMIT")
+
+    def action_required_items(self, *, include_resolved: bool = False) -> list[dict]:
+        """The concrete, evidence-backed Action Required queue. Each item:
+        tracker_id, company, job_title, intelligence_priority, career_score,
+        crm_stage, category, source ("BLOCKER"/"STAGE"/"ELIGIBILITY"/
+        "EMPLOYER_RESPONSE"), reason (plain-language-ready raw fact),
+        arose_at, resolved (bool), and blocker_id/employer_response_id
+        where applicable. `include_resolved=True` also returns resolved
+        items, for the Action Required history view."""
+        items: list[dict] = []
+        seen_tracker_category: set[tuple[int, str]] = set()
+
+        def base_fields(record: dict) -> dict:
+            return {
+                "tracker_id": record["id"], "company": record.get("company") or "",
+                "job_title": record.get("job_title") or "", "intelligence_priority": record.get("intelligence_priority"),
+                "career_score": record.get("career_score"), "crm_stage": record.get("crm_stage"),
+            }
+
+        # 1. OPEN (and, if requested, RESOLVED) human_blockers.
+        blocker_rows = self.connection.execute(
+            "SELECT * FROM human_blockers" + ("" if include_resolved else " WHERE status = 'OPEN'")
+        ).fetchall()
+        for blocker in blocker_rows:
+            blocker = dict(blocker)
+            record = self.get_opportunity(blocker["tracker_id"])
+            if not record:
+                continue
+            category = self._BLOCKER_TYPE_TO_ACTION_CATEGORY.get(blocker["blocker_type"], "ANSWER_REQUIRED")
+            seen_tracker_category.add((blocker["tracker_id"], category))
+            items.append({
+                **base_fields(record), "category": category, "source": "BLOCKER",
+                "reason": blocker.get("detail") or blocker["blocker_type"], "arose_at": blocker["created_at"],
+                "resolved": blocker["status"] == BLOCKER_RESOLVED, "blocker_id": blocker["id"],
+                "blocker_type": blocker["blocker_type"], "employer_response_id": None, "response_type": None,
+            })
+
+        # 2. REVIEW_AND_SUBMIT: a package/route genuinely reached readiness.
+        for record in self.connection.execute(
+            "SELECT * FROM application_history WHERE crm_stage IN ({})".format(
+                ",".join("?" * len(self._REVIEW_AND_SUBMIT_STAGES))
+            ),
+            self._REVIEW_AND_SUBMIT_STAGES,
+        ):
+            record = dict(record)
+            key = (record["id"], "REVIEW_AND_SUBMIT")
+            if key in seen_tracker_category:
+                continue
+            latest_decision = self.get_latest_user_decision(record["id"])
+            resolved = latest_decision is not None and latest_decision["decision"] in ("WATCH", "REJECT")
+            if resolved and not include_resolved:
+                continue
+            items.append({
+                **base_fields(record), "category": "REVIEW_AND_SUBMIT", "source": "STAGE",
+                "reason": "Application prepared and ready for your review and submission.",
+                "arose_at": record.get("crm_stage_updated_at") or record.get("processed_at") or record.get("discovered_at"),
+                "resolved": resolved, "blocker_id": None, "blocker_type": None,
+                "employer_response_id": None, "response_type": None,
+            })
+
+        # 3. ELIGIBILITY_DECISION: the classifier's own "a human must
+        #    decide" value, still in the active ELIGIBILITY_REVIEW stage.
+        for record in self.connection.execute(
+            "SELECT * FROM application_history WHERE remote_eligibility = 'MANUAL_REVIEW' AND crm_stage = 'ELIGIBILITY_REVIEW'"
+        ):
+            record = dict(record)
+            key = (record["id"], "ELIGIBILITY_DECISION")
+            if key in seen_tracker_category:
+                continue
+            latest_decision = self.get_latest_user_decision(record["id"])
+            resolved = latest_decision is not None
+            if resolved and not include_resolved:
+                continue
+            items.append({
+                **base_fields(record), "category": "ELIGIBILITY_DECISION", "source": "ELIGIBILITY",
+                "reason": record.get("remote_eligibility_reason") or "Remote role is silent on overseas eligibility -- needs your review.",
+                "arose_at": record.get("crm_stage_updated_at") or record.get("discovered_at"),
+                "resolved": resolved, "blocker_id": None, "blocker_type": None,
+                "employer_response_id": None, "response_type": None,
+            })
+
+        # 4. EMPLOYER_ACTION: a genuinely meaningful (never merely an
+        #    automated acknowledgement) employer response.
+        placeholders = ",".join("?" * len(self._EMPLOYER_ACTION_RESPONSE_TYPES))
+        for row in self.connection.execute(
+            f"SELECT * FROM employer_responses WHERE response_type IN ({placeholders}) ORDER BY id", self._EMPLOYER_ACTION_RESPONSE_TYPES,
+        ):
+            row = dict(row)
+            record = self.get_opportunity(row["tracker_id"])
+            if not record:
+                continue
+            resolved = self._is_employer_response_reviewed(row["id"])
+            if resolved and not include_resolved:
+                continue
+            items.append({
+                **base_fields(record), "category": "EMPLOYER_ACTION", "source": "EMPLOYER_RESPONSE",
+                "reason": row.get("summary") or row["response_type"], "arose_at": row["received_at"],
+                "resolved": resolved, "blocker_id": None, "blocker_type": None,
+                "employer_response_id": row["id"], "response_type": row["response_type"],
+            })
+
+        items.sort(key=lambda item: item.get("arose_at") or "", reverse=True)
+        return items
+
+    def action_required_counts(self) -> dict[str, int]:
+        """Active (unresolved) Action Required counts by category, plus
+        "TOTAL" -- always the sum of the five, so the summary cards
+        reconcile exactly to the active queue by construction."""
+        items = self.action_required_items()
+        counts = {category: 0 for category in self.ACTION_CATEGORIES}
+        for item in items:
+            counts[item["category"]] += 1
+        counts["TOTAL"] = len(items)
+        return counts
+
+    def mark_employer_response_reviewed(self, tracker_id: int, employer_response_id: int, note: str = "", actor: str = "USER") -> dict:
+        """The one Action Required resolution with no pre-existing
+        mechanism to reuse -- recorded as a new, immutable event on the
+        SAME `opportunity_events` audit trail every other CRM action
+        already uses (never a new table, never mutating the
+        employer_responses row itself)."""
+        self._require(tracker_id)
+        row = self.connection.execute("SELECT * FROM employer_responses WHERE id = ?", (employer_response_id,)).fetchone()
+        if not row or row["tracker_id"] != tracker_id:
+            raise ValueError(f"No employer_responses row {employer_response_id} found for tracker {tracker_id}.")
+        return self.append_event(
+            tracker_id, "EMPLOYER_ACTION_REVIEWED", reason=note, evidence_reference=str(employer_response_id), actor=actor,
+        )
+
+    def _is_employer_response_reviewed(self, employer_response_id: int) -> bool:
+        row = self.connection.execute(
+            "SELECT 1 FROM opportunity_events WHERE event_type = 'EMPLOYER_ACTION_REVIEWED' AND evidence_reference = ? LIMIT 1",
+            (str(employer_response_id),),
+        ).fetchone()
+        return row is not None
+
     def pipeline_counts(self) -> dict[str, int]:
         """Current crm_stage distribution, with every stage in
         `PIPELINE_VIEW_STAGES` present (0 when nothing is there today) --

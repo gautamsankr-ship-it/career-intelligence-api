@@ -683,3 +683,203 @@ def test_opportunity_filter_options_reflects_real_distinct_values(tmp_path):
     assert "united_kingdom" in options["market"]
     assert "REMOTE" in options["work_arrangement"]
     assert "LinkedIn" in options["source"]
+
+
+# --- Web App Phase 3: Action Required read model ----------------------------
+def _priority_c_eligibility_review(service, external_id, **fields):
+    """A record shaped exactly like production's common case: Priority C,
+    ELIGIBILITY_REVIEW stage, remote_eligibility genuinely MANUAL_REVIEW."""
+    record = _create(service, external_id=external_id, **fields)
+    service.update_opportunity(record["id"], intelligence_priority="C", remote_eligibility="MANUAL_REVIEW")
+    service.transition_stage(record["id"], "ELIGIBILITY_REVIEW")
+    return record
+
+
+def test_bare_eligibility_review_stage_without_manual_review_is_not_an_action(tmp_path):
+    """Critical product principle: Priority C / ELIGIBILITY_REVIEW stage
+    ALONE is never sufficient -- a record parked there for an unrelated
+    borderline-score reason (remote_eligibility genuinely ELIGIBLE, or
+    never assessed) must not appear in the queue."""
+    _, service = crm(tmp_path)
+    unrelated_review = _create(service, external_id="not-eligibility-1")
+    service.update_opportunity(unrelated_review["id"], intelligence_priority="C", remote_eligibility="ELIGIBLE")
+    service.transition_stage(unrelated_review["id"], "ELIGIBILITY_REVIEW")
+    never_assessed = _create(service, external_id="not-eligibility-2")
+    service.update_opportunity(never_assessed["id"], intelligence_priority="C")
+    service.transition_stage(never_assessed["id"], "ELIGIBILITY_REVIEW")
+
+    items = service.action_required_items()
+    assert items == []
+    assert service.action_required_counts()["TOTAL"] == 0
+
+
+def test_genuine_manual_review_eligibility_record_appears_as_eligibility_decision(tmp_path):
+    _, service = crm(tmp_path)
+    record = _priority_c_eligibility_review(service, "elig-1")
+
+    items = service.action_required_items()
+    assert len(items) == 1
+    assert items[0]["category"] == "ELIGIBILITY_DECISION"
+    assert items[0]["tracker_id"] == record["id"]
+    assert items[0]["resolved"] is False
+    assert service.action_required_counts()["ELIGIBILITY_DECISION"] == 1
+
+
+def test_eligibility_decision_resolves_via_existing_user_decision_mechanism(tmp_path):
+    """No second decision system: recording ANY Apply/Watch/Reject via the
+    EXISTING record_user_decision() clears the eligibility action -- the
+    underlying remote_eligibility value is never touched."""
+    _, service = crm(tmp_path)
+    record = _priority_c_eligibility_review(service, "elig-2")
+    assert service.action_required_counts()["ELIGIBILITY_DECISION"] == 1
+
+    service.record_user_decision(record["id"], "WATCH", reason_code="LOCATION")
+
+    assert service.action_required_counts()["ELIGIBILITY_DECISION"] == 0
+    after = service.get_opportunity(record["id"])
+    assert after["remote_eligibility"] == "MANUAL_REVIEW"  # never fabricated/mutated
+    history_items = service.action_required_items(include_resolved=True)
+    resolved_item = next(i for i in history_items if i["tracker_id"] == record["id"])
+    assert resolved_item["resolved"] is True
+
+
+def test_eligibility_decision_excludes_records_that_already_progressed(tmp_path):
+    """A record that already reached APPLIED/WATCHED/a terminal stage with
+    remote_eligibility still MANUAL_REVIEW must not resurface as an active
+    action -- the question is moot once the opportunity moved on."""
+    _, service = crm(tmp_path)
+    applied = _create(service, external_id="elig-progressed-1")
+    service.update_opportunity(applied["id"], remote_eligibility="MANUAL_REVIEW")
+    service.record_submission_confirmation(applied["id"], confirmation_evidence="confirmed", submission_reference="s1")
+
+    watched = _create(service, external_id="elig-progressed-2")
+    service.update_opportunity(watched["id"], remote_eligibility="MANUAL_REVIEW")
+    service.transition_stage(watched["id"], "WATCHED")
+
+    assert service.action_required_items() == []
+
+
+def test_review_and_submit_appears_for_ready_for_human_submit_stage(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="rs-1")
+    service.transition_stage(record["id"], "READY_FOR_HUMAN_SUBMIT")
+
+    items = service.action_required_items()
+    assert len(items) == 1
+    assert items[0]["category"] == "REVIEW_AND_SUBMIT"
+    assert items[0]["source"] == "STAGE"
+
+
+def test_review_and_submit_resolves_via_watch_or_reject_decision(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="rs-2")
+    service.transition_stage(record["id"], "READY_FOR_HUMAN_SUBMIT")
+    service.record_user_decision(record["id"], "REJECT", reason_code="COMPANY_UNATTRACTIVE")
+
+    assert service.action_required_counts()["REVIEW_AND_SUBMIT"] == 0
+
+
+def test_open_blocker_maps_to_its_own_action_category(tmp_path):
+    _, service = crm(tmp_path)
+    captcha_record = _create(service, external_id="blk-captcha")
+    service.record_human_blocker(captcha_record["id"], "HUMAN_CAPTCHA_REQUIRED", detail="CAPTCHA on Greenhouse form")
+    salary_record = _create(service, external_id="blk-salary")
+    service.record_human_blocker(salary_record["id"], "HUMAN_SALARY_REVIEW_REQUIRED", detail="Confirm minimum acceptable salary")
+
+    counts = service.action_required_counts()
+    assert counts["BROWSER_ACTION"] == 1
+    assert counts["ANSWER_REQUIRED"] == 1
+    items = {i["tracker_id"]: i for i in service.action_required_items()}
+    assert items[captcha_record["id"]]["reason"] == "CAPTCHA on Greenhouse form"
+    assert items[salary_record["id"]]["source"] == "BLOCKER"
+
+
+def test_resolving_a_blocker_backed_action_reuses_resolve_human_blocker(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="blk-resolve")
+    blocker = service.record_human_blocker(record["id"], "HUMAN_MFA_REQUIRED", detail="Login MFA required")
+    assert service.action_required_counts()["BROWSER_ACTION"] == 1
+
+    service.resolve_human_blocker(blocker["id"], resolution_note="Logged in manually", resolved_by="USER")
+
+    assert service.action_required_counts()["BROWSER_ACTION"] == 0
+    history_items = service.action_required_items(include_resolved=True)
+    resolved_item = next(i for i in history_items if i["tracker_id"] == record["id"])
+    assert resolved_item["resolved"] is True
+
+
+def test_acknowledgement_alone_never_creates_an_employer_action(tmp_path):
+    """Reuses response_quality_counts()'s rule: an automated ACKNOWLEDGEMENT
+    is never a meaningful employer response requiring action."""
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="emp-ack")
+    service.record_submission_confirmation(record["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    service.record_employer_response(record["id"], "ACKNOWLEDGEMENT")
+
+    assert service.action_required_counts()["EMPLOYER_ACTION"] == 0
+
+
+def test_meaningful_employer_response_creates_an_employer_action(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="emp-real")
+    service.record_submission_confirmation(record["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    response = service.record_employer_response(record["id"], "INTERVIEW_INVITATION", summary="Interview next Tuesday")
+
+    items = service.action_required_items()
+    assert len(items) == 1
+    assert items[0]["category"] == "EMPLOYER_ACTION"
+    assert items[0]["response_type"] == "INTERVIEW_INVITATION"
+    assert items[0]["reason"] == "Interview next Tuesday"
+
+
+def test_marking_employer_response_reviewed_resolves_it_without_a_new_table(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="emp-resolve")
+    service.record_submission_confirmation(record["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    response = service.record_employer_response(record["id"], "SCREENING_REQUEST", summary="Phone screen requested")
+
+    assert service.action_required_counts()["EMPLOYER_ACTION"] == 1
+    service.mark_employer_response_reviewed(record["id"], response["id"], note="Scheduled the call")
+    assert service.action_required_counts()["EMPLOYER_ACTION"] == 0
+
+    events = [e["detail"] for e in service.get_timeline(record["id"]) if e["kind"] == "EVENT" and e["detail"]["event_type"] == "EMPLOYER_ACTION_REVIEWED"]
+    assert len(events) == 1
+    assert events[0]["evidence_reference"] == str(response["id"])
+
+
+def test_two_distinct_employer_responses_are_two_independent_actions(tmp_path):
+    _, service = crm(tmp_path)
+    record = _create(service, external_id="emp-two")
+    service.record_submission_confirmation(record["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    first = service.record_employer_response(record["id"], "RECRUITER_CONTACT", summary="Recruiter reached out")
+    second = service.record_employer_response(record["id"], "OFFER", summary="Offer extended")
+
+    assert service.action_required_counts()["EMPLOYER_ACTION"] == 2
+    service.mark_employer_response_reviewed(record["id"], first["id"])
+    assert service.action_required_counts()["EMPLOYER_ACTION"] == 1  # the OFFER item remains active
+
+
+def test_action_required_counts_reconcile_to_total(tmp_path):
+    _, service = crm(tmp_path)
+    _priority_c_eligibility_review(service, "recon-1")
+    _priority_c_eligibility_review(service, "recon-2")
+    ready = _create(service, external_id="recon-3")
+    service.transition_stage(ready["id"], "READY_FOR_HUMAN_SUBMIT")
+    blocked = _create(service, external_id="recon-4")
+    service.record_human_blocker(blocked["id"], "HUMAN_CAPTCHA_REQUIRED")
+
+    counts = service.action_required_counts()
+    assert counts["TOTAL"] == sum(counts[c] for c in service.ACTION_CATEGORIES)
+    assert counts["TOTAL"] == 4
+
+
+def test_action_required_never_mutates_production_data_on_read(tmp_path):
+    """A pure read model -- calling it repeatedly must never write anything."""
+    _, service = crm(tmp_path)
+    record = _priority_c_eligibility_review(service, "readonly-1")
+    before = dict(service.get_opportunity(record["id"]))
+    service.action_required_items()
+    service.action_required_items(include_resolved=True)
+    service.action_required_counts()
+    after = dict(service.get_opportunity(record["id"]))
+    assert before == after

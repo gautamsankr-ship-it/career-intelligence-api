@@ -112,11 +112,7 @@
     </div>
     {% if attention_total > 5 %}
     <p class="section-footer">
-      {% if show_all_attention %}
-      <a href="/{{ '?attn_priority=' + attn_priority if attn_priority else '' }}">Show fewer</a>
-      {% else %}
-      <a href="/?show_all_attention=1{{ '&attn_priority=' + attn_priority if attn_priority else '' }}">View All ({{ attention_total }}) &rarr;</a>
-      {% endif %}
+      <a href="/action-required{{ '?priority=' + attn_priority if attn_priority else '' }}">View All ({{ attention_total }}) &rarr;</a>
     </p>
     {% endif %}
   </div>

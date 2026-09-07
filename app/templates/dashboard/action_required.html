@@ -1,0 +1,63 @@
+{% extends "_shell.html" %}
+{% block title %}Action Required -- Career Intelligence{% endblock %}
+{% block content %}
+  <div class="page-header">
+    <h1>Action Required</h1>
+    <div class="subtitle">What genuinely requires my intervention right now? -- Automation: <strong>{{ automation_state }}</strong></div>
+  </div>
+
+  <div class="section">
+    <div class="cards">
+      <div class="card card--highlight"><div class="n">{{ counts.TOTAL }}</div><div class="l">Total Actions Required</div></div>
+      <div class="card"><div class="n">{{ counts.REVIEW_AND_SUBMIT }}</div><div class="l">Review &amp; Submit</div></div>
+      <div class="card"><div class="n">{{ counts.ANSWER_REQUIRED }}</div><div class="l">Answer Required</div></div>
+      <div class="card"><div class="n">{{ counts.ELIGIBILITY_DECISION }}</div><div class="l">Eligibility Decision</div></div>
+      <div class="card"><div class="n">{{ counts.BROWSER_ACTION }}</div><div class="l">Browser Action Required</div></div>
+      <div class="card"><div class="n">{{ counts.EMPLOYER_ACTION }}</div><div class="l">Employer Action</div></div>
+    </div>
+    <p class="section-hint">Only concrete, unresolved interventions appear here -- not every opportunity awaiting eventual review. See a Priority-C or Priority-B opportunity that isn't listed? It has no specific action ready yet; check its Opportunity Detail page.</p>
+  </div>
+
+  <div class="section">
+    <div class="chip-row">
+      <a class="chip {{ 'is-active' if view == 'active' else '' }}" href="/action-required{{ '?priority=' + priority if priority else '' }}">Active</a>
+      <a class="chip {{ 'is-active' if view == 'resolved' else '' }}" href="/action-required?view=resolved{{ '&priority=' + priority if priority else '' }}">Resolved</a>
+      <span style="width:1px;height:20px;background:var(--border);margin:0 4px;"></span>
+      <a class="chip {{ 'is-active' if not priority else '' }}" href="/action-required?view={{ view }}">All</a>
+      {% for grade in ["A", "B", "C", "D", "E", "UNSCORED"] %}
+      <a class="chip {{ 'is-active' if priority == grade else '' }}" href="/action-required?view={{ view }}&priority={{ grade }}">{{ grade }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="section">
+    {% if rows %}
+    {% for row in rows %}
+      {% if row.is_group %}
+      <details class="action-group">
+        <summary class="action-group__header">
+          <span>
+            <span class="category-pill category-{{ row.category }}">{{ row.category_label }}</span>
+            &nbsp; <strong>{{ row.plain_reason }}</strong>
+            &mdash; <span class="action-group__count">{{ row.count }} opportunities</span>
+          </span>
+          <span class="urgency-badge urgency-{{ row.urgency }}">{{ row.urgency }}</span>
+        </summary>
+        <div class="action-group__body">
+          {% for item in row.opportunities %}
+          {% include "_action_row.html" %}
+          {% endfor %}
+        </div>
+      </details>
+      {% else %}
+      <div class="attention-list" style="margin-bottom:8px;">
+        {% set item = row %}
+        {% include "_action_row.html" %}
+      </div>
+      {% endif %}
+    {% endfor %}
+    {% else %}
+    <div class="empty-state">{% if view == 'resolved' %}No resolved actions yet.{% else %}Nothing genuinely requires your intervention right now.{% endif %}</div>
+    {% endif %}
+  </div>
+{% endblock %}

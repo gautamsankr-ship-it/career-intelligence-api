@@ -1,0 +1,42 @@
+{# Expects `item` in context -- one decorated Action Required item. #}
+<div class="action-row">
+  <div class="action-row__main">
+    <div class="action-row__top">
+      <span class="category-pill category-{{ item.category }}">{{ item.category_label }}</span>
+      <span class="urgency-badge urgency-{{ item.urgency }}">{{ item.urgency }}</span>
+      {% if item.intelligence_priority %}<span class="badge p-{{ item.intelligence_priority }}">{{ item.intelligence_priority }}</span>{% endif %}
+      {% if item.resolved %}<span class="status-chip">Resolved</span>{% endif %}
+    </div>
+    <div class="action-row__job">{{ item.job_title or "-" }}</div>
+    <div class="action-row__company">{{ item.company or "-" }}{% if item.career_score is not none %} &middot; Career score {{ item.career_score | round(0) | int }}{% endif %}</div>
+    <div class="action-row__reason">{{ item.plain_reason }}</div>
+    <div class="action-row__meta">
+      Arose {{ item.arose_at[:10] if item.arose_at else "-" }} &middot; Current state: {{ item.crm_stage | humanize }}
+    </div>
+  </div>
+  <div class="action-row__side">
+    {% if item.category in ("REVIEW_AND_SUBMIT", "ELIGIBILITY_DECISION", "EMPLOYER_ACTION") %}
+    <a class="action-btn" href="/opportunity/{{ item.tracker_id }}">{{ item.primary_action }} &rarr;</a>
+    {% endif %}
+    {% if item.category == "EMPLOYER_ACTION" and not item.resolved %}
+    <form method="post" action="/action-required/employer-response/{{ item.tracker_id }}/{{ item.employer_response_id }}/review">
+      <button class="action-btn action-btn--secondary" type="submit">Mark Reviewed</button>
+    </form>
+    {% endif %}
+    {% if item.category == "BROWSER_ACTION" and not item.resolved %}
+    <form method="post" action="/action-required/blocker/{{ item.blocker_id }}/resolve">
+      <input type="hidden" name="note" value="Completed manually by user">
+      <button class="action-btn" type="submit">I've Completed This &mdash; Continue Automation</button>
+    </form>
+    {% endif %}
+    {% if item.category == "ANSWER_REQUIRED" and not item.resolved %}
+    <form method="post" action="/action-required/blocker/{{ item.blocker_id }}/resolve" style="display:flex;gap:6px;">
+      <input type="text" name="note" placeholder="Your answer" required style="padding:6px 8px;border-radius:6px;border:1px solid #d1d5db;font-size:12.5px;width:130px;">
+      <button class="action-btn" type="submit">Answer</button>
+    </form>
+    {% endif %}
+    {% if not item.category in ("REVIEW_AND_SUBMIT", "ELIGIBILITY_DECISION", "EMPLOYER_ACTION") %}
+    <a href="/opportunity/{{ item.tracker_id }}" style="font-size:12px;">Open Opportunity &rarr;</a>
+    {% endif %}
+  </div>
+</div>
