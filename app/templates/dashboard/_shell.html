@@ -113,6 +113,29 @@
     .category-BROWSER_ACTION { background: #fee2e2; color: #991b1b; }
     .category-EMPLOYER_ACTION { background: #dcfce7; color: #166534; }
 
+    /* Phase 3.1: compact, exception-management-style rows/sections -- a
+       single line per item instead of the Phase 3 multi-line card, so the
+       active queue reads at a glance rather than as a long register. */
+    .ar-section { margin-bottom: 20px; }
+    .ar-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .ar-section-header h2 { margin: 0; font-size: 14px; text-transform: none; letter-spacing: 0; color: var(--text); font-weight: 700; }
+    .ar-section-count { font-weight: 700; color: var(--text-muted); font-size: 13px; }
+    .ar-list { background: var(--surface); border-radius: 10px; border: 1px solid var(--border); overflow: hidden; }
+    .ar-row { display: flex; align-items: center; gap: 12px; padding: 9px 16px; border-bottom: 1px solid #eef0f2; font-size: 13px; }
+    .ar-row:last-child { border-bottom: none; }
+    .ar-row:hover { background: #f9fafb; }
+    .ar-row__priority { flex: 0 0 auto; }
+    .ar-row__job { flex: 1 1 200px; min-width: 0; }
+    .ar-row__job .job { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ar-row__job .company { color: var(--text-muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ar-row__urgency { flex: 0 0 auto; }
+    .ar-row__reason { flex: 2 1 240px; min-width: 0; color: var(--text-muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ar-row__action { flex: 0 0 auto; display: flex; gap: 6px; align-items: center; }
+    .ar-view-all { border-top: 1px solid var(--border); }
+    .ar-view-all summary { padding: 9px 16px; cursor: pointer; font-size: 12.5px; color: var(--primary); background: var(--surface); border-radius: 0 0 10px 10px; }
+    .ar-view-all[open] summary { border-radius: 0; }
+    @media (max-width: 900px) { .ar-row { flex-wrap: wrap; } }
+
     .attention-box { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; overflow: hidden; }
     .attention-box .empty { padding: 16px; color: var(--text-muted); }
     .attention-box table { box-shadow: none; }

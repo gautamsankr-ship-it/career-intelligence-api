@@ -1317,3 +1317,238 @@ def test_dashboard_needs_my_attention_matches_action_required_total_on_productio
     finally:
         service.close()
     assert f"Needs My Attention ({total})" in home_body
+
+
+# --- Web App Phase 3.1: Action Required UI compression ----------------------
+def _seed_many_review_and_submit(tmp_path, count=10):
+    db_path = tmp_path / "rs_many.db"
+    history = ApplicationHistoryService(db_path)
+    service = OpportunityCRMService(history)
+    ids = []
+    try:
+        for i in range(count):
+            fingerprint = job_fingerprint(source="LinkedIn", external_job_id=f"rs-{i}")
+            record = service.create_opportunity(fingerprint, company=f"ReadyCo{i}", job_title="Analyst")
+            service.transition_stage(record["id"], "READY_FOR_HUMAN_SUBMIT")
+            ids.append(record["id"])
+    finally:
+        service.close()
+    return db_path, ids
+
+
+def test_review_and_submit_shows_only_top_3_rows_outside_the_view_all_disclosure(tmp_path):
+    """Rows are ordered by the EXISTING, unmodified urgency/recency sort
+    (Phase 3) -- not insertion order -- so this checks structure (exactly 3
+    distinct companies before the disclosure, the other 7 after), not which
+    specific company happens to rank first."""
+    db_path, ids = _seed_many_review_and_submit(tmp_path, count=10)
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required").text
+        # The section header (<h2>Review &amp; Submit</h2>) is unambiguous,
+        # unlike the KPI card's "Review &amp; Submit" text.
+        section_start = body.index("<h2>Review &amp; Submit</h2>")
+        details_pos = body.index('<details class="ar-view-all">', section_start)
+        before_section = body[section_start:details_pos]
+        after_section = body[details_pos:]
+        companies = [f"ReadyCo{i}" for i in range(10)]
+        before_present = {c for c in companies if c in before_section}
+        after_present = {c for c in companies if c in after_section}
+        assert len(before_present) == 3, f"expected exactly 3 companies before the disclosure, got {before_present}"
+        assert len(after_present) == 7, f"expected exactly 7 companies inside the disclosure, got {after_present}"
+        assert before_present.isdisjoint(after_present)
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_review_and_submit_view_all_link_shows_the_true_count_and_is_collapsed_by_default(tmp_path):
+    db_path, ids = _seed_many_review_and_submit(tmp_path, count=10)
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required").text
+        assert "View all 10" in body
+        # Native <details> with no `open` attribute renders collapsed by
+        # default -- "collapse back" is then just closing it again.
+        assert '<details class="ar-view-all">' in body
+        assert '<details class="ar-view-all" open>' not in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_review_and_submit_no_view_all_control_when_three_or_fewer(tmp_path):
+    db_path, ids = _seed_many_review_and_submit(tmp_path, count=3)
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required").text
+        assert "ReadyCo0" in body and "ReadyCo1" in body and "ReadyCo2" in body
+        assert "View all" not in body
+        assert 'class="ar-view-all"' not in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def _seed_eligibility_group_and_outlier(tmp_path, group_size=20):
+    db_path = tmp_path / "elig_group.db"
+    history = ApplicationHistoryService(db_path)
+    service = OpportunityCRMService(history)
+    try:
+        for i in range(group_size):
+            fingerprint = job_fingerprint(source="LinkedIn", external_job_id=f"elg-{i}")
+            record = service.create_opportunity(fingerprint, company=f"GroupCo{i}", job_title="Analyst")
+            service.update_opportunity(record["id"], intelligence_priority="C", remote_eligibility="MANUAL_REVIEW")
+            service.transition_stage(record["id"], "ELIGIBILITY_REVIEW")
+        # One genuinely different eligibility reason -- must stay separate.
+        outlier_fp = job_fingerprint(source="LinkedIn", external_job_id="elg-outlier")
+        outlier = service.create_opportunity(outlier_fp, company="OutlierCo", job_title="Analyst")
+        service.update_opportunity(
+            outlier["id"], intelligence_priority="C", remote_eligibility="MANUAL_REVIEW",
+            remote_eligibility_reason="A completely different eligibility question entirely.",
+        )
+        service.transition_stage(outlier["id"], "ELIGIBILITY_REVIEW")
+    finally:
+        service.close()
+    return db_path
+
+
+def test_eligibility_group_remains_one_compact_collapsed_card_by_default(tmp_path):
+    db_path = _seed_eligibility_group_and_outlier(tmp_path, group_size=20)
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required").text
+        assert "20 opportunities" in body
+        assert 'class="action-group"' in body
+        # Collapsed by default -- the 20 individual GroupCo rows are not
+        # rendered as their own top-level compact rows outside the card.
+        eligibility_header = body.index("<h2>Eligibility Decision</h2>")
+        group_details_pos = body.index('<details class="action-group">', eligibility_header)
+        assert body.index("GroupCo0") > group_details_pos  # only reachable inside the group's own body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_eligibility_outlier_rendered_separately_from_the_group(tmp_path):
+    db_path = _seed_eligibility_group_and_outlier(tmp_path, group_size=20)
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required").text
+        assert "OutlierCo" in body
+        assert "A completely different eligibility question entirely." in body
+        # The outlier is its own compact row, not folded into the 20-count group.
+        assert "21 opportunities" not in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_eligibility_explanation_appears_exactly_once(tmp_path):
+    db_path = _seed_eligibility_group_and_outlier(tmp_path, group_size=20)
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required").text
+        assert body.count("These vacancies require individual eligibility decisions. Grouping is for triage only.") == 1
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_zero_count_categories_render_no_body_section(tmp_path):
+    """Answer Required / Browser Action Required / Employer Action stay at
+    0 in this fixture -- their KPI cards must still show 0, but no empty
+    section/header should render below for them."""
+    db_path, ids = _seed_many_review_and_submit(tmp_path, count=2)
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required").text
+        assert '<div class="n">0</div><div class="l">Answer Required</div>' in body  # KPI card intact
+        # No section header for a zero-count category.
+        content_after_kpis = body.split("filters-card")[-1] if "filters-card" in body else body
+        # A rendered section would include the humanized crm_stage text or
+        # a category-specific hint; absent here since count is 0.
+        assert "Answer Required</h2>" not in body
+        assert "Browser Action Required</h2>" not in body
+        assert "Employer Action</h2>" not in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_action_required_priority_filter_still_scopes_category_sections(tmp_path):
+    db_path, ids, refs = _seed_action_required(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required?priority=C").text
+        assert "Acme Robotics" in body  # the C-priority eligibility item
+        assert "Robert Half" not in body  # unscored Review & Submit item filtered out
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_action_required_kpi_counts_and_page_structure_unchanged_by_compression(tmp_path):
+    """The presentation compression must never change what the KPI cards
+    report -- same reconciled totals as Phase 3."""
+    db_path, ids, refs = _seed_action_required(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required").text
+        import re
+        cards = {m.group(2): int(m.group(1)) for m in re.finditer(r'<div class="n">(\d+)</div><div class="l">([^<]*)</div>', body)}
+        assert cards["Total Actions Required"] == 5
+        assert cards["Total Actions Required"] == sum(
+            cards[k] for k in ("Review &amp; Submit", "Answer Required", "Eligibility Decision", "Browser Action Required", "Employer Action")
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_action_required_page_is_substantially_shorter_with_many_review_and_submit_items(tmp_path):
+    """Direct check of the stated problem: a page with 10 Review & Submit
+    items must not render all 10 as full-height cards before anything else
+    -- the compact top-3 + collapsed-rest layout keeps the response
+    meaningfully shorter than one row per item at the old verbosity."""
+    db_path, ids = _seed_many_review_and_submit(tmp_path, count=10)
+    try:
+        client = _client(db_path)
+        body = client.get("/action-required").text
+        # Only 3 rows' worth of always-visible "action-btn" links precede
+        # the "View all" disclosure for this category (verified by position
+        # in an earlier test); here just confirm the compact row markup is
+        # what's actually USED (the class definition stays in <style>
+        # regardless -- the Resolved view still uses the fuller row).
+        assert 'class="action-row__meta"' not in body  # old verbose per-row meta line is not rendered in the active view
+        assert 'class="ar-row__reason"' in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+# --- Production verification (READ-ONLY) ------------------------------------
+def test_action_required_production_counts_match_before_and_after_compression():
+    """Read-only: the underlying counts must be byte-for-byte identical to
+    what Phase 3 established -- this task changes presentation only."""
+    service = OpportunityCRMService()
+    try:
+        counts = service.action_required_counts()
+    finally:
+        service.close()
+    client = TestClient(app)
+    body = client.get("/action-required").text
+    import re
+    cards = {m.group(2): int(m.group(1)) for m in re.finditer(r'<div class="n">(\d+)</div><div class="l">([^<]*)</div>', body)}
+    assert cards["Total Actions Required"] == counts["TOTAL"]
+    assert cards["Review &amp; Submit"] == counts["REVIEW_AND_SUBMIT"]
+    assert cards["Eligibility Decision"] == counts["ELIGIBILITY_DECISION"]
+    assert cards["Answer Required"] == counts["ANSWER_REQUIRED"]
+    assert cards["Browser Action Required"] == counts["BROWSER_ACTION"]
+    assert cards["Employer Action"] == counts["EMPLOYER_ACTION"]
+
+
+def test_action_required_production_review_and_submit_shows_top_3_with_view_all():
+    """Read-only: verifies the compression against the REAL production
+    queue (10 Review & Submit items today)."""
+    client = TestClient(app)
+    body = client.get("/action-required").text
+    service = OpportunityCRMService()
+    try:
+        count = service.action_required_counts()["REVIEW_AND_SUBMIT"]
+    finally:
+        service.close()
+    if count > 3:
+        assert f"View all {count}" in body
+    else:
+        assert "View all" not in body

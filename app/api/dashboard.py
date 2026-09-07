@@ -179,6 +179,17 @@ _URGENCY_RANK = {"Critical": 0, "High": 1, "Normal": 2}
 # individually.
 _GROUPING_THRESHOLD = 15
 _GROUPABLE_CATEGORIES = {"ELIGIBILITY_DECISION", "ANSWER_REQUIRED"}
+# Phase 3.1: display order only (the active queue is organized into one
+# section per category, most-actionable first) -- distinct from
+# OpportunityCRMService.ACTION_CATEGORIES, whose own order is never changed.
+_ACTION_CATEGORY_DISPLAY_ORDER = ("REVIEW_AND_SUBMIT", "ELIGIBILITY_DECISION", "ANSWER_REQUIRED", "BROWSER_ACTION", "EMPLOYER_ACTION")
+# Beyond this many individually-rendered rows, a category's active section
+# shows only the first N and tucks the rest behind a native <details>
+# "View all" disclosure -- the full HTML is still in the response (nothing
+# is dropped), only the default-collapsed rendering is compact. Grouped
+# rows (see _GROUPABLE_CATEGORIES) already collapse via their own group
+# card and are unaffected by this.
+_SECTION_PREVIEW_COUNT = 3
 
 
 def _action_urgency(item: dict) -> str:
@@ -630,6 +641,19 @@ def action_required(
     decorated = [_decorate_action_item(item) for item in raw_items]
     rows = _group_action_items(decorated) if view == "active" else sorted(decorated, key=lambda i: i.get("arose_at") or "", reverse=True)
 
+    # Phase 3.1: presentation-only reorganization of the SAME `rows` list
+    # (produced above by the unmodified `_group_action_items()`) into one
+    # bucket per category, group rows sorted before individual rows within
+    # a category -- so the page reads "Review & Submit section, then
+    # Eligibility Decision section" instead of one long urgency-sorted
+    # list. Never recomputes membership, counts, or grouping itself.
+    rows_by_category: dict[str, list[dict]] = {}
+    if view == "active":
+        for category in OpportunityCRMService.ACTION_CATEGORIES:
+            cat_rows = [row for row in rows if row["category"] == category]
+            cat_rows.sort(key=lambda row: not row.get("is_group", False))
+            rows_by_category[category] = cat_rows
+
     # Automation state: the closest truthful signal existing services can
     # give -- there is no live worker/daemon process this page can observe,
     # so it never claims "Running"/"Worker Offline" (which would be
@@ -645,6 +669,10 @@ def action_required(
             "wide_content": True,
             "counts": active_counts,
             "category_labels": _ACTION_CATEGORY_LABELS,
+            "category_order": _ACTION_CATEGORY_DISPLAY_ORDER,
+            "rows_by_category": rows_by_category,
+            "any_active_rows": any(rows_by_category.values()),
+            "section_preview_count": _SECTION_PREVIEW_COUNT,
             "automation_state": automation_state,
             "rows": rows,
             "view": view,

@@ -1,0 +1,40 @@
+{# Expects `item` in context -- one decorated Action Required item, rendered
+   as a single compact row: Priority | Job/Company | Urgency | concise
+   reason | primary action. Same underlying data/actions as the fuller
+   _action_row.html (used only by the Resolved view) -- presentation only. #}
+<div class="ar-row">
+  <div class="ar-row__priority">
+    {% if item.intelligence_priority %}<span class="badge p-{{ item.intelligence_priority }}">{{ item.intelligence_priority }}</span>{% else %}<span class="badge" style="background:#f3f4f6;color:#6b7280;">-</span>{% endif %}
+  </div>
+  <div class="ar-row__job">
+    <div class="job">{{ item.job_title or "-" }}</div>
+    <div class="company">{{ item.company or "-" }}</div>
+  </div>
+  <div class="ar-row__urgency"><span class="urgency-badge urgency-{{ item.urgency }}">{{ item.urgency }}</span></div>
+  <div class="ar-row__reason" title="{{ item.plain_reason }}">{{ item.plain_reason }}{% if item.resolved %} &middot; Resolved{% endif %}</div>
+  <div class="ar-row__action">
+    {% if item.category in ("REVIEW_AND_SUBMIT", "ELIGIBILITY_DECISION", "EMPLOYER_ACTION") %}
+    <a class="action-btn" href="/opportunity/{{ item.tracker_id }}">{{ item.primary_action }} &rarr;</a>
+    {% endif %}
+    {% if item.category == "EMPLOYER_ACTION" and not item.resolved %}
+    <form method="post" action="/action-required/employer-response/{{ item.tracker_id }}/{{ item.employer_response_id }}/review">
+      <button class="action-btn action-btn--secondary" type="submit">Mark Reviewed</button>
+    </form>
+    {% endif %}
+    {% if item.category == "BROWSER_ACTION" and not item.resolved %}
+    <form method="post" action="/action-required/blocker/{{ item.blocker_id }}/resolve">
+      <input type="hidden" name="note" value="Completed manually by user">
+      <button class="action-btn" type="submit">I've Completed This &mdash; Continue Automation</button>
+    </form>
+    {% endif %}
+    {% if item.category == "ANSWER_REQUIRED" and not item.resolved %}
+    <form method="post" action="/action-required/blocker/{{ item.blocker_id }}/resolve" style="display:flex;gap:6px;">
+      <input type="text" name="note" placeholder="Your answer" required style="padding:6px 8px;border-radius:6px;border:1px solid #d1d5db;font-size:12.5px;width:110px;">
+      <button class="action-btn" type="submit">Answer</button>
+    </form>
+    {% endif %}
+    {% if not item.category in ("REVIEW_AND_SUBMIT", "ELIGIBILITY_DECISION", "EMPLOYER_ACTION") %}
+    <a href="/opportunity/{{ item.tracker_id }}" style="font-size:12px;">Open Opportunity &rarr;</a>
+    {% endif %}
+  </div>
+</div>

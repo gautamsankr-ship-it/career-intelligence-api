@@ -30,34 +30,76 @@
     </div>
   </div>
 
-  <div class="section">
-    {% if rows %}
-    {% for row in rows %}
-      {% if row.is_group %}
-      <details class="action-group">
-        <summary class="action-group__header">
-          <span>
-            <span class="category-pill category-{{ row.category }}">{{ row.category_label }}</span>
-            &nbsp; <strong>{{ row.plain_reason }}</strong>
-            &mdash; <span class="action-group__count">{{ row.count }} opportunities</span>
-          </span>
-          <span class="urgency-badge urgency-{{ row.urgency }}">{{ row.urgency }}</span>
-        </summary>
-        <div class="action-group__body">
-          {% for item in row.opportunities %}
-          {% include "_action_row.html" %}
+  {% if view == "active" %}
+  {% if any_active_rows %}
+  {% for category in category_order %}
+    {% set cat_rows = rows_by_category.get(category, []) %}
+    {% if cat_rows %}
+    <div class="ar-section">
+      <div class="ar-section-header">
+        <h2>{{ category_labels[category] }}</h2>
+        <span class="ar-section-count">{{ counts[category] }}</span>
+      </div>
+      {% if category == "ELIGIBILITY_DECISION" %}
+      <p class="section-hint">These vacancies require individual eligibility decisions. Grouping is for triage only.</p>
+      {% endif %}
+
+      {% if category == "REVIEW_AND_SUBMIT" and cat_rows | length > section_preview_count %}
+      <div class="ar-list">
+        {% for row in cat_rows[:section_preview_count] %}
+        {% set item = row %}
+        {% include "_action_row_compact.html" %}
+        {% endfor %}
+      </div>
+      <details class="ar-view-all">
+        <summary>View all {{ cat_rows | length }} &rarr;</summary>
+        <div class="ar-list">
+          {% for row in cat_rows[section_preview_count:] %}
+          {% set item = row %}
+          {% include "_action_row_compact.html" %}
           {% endfor %}
         </div>
       </details>
       {% else %}
-      <div class="attention-list" style="margin-bottom:8px;">
-        {% set item = row %}
-        {% include "_action_row.html" %}
+      <div class="ar-list">
+        {% for row in cat_rows %}
+          {% if row.is_group %}
+          <details class="action-group">
+            <summary class="action-group__header">
+              <span><strong>{{ row.plain_reason }}</strong> &mdash; <span class="action-group__count">{{ row.count }} opportunities</span></span>
+              <span class="urgency-badge urgency-{{ row.urgency }}">{{ row.urgency }}</span>
+            </summary>
+            <div class="action-group__body">
+              {% for item in row.opportunities %}
+              {% include "_action_row_compact.html" %}
+              {% endfor %}
+            </div>
+          </details>
+          {% else %}
+          {% set item = row %}
+          {% include "_action_row_compact.html" %}
+          {% endif %}
+        {% endfor %}
       </div>
       {% endif %}
+    </div>
+    {% endif %}
+  {% endfor %}
+  {% else %}
+  <div class="empty-state">Nothing genuinely requires your intervention right now.</div>
+  {% endif %}
+  {% else %}
+  <div class="section">
+    {% if rows %}
+    {% for row in rows %}
+      {% set item = row %}
+      <div class="attention-list" style="margin-bottom:8px;">
+        {% include "_action_row.html" %}
+      </div>
     {% endfor %}
     {% else %}
-    <div class="empty-state">{% if view == 'resolved' %}No resolved actions yet.{% else %}Nothing genuinely requires your intervention right now.{% endif %}</div>
+    <div class="empty-state">No resolved actions yet.</div>
     {% endif %}
   </div>
+  {% endif %}
 {% endblock %}
