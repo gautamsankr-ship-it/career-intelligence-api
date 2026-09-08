@@ -1,0 +1,144 @@
+{% extends "_shell.html" %}
+{% block title %}{{ item.classification_label }} -- {{ detail.opportunity.company }} -- Career Intelligence{% endblock %}
+{% block extra_style %}
+  <style>
+    a.back { color: #2563eb; text-decoration: none; font-size: 13px; }
+    .detail-card { background: white; border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .kv { display: grid; grid-template-columns: 200px 1fr; gap: 6px 12px; font-size: 13px; }
+    .kv dt { color: #6b7280; }
+    .kv dd { margin: 0; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #eef0f2; font-size: 13px; }
+    th { background: #f3f4f6; }
+    .empty { color: #9ca3af; font-size: 13px; padding: 6px 0; }
+    .decision-card { background: #f8fafc; border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: 10px; padding: 16px; }
+    .next-action-banner { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 14px 16px; font-size: 14px; color: #1e40af; font-weight: 600; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .next-action-banner.is-clear { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+    details.technical { margin-top: 8px; }
+    details.technical summary { cursor: pointer; font-size: 13px; color: var(--text-muted); padding: 10px 0; }
+    .btn-disabled { display: inline-block; padding: 7px 14px; background: #f3f4f6; color: #9ca3af; border-radius: 6px; font-size: 12.5px; font-weight: 600; border: 1px solid var(--border); cursor: not-allowed; }
+  </style>
+{% endblock %}
+{% block content %}
+  <a class="back" href="/employer-inbox">&larr; Back to Employer Inbox</a>
+  <div class="page-header" style="margin-top:10px;">
+    <h1>{{ item.classification_label }}</h1>
+    <div class="subtitle">{{ detail.opportunity.company or "-" }} &middot; {{ detail.opportunity.job_title or "-" }}</div>
+  </div>
+
+  <div class="next-action-banner {{ 'is-clear' if not item.actionable else '' }}">
+    <span>Required Action: {{ item.required_action }}</span>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Application Context</h2>
+    <div class="detail-card">
+      <dl class="kv">
+        <dt>Company</dt><dd>{{ detail.opportunity.company or "-" }}</dd>
+        <dt>Role</dt><dd>{{ detail.opportunity.job_title or "-" }}</dd>
+        <dt>Priority</dt><dd>{% if detail.opportunity.intelligence_priority %}<span class="badge p-{{ detail.opportunity.intelligence_priority }}">{{ detail.opportunity.intelligence_priority }}</span>{% else %}Not yet evaluated{% endif %}</dd>
+        <dt>Current Stage</dt><dd><span class="status-chip">{{ status_label }}</span></dd>
+        <dt>Application Date</dt><dd>{{ detail.opportunity.applied_at[:10] if detail.opportunity.applied_at else "Not yet applied" }}</dd>
+        <dt>Working Paper</dt>
+        <dd>
+          {% if has_application %}<a href="/application/{{ tracker_id }}">Open Application Working Paper &rarr;</a>
+          {% else %}<a href="/opportunity/{{ tracker_id }}">Open Opportunity Detail &rarr;</a>{% endif %}
+        </dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Employer Communication</h2>
+    <div class="detail-card">
+      <dl class="kv">
+        <dt>Classification</dt><dd>{{ item.classification_label }}{% if not item.is_meaningful %} <span class="status-chip">Automated</span>{% endif %}</dd>
+        <dt>Received</dt><dd>{{ item.received_at[:16] if item.received_at else "-" }}</dd>
+        <dt>Sender</dt><dd>Not recorded (this evidence is not captured by the current Gmail monitor)</dd>
+        <dt>Summary</dt><dd>{{ item.summary or "No summary recorded." }}</dd>
+      </dl>
+      {% if item.classification %}
+      <p class="evidence-note" style="font-size:12px;color:var(--text-muted);font-style:italic;margin-top:12px;">
+        Human-classified as <strong>{{ item.resolved_classification_label }}</strong> on {{ item.classification.classified_at[:16] }}{% if item.classification.note %}: {{ item.classification.note }}{% endif %}.
+        The original message is still recorded as {{ item.classification_label }} -- this classification is a separate, additive fact, never a rewrite of that evidence.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Required Action</h2>
+    <div class="decision-card">
+      {% if item.response_type == "UNKNOWN" and item.actionable %}
+      <p style="font-size:13px;font-weight:600;margin:0 0 10px;">Human classification required -- the system could not confidently classify this message.</p>
+      <form method="post" action="/employer-inbox/{{ tracker_id }}/{{ item.employer_response_id }}/classify">
+        <div class="filters">
+          <div class="field">
+            <label>What is this message?</label>
+            <select name="resolved_type" required>
+              <option value="">-- choose --</option>
+              {% for opt in classification_options %}<option value="{{ opt }}">{{ classification_labels[opt] }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field" style="flex:1;min-width:220px;">
+            <label>Note (optional)</label>
+            <input type="text" name="note" style="padding:6px 8px;border-radius:6px;border:1px solid #d1d5db;width:100%;">
+          </div>
+          <button class="apply" type="submit">Save Classification</button>
+        </div>
+      </form>
+      <p class="section-hint" style="margin-top:10px;">This never changes the original Gmail evidence or the recorded message classification -- it is recorded as your own, separately audited judgment, and is never sent to the employer.</p>
+      {% elif item.actionable %}
+      <p style="font-size:13px;margin:0 0 12px;">{{ item.required_action }}.{% if item.response_type == "INTERVIEW_INVITATION" %} A dedicated Interviews workspace is coming in a later phase; the invitation evidence is already preserved above and in the timeline below.{% endif %}</p>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <form method="post" action="/action-required/employer-response/{{ tracker_id }}/{{ item.employer_response_id }}/review">
+          <input type="hidden" name="note" value="Reviewed from Employer Inbox">
+          <button class="action-btn" type="submit">Mark Reviewed</button>
+        </form>
+        <span class="btn-disabled" title="Response drafting is not yet available in this phase -- employer communication always requires human authorship and approval.">Prepare Response (coming later)</span>
+      </div>
+      {% else %}
+      <p style="font-size:13px;color:var(--text-muted);margin:0;">No action required -- {% if item.response_type == "ACKNOWLEDGEMENT" %}this is an automated application-receipt acknowledgement.{% elif item.response_type == "REJECTION" %}this is a confidently-classified rejection with no response required.{% else %}this message has already been reviewed.{% endif %}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Timeline</h2>
+    {% if plain_timeline %}
+    <ul class="activity-feed">
+      {% for entry in plain_timeline %}
+      <li><span class="activity-feed__at">{{ entry.occurred_at[:16] if entry.occurred_at else "" }}</span>{{ entry.label }}{% if entry.count > 1 %} ({{ entry.count }} messages){% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty-state">No milestones recorded yet.</div>
+    {% endif %}
+    <p class="section-hint">Shows employer/application milestones only -- see the {% if has_application %}<a href="/application/{{ tracker_id }}">Application Working Paper</a>{% else %}<a href="/opportunity/{{ tracker_id }}">Opportunity Detail</a>{% endif %} for the complete record.</p>
+  </div>
+
+  <details class="technical">
+    <summary>Technical Details</summary>
+    <div class="detail-card">
+      <dl class="kv">
+        <dt>Employer Response ID</dt><dd>{{ item.employer_response_id }}</dd>
+        <dt>Tracker ID</dt><dd>{{ tracker_id }}</dd>
+        <dt>Raw Response Type</dt><dd><code>{{ item.response_type }}</code></dd>
+        <dt>Source</dt><dd>{{ item.source or "-" }}</dd>
+        <dt>Gmail Evidence Reference</dt><dd><code>{{ item.evidence_reference or "-" }}</code></dd>
+        <dt>Resolved (Action Required)</dt><dd>{{ "Yes" if item.resolved else "No" }}</dd>
+      </dl>
+    </div>
+    <h2>Classification History ({{ classification_history | length }})</h2>
+    <div class="detail-card">
+      {% if classification_history %}
+      <table>
+        <tr><th>Resolved As</th><th>Note</th><th>Classified At</th><th>Actor</th></tr>
+        {% for c in classification_history %}
+        <tr><td>{{ classification_labels.get(c.resolved_type, c.resolved_type) }}</td><td>{{ c.note or "-" }}</td><td>{{ c.classified_at[:16] }}</td><td>{{ c.actor or "-" }}</td></tr>
+        {% endfor %}
+      </table>
+      {% else %}<div class="empty">No human classification recorded for this tracker.</div>{% endif %}
+    </div>
+  </details>
+{% endblock %}

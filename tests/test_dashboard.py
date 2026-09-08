@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -453,13 +455,13 @@ def test_sidebar_lists_all_nine_approved_sections_and_marks_dashboard_active(tmp
 
 
 @pytest.mark.parametrize("path", [
-    "/employer-inbox", "/interviews", "/analytics", "/automation", "/settings",
+    "/interviews", "/analytics", "/automation", "/settings",
 ])
 def test_every_placeholder_nav_route_renders_the_shared_shell(path):
-    """No fabricated functionality -- each of the remaining 5 approved
+    """No fabricated functionality -- each of the remaining 4 approved
     sections (Opportunities since Phase 2, Action Required since Phase 3,
-    Applications since Phase 4 are all real) renders honestly as a
-    placeholder inside the same shared shell."""
+    Applications since Phase 4, Employer Inbox since Phase 5 are all real)
+    renders honestly as a placeholder inside the same shared shell."""
     client = TestClient(app)
     response = client.get(path)
     assert response.status_code == 200
@@ -2172,3 +2174,303 @@ def test_production_applications_show_no_prominent_feedback_prompt_read_only():
         section = _feedback_section(body)
         assert "decision-card\" style=\"margin-bottom:10px" not in section
         assert "Add my feedback" in section
+
+
+# --- Web App Phase 5: Employer Inbox -----------------------------------------
+def _seed_employer_message(tmp_path, response_type, *, company="Message Co", job_title="Analyst", external_id="msg1", summary="Body text"):
+    db_path = tmp_path / f"inbox-{external_id}.db"
+    history = ApplicationHistoryService(db_path)
+    service = OpportunityCRMService(history)
+    fingerprint = job_fingerprint(source="LinkedIn", external_job_id=external_id)
+    record = service.create_opportunity(fingerprint, company=company, job_title=job_title)
+    service.record_submission_confirmation(record["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    response = service.record_employer_response(record["id"], response_type, summary=summary, evidence_reference=f"gmail-{external_id}")
+    tracker_id = record["id"]
+    response_id = response["id"]
+    service.close()
+    return db_path, tracker_id, response_id
+
+
+def test_no_gmail_send_modify_delete_behavior_is_reachable_from_employer_inbox():
+    """Structural: the Employer Inbox module never even imports Gmail send/
+    modify machinery -- it is built entirely on OpportunityCRMService/CRM
+    evidence, so no code path here could send, draft, label, or delete a
+    Gmail message."""
+    source = Path("app/api/dashboard.py").read_text(encoding="utf-8")
+    for forbidden in ("GmailService", "create_draft", "send_message", ".trash(", ".delete("):
+        assert forbidden not in source
+
+
+def test_acknowledgement_appears_but_requires_no_action(tmp_path):
+    db_path, tracker_id, response_id = _seed_employer_message(tmp_path, "ACKNOWLEDGEMENT", company="Ack Co")
+    try:
+        client = _client(db_path)
+        body = client.get("/employer-inbox").text
+        assert "Ack Co" in body
+        assert "No action required" in body
+        body2 = client.get(f"/employer-inbox/{tracker_id}/{response_id}").text
+        assert "Required Action: No action required" in body2
+        assert "automated application-receipt acknowledgement" in body2
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_acknowledgement_not_counted_as_meaningful_response(tmp_path):
+    db_path, tracker_id, response_id = _seed_employer_message(tmp_path, "ACKNOWLEDGEMENT")
+    service = _open(db_path)
+    try:
+        summary = service.employer_inbox_summary()
+        assert summary["employer_messages"] == 1
+        assert summary["meaningful_responses"] == 0
+        assert summary["needs_action"] == 0
+    finally:
+        service.close()
+
+
+def test_meaningful_recruiter_response_classified_and_displayed_correctly(tmp_path):
+    db_path, tracker_id, response_id = _seed_employer_message(tmp_path, "RECRUITER_CONTACT", company="Recruiter Co")
+    try:
+        client = _client(db_path)
+        body = client.get("/employer-inbox?filter=meaningful").text
+        assert "Recruiter Co" in body
+        body2 = client.get(f"/employer-inbox/{tracker_id}/{response_id}").text
+        assert "Required Action: Answer employer" in body2
+    finally:
+        app.dependency_overrides.clear()
+    service = _open(db_path)
+    try:
+        assert service.employer_inbox_summary()["meaningful_responses"] == 1
+        assert service.employer_inbox_summary()["needs_action"] == 1
+    finally:
+        service.close()
+
+
+def test_screening_request_appears_correctly(tmp_path):
+    db_path, tracker_id, response_id = _seed_employer_message(tmp_path, "SCREENING_REQUEST", company="Screen Co")
+    try:
+        client = _client(db_path)
+        body = client.get("/employer-inbox?filter=needs_action").text
+        assert "Screen Co" in body
+        body2 = client.get(f"/employer-inbox/{tracker_id}/{response_id}").text
+        assert "Required Action: Complete screening" in body2
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_interview_invitation_is_actionable_and_links_to_application(tmp_path):
+    db_path, tracker_id, response_id = _seed_employer_message(tmp_path, "INTERVIEW_INVITATION", company="Interview Co")
+    try:
+        client = _client(db_path)
+        body = client.get("/employer-inbox?filter=interview").text
+        assert "Interview Co" in body
+        assert "Review interview invitation" in body
+        body2 = client.get(f"/employer-inbox/{tracker_id}/{response_id}").text
+        assert "Required Action: Review interview invitation" in body2
+        assert "Interviews workspace is coming in a later phase" in body2
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_assessment_request_is_actionable(tmp_path):
+    db_path, tracker_id, response_id = _seed_employer_message(tmp_path, "ASSESSMENT_REQUEST", company="Assess Co")
+    try:
+        client = _client(db_path)
+        body = client.get("/employer-inbox?filter=assessment").text
+        assert "Assess Co" in body
+        body2 = client.get(f"/employer-inbox/{tracker_id}/{response_id}").text
+        assert "Required Action: Complete assessment" in body2
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_rejection_displayed_but_does_not_automatically_demand_action(tmp_path):
+    db_path, tracker_id, response_id = _seed_employer_message(tmp_path, "REJECTION", company="Reject Co")
+    try:
+        client = _client(db_path)
+        body = client.get("/employer-inbox?filter=rejected").text
+        assert "Reject Co" in body
+        body2 = client.get(f"/employer-inbox/{tracker_id}/{response_id}").text
+        assert "Required Action: No action required" in body2
+        assert "confidently-classified rejection" in body2
+    finally:
+        app.dependency_overrides.clear()
+    service = _open(db_path)
+    try:
+        assert service.employer_inbox_summary()["needs_action"] == 0
+        assert service.action_required_counts()["EMPLOYER_ACTION"] == 0
+    finally:
+        service.close()
+
+
+def test_offer_is_actionable(tmp_path):
+    db_path, tracker_id, response_id = _seed_employer_message(tmp_path, "OFFER", company="Offer Co")
+    try:
+        client = _client(db_path)
+        body = client.get("/employer-inbox?filter=offer").text
+        assert "Offer Co" in body
+        body2 = client.get(f"/employer-inbox/{tracker_id}/{response_id}").text
+        assert "Required Action: Review offer" in body2
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_unknown_creates_human_classification_requirement(tmp_path):
+    db_path, tracker_id, response_id = _seed_employer_message(tmp_path, "UNKNOWN", company="Ambiguous Co")
+    try:
+        client = _client(db_path)
+        body = client.get("/employer-inbox?filter=unknown").text
+        assert "Ambiguous Co" in body
+        assert "Human classification required" in body
+        body2 = client.get(f"/employer-inbox/{tracker_id}/{response_id}").text
+        assert "Human classification required" in body2
+        assert 'name="resolved_type"' in body2
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_unknown_classification_resolves_without_rewriting_original_evidence(tmp_path):
+    db_path, tracker_id, response_id = _seed_employer_message(tmp_path, "UNKNOWN", company="Resolve Co", summary="Original ambiguous text")
+    try:
+        client = _client(db_path)
+        response = client.post(
+            f"/employer-inbox/{tracker_id}/{response_id}/classify",
+            data={"resolved_type": "INTERVIEW_INVITATION", "note": "Turned out to be an interview ask"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        body = client.get(f"/employer-inbox/{tracker_id}/{response_id}").text
+        assert "Required Action: No action required" in body
+        assert "Human-classified as" in body
+        assert "Interview Invitation" in body
+    finally:
+        app.dependency_overrides.clear()
+    service = _open(db_path)
+    try:
+        # The original Gmail-sourced row is untouched -- still UNKNOWN.
+        raw = service.get_employer_response(response_id)
+        assert raw["response_type"] == "UNKNOWN"
+        assert raw["summary"] == "Original ambiguous text"
+        # Resolved consistently with Action Required's own mechanism.
+        assert service.is_employer_response_reviewed(response_id) is True
+        assert service.action_required_counts()["EMPLOYER_ACTION"] == 0
+        classifications = service.list_employer_response_classifications(tracker_id)
+        assert len(classifications) == 1
+        assert classifications[0]["resolved_type"] == "INTERVIEW_INVITATION"
+    finally:
+        service.close()
+
+
+def test_classification_rejects_reclassifying_a_non_unknown_message(tmp_path):
+    db_path, tracker_id, response_id = _seed_employer_message(tmp_path, "ACKNOWLEDGEMENT")
+    service = _open(db_path)
+    try:
+        with pytest.raises(ValueError):
+            service.record_employer_response_classification(tracker_id, response_id, "OFFER")
+    finally:
+        service.close()
+
+
+def test_classification_rejects_unknown_resolved_type(tmp_path):
+    db_path, tracker_id, response_id = _seed_employer_message(tmp_path, "UNKNOWN")
+    service = _open(db_path)
+    try:
+        with pytest.raises(ValueError):
+            service.record_employer_response_classification(tracker_id, response_id, "NOT_A_REAL_TYPE")
+    finally:
+        service.close()
+
+
+def test_ambiguous_employer_feedback_trigger_suppressed_after_employer_inbox_resolution(tmp_path):
+    """Web App Phase 4.1 integration: once Employer Inbox resolves a genuinely
+    UNKNOWN message, Applications' own high-information feedback trigger for
+    it must stop firing -- Employer Inbox is now the proper place to resolve
+    these (Phase 5 item 6), never a redundant, competing second prompt."""
+    db_path, tracker_id, response_id = _seed_employer_message(tmp_path, "UNKNOWN", company="Dual Co")
+    try:
+        client = _client(db_path)
+        before = client.get(f"/application/{tracker_id}").text
+        section_before = _feedback_section(before)
+        assert "could not confidently classify" in section_before
+
+        client.post(
+            f"/employer-inbox/{tracker_id}/{response_id}/classify",
+            data={"resolved_type": "OTHER_NO_ACTION", "note": "Just a newsletter mention"},
+            follow_redirects=False,
+        )
+
+        after = client.get(f"/application/{tracker_id}").text
+        section_after = _feedback_section(after)
+        assert "could not confidently classify" not in section_after
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_action_required_integration_does_not_duplicate_acknowledgement_noise(tmp_path):
+    db_path, tracker_id, response_id = _seed_employer_message(tmp_path, "ACKNOWLEDGEMENT")
+    service = _open(db_path)
+    try:
+        items = service.action_required_items()
+        assert not any(i["tracker_id"] == tracker_id for i in items)
+        assert service.action_required_counts()["EMPLOYER_ACTION"] == 0
+    finally:
+        service.close()
+
+
+def test_application_linkage_is_correct_from_employer_inbox_detail(tmp_path):
+    db_path, tracker_id, response_id = _seed_employer_message(tmp_path, "SCREENING_REQUEST", company="Linked Co")
+    try:
+        client = _client(db_path)
+        body = client.get(f"/employer-inbox/{tracker_id}/{response_id}").text
+        assert f'href="/application/{tracker_id}"' in body
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_employer_inbox_detail_404s_for_mismatched_tracker_and_response(tmp_path):
+    db_path, tracker_id, response_id = _seed_employer_message(tmp_path, "ACKNOWLEDGEMENT")
+    try:
+        client = _client(db_path)
+        response = client.get(f"/employer-inbox/{tracker_id}/999999")
+        assert response.status_code == 404
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_employer_inbox_tracker_61_and_81_evidence_displays_correctly_read_only():
+    """Read-only, real production evidence: Tracker 61 (Jobgether) and
+    Tracker 81 (Isla Health) both have real recorded acknowledgements."""
+    client = TestClient(app)
+    body = client.get("/employer-inbox").text
+    assert "Jobgether" in body
+    assert "Isla Health" in body
+
+    service = OpportunityCRMService()
+    try:
+        tracker_61_responses = [r for r in service.employer_inbox_items() if r["tracker_id"] == 61]
+        tracker_81_responses = [r for r in service.employer_inbox_items() if r["tracker_id"] == 81]
+        assert tracker_61_responses and all(r["response_type"] == "ACKNOWLEDGEMENT" for r in tracker_61_responses)
+        assert tracker_81_responses and all(r["response_type"] == "ACKNOWLEDGEMENT" for r in tracker_81_responses)
+    finally:
+        service.close()
+
+
+def test_employer_inbox_tracker_103_has_no_fabricated_employer_activity_read_only():
+    """Read-only, real production evidence: Tracker 103 has recorded no
+    employer response at all -- Employer Inbox must never manufacture one."""
+    service = OpportunityCRMService()
+    try:
+        tracker_103_responses = [r for r in service.employer_inbox_items() if r["tracker_id"] == 103]
+        assert tracker_103_responses == []
+    finally:
+        service.close()
+
+
+def test_production_employer_response_classifications_table_untouched_by_verification():
+    """Read-only: this session's own read-only checks against production
+    must never write to the new employer_response_classifications table."""
+    service = OpportunityCRMService()
+    try:
+        count = service.connection.execute("SELECT COUNT(*) FROM employer_response_classifications").fetchone()[0]
+    finally:
+        service.close()
+    assert count == 0

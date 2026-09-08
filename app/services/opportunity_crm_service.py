@@ -147,6 +147,14 @@ USER_DECISION_REASON_CODES = frozenset({
     "CAREER_VALUE", "NOT_GENUINELY_REMOTE", "ELIGIBILITY_WORK_RIGHT_CONCERN", "OTHER",
 })
 
+# -- Web App Phase 5: human classification of a genuinely UNKNOWN employer
+# message (Employer Inbox) -- every real classification EXCEPT "still
+# unknown" (reclassifying UNKNOWN as UNKNOWN resolves nothing), plus one
+# catch-all for "I looked at this and it needs no action, but it doesn't fit
+# a specific category" that GmailOutcomeMonitor's own vocabulary has no need
+# for (see record_employer_response_classification).
+EMPLOYER_RESPONSE_HUMAN_CLASSIFICATIONS = (EMPLOYER_RESPONSE_TYPES - {"UNKNOWN"}) | {"OTHER_NO_ACTION"}
+
 
 class OpportunityCRMService:
     def __init__(self, history: ApplicationHistoryService | None = None) -> None:
@@ -276,6 +284,20 @@ class OpportunityCRMService:
                 interest_change TEXT,
                 note TEXT,
                 created_at TEXT NOT NULL
+            )
+            """
+        )
+        self.connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS employer_response_classifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tracker_id INTEGER NOT NULL,
+                employer_response_id INTEGER NOT NULL,
+                resolved_type TEXT NOT NULL,
+                note TEXT,
+                classified_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                actor TEXT
             )
             """
         )
@@ -1554,6 +1576,133 @@ class OpportunityCRMService:
         dropdowns -- never a fabricated/static filter dimension."""
         fields = ("market", "work_arrangement", "career_track", "source", "crm_stage")
         return {field: sorted({row["value"] for row in self.breakdown_by(field) if row["value"]}) for field in fields}
+
+    # -- Web App Phase 5: Employer Inbox -------------------------------------
+    # Communication workspace/evidence ONLY -- built entirely on the EXISTING
+    # `employer_responses` table GmailOutcomeMonitor already populates (no
+    # second email/message table) and the SAME resolution fact
+    # `action_required_items()`'s EMPLOYER_ACTION category already computes
+    # (`is_employer_response_reviewed`, a public wrapper around the method
+    # that category already calls) -- so Employer Inbox and Action Required
+    # can never disagree about whether one employer message is resolved.
+    # Presentation (labels, the actionable/required-action rule) is left to
+    # the caller, matching the same fact/presentation split
+    # action_required_items()/`_decorate_action_item` already use.
+    def get_employer_response(self, response_id: int) -> dict | None:
+        row = self.connection.execute("SELECT * FROM employer_responses WHERE id = ?", (response_id,)).fetchone()
+        return dict(row) if row else None
+
+    def is_employer_response_reviewed(self, employer_response_id: int) -> bool:
+        return self._is_employer_response_reviewed(employer_response_id)
+
+    def employer_inbox_items(self) -> list[dict]:
+        """One row per real, recorded employer message -- never fabricated.
+        Each carries its own resolution fact and, for a genuinely UNKNOWN
+        message, any human classification already recorded for it."""
+        items: list[dict] = []
+        for row in self.connection.execute("SELECT * FROM employer_responses ORDER BY id DESC"):
+            row = dict(row)
+            record = self.get_opportunity(row["tracker_id"])
+            if not record:
+                continue
+            classification = (
+                self.get_employer_response_classification(row["id"]) if row["response_type"] == "UNKNOWN" else None
+            )
+            items.append({
+                "employer_response_id": row["id"], "tracker_id": row["tracker_id"],
+                "company": record.get("company") or "", "job_title": record.get("job_title") or "",
+                "intelligence_priority": record.get("intelligence_priority"), "crm_stage": record.get("crm_stage"),
+                "applied_at": record.get("applied_at"),
+                "response_type": row["response_type"], "received_at": row["received_at"],
+                "summary": row.get("summary") or "", "evidence_reference": row.get("evidence_reference") or "",
+                "source": row.get("source") or "",
+                "resolved": self.is_employer_response_reviewed(row["id"]),
+                "classification": classification,
+            })
+        return items
+
+    def employer_inbox_summary(self) -> dict:
+        """KPI counts -- each reuses an EXISTING evidence-based definition
+        where one already exists (`needs_action`/`meaningful_responses`)
+        rather than a second, subtly different count that could quietly
+        disagree with Action Required or the Dashboard."""
+        def count_where_type(response_type: str) -> int:
+            return self.connection.execute(
+                "SELECT COUNT(*) FROM employer_responses WHERE response_type = ?", (response_type,)
+            ).fetchone()[0]
+
+        return {
+            "employer_messages": self.connection.execute("SELECT COUNT(*) FROM employer_responses").fetchone()[0],
+            "needs_action": self.action_required_counts()["EMPLOYER_ACTION"],
+            "meaningful_responses": self.response_quality_counts()["meaningful_responses"],
+            "screening_requests": count_where_type("SCREENING_REQUEST"),
+            "interviews": count_where_type("INTERVIEW_INVITATION"),
+            "assessments": count_where_type("ASSESSMENT_REQUEST"),
+            "rejections": count_where_type("REJECTION"),
+            "offers": count_where_type("OFFER"),
+        }
+
+    def record_employer_response_classification(
+        self, tracker_id: int, employer_response_id: int, resolved_type: str, *, note: str = "", actor: str = "USER",
+    ) -> dict:
+        """Resolves a genuinely UNKNOWN employer message with an explicit
+        human judgment call. Append-only and auditable, and NEVER rewrites
+        the original `employer_responses` row -- the real Gmail-sourced
+        evidence stays exactly as `classify_email()` left it; the human's
+        reading is recorded as a SEPARATE, additive fact (the same
+        dedicated-table-plus-audit-event pattern `record_user_decision`/
+        `record_application_feedback` already use), never as a silent
+        mutation of history. Also reuses `mark_employer_response_reviewed`
+        so this resolution is immediately consistent with Action Required's
+        own EMPLOYER_ACTION category -- never a second, competing "resolved"
+        concept. Restricted to a genuinely UNKNOWN message only: reclassifying
+        an already-confident classification is out of scope for this
+        conservative first cut."""
+        if resolved_type not in EMPLOYER_RESPONSE_HUMAN_CLASSIFICATIONS:
+            raise ValueError(
+                f"Unknown resolved_type: {resolved_type!r}. Allowed: {sorted(EMPLOYER_RESPONSE_HUMAN_CLASSIFICATIONS)}"
+            )
+        self._require(tracker_id)
+        row = self.get_employer_response(employer_response_id)
+        if not row or row["tracker_id"] != tracker_id:
+            raise ValueError(f"No employer_responses row {employer_response_id} found for tracker {tracker_id}.")
+        if row["response_type"] != "UNKNOWN":
+            raise ValueError("Human classification is only for a genuinely UNKNOWN employer message.")
+        now = _now()
+        cursor = self.connection.execute(
+            "INSERT INTO employer_response_classifications "
+            "(tracker_id, employer_response_id, resolved_type, note, classified_at, created_at, actor) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (tracker_id, employer_response_id, resolved_type, note, now, now, actor),
+        )
+        self.connection.commit()
+        self.append_event(
+            tracker_id, "EMPLOYER_RESPONSE_HUMAN_CLASSIFIED", reason=resolved_type,
+            evidence_reference=str(employer_response_id), actor=actor,
+        )
+        note_summary = f"Human-classified as {resolved_type}" + (f": {note}" if note else "")
+        self.mark_employer_response_reviewed(tracker_id, employer_response_id, note=note_summary, actor=actor)
+        return self._employer_response_classification_row(cursor.lastrowid)
+
+    def get_employer_response_classification(self, employer_response_id: int) -> dict | None:
+        row = self.connection.execute(
+            "SELECT * FROM employer_response_classifications WHERE employer_response_id = ? ORDER BY id DESC LIMIT 1",
+            (employer_response_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def list_employer_response_classifications(self, tracker_id: int) -> list[dict]:
+        return [
+            dict(row) for row in self.connection.execute(
+                "SELECT * FROM employer_response_classifications WHERE tracker_id = ? ORDER BY id DESC", (tracker_id,)
+            )
+        ]
+
+    def _employer_response_classification_row(self, classification_id: int) -> dict | None:
+        row = self.connection.execute(
+            "SELECT * FROM employer_response_classifications WHERE id = ?", (classification_id,)
+        ).fetchone()
+        return dict(row) if row else None
 
     def close(self) -> None:
         self.history.close()

@@ -172,12 +172,13 @@
     <div class="detail-card">
       {% if employer_feedback %}
       <table>
-        <tr><th>Classification</th><th>Date</th><th>Summary</th></tr>
+        <tr><th>Classification</th><th>Date</th><th>Summary</th><th></th></tr>
         {% for r in employer_feedback %}
         <tr>
           <td>{{ r.classification_label }}{% if not r.is_meaningful %} <span class="status-chip">Automated</span>{% endif %}</td>
           <td>{{ r.received_at[:10] if r.received_at else "-" }}</td>
           <td>{{ r.summary or "-" }}</td>
+          <td><a href="/employer-inbox/{{ tracker_id }}/{{ r.id }}">View in Employer Inbox &rarr;</a></td>
         </tr>
         {% endfor %}
       </table>

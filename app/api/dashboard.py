@@ -19,7 +19,10 @@ from app.models.application_package import ApplicationPackage
 from app.services.application_answer_vault import ApplicationAnswerVault
 from app.services.application_eligibility_policy import intelligence_priority_gate
 from app.services.application_package_orchestrator import PACKAGE_DIR
-from app.services.opportunity_crm_service import OpportunityCRMService
+from app.services.opportunity_crm_service import (
+    EMPLOYER_RESPONSE_HUMAN_CLASSIFICATIONS,
+    OpportunityCRMService,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -175,6 +178,21 @@ _EMPLOYER_RESPONSE_PLAIN = {
     "OFFER": "Offer received",
     "UNKNOWN": "Employer sent a message that needs your review",
 }
+# Web App Phase 5: the exact human-classification options item 6 specifies,
+# in the CRM's own `employer_responses.response_type` vocabulary (never a
+# second, parallel enum) plus one catch-all outside that vocabulary
+# (OTHER_NO_ACTION, see EMPLOYER_RESPONSE_HUMAN_CLASSIFICATIONS) for "reviewed,
+# needs no action, doesn't fit a specific category."
+_CLASSIFICATION_RESOLUTION_LABELS = {
+    "ACKNOWLEDGEMENT": "Acknowledgement",
+    "RECRUITER_CONTACT": "Recruiter Response",
+    "SCREENING_REQUEST": "Screening Request",
+    "INTERVIEW_INVITATION": "Interview Invitation",
+    "ASSESSMENT_REQUEST": "Assessment Request",
+    "REJECTION": "Rejection",
+    "OFFER": "Offer",
+    "OTHER_NO_ACTION": "Other / No Action",
+}
 _URGENCY_RANK = {"Critical": 0, "High": 1, "Normal": 2}
 # Grouping is for navigation/triage only (Phase 3 section 4): a large,
 # homogeneous set of identical eligibility questions is collapsed into one
@@ -310,11 +328,6 @@ def _dashboard_attention_items(service: OpportunityCRMService, *, priority: str 
 # the shared shell with a short, honest "coming later" message -- no
 # fabricated functionality.
 _PLACEHOLDER_PAGES = {
-    "/employer-inbox": (
-        "employer_inbox", "Employer Inbox",
-        "A dedicated Employer Inbox is coming in a later phase. Employer/recruiter "
-        "responses are already tracked per opportunity and summarized on the Dashboard.",
-    ),
     "/interviews": (
         "interviews", "Interviews",
         "A dedicated Interviews view is coming in a later phase.",
@@ -405,6 +418,9 @@ def _describe_activity_event(event: dict) -> str | None:
         return "Needs your attention"
     if event_type == "BLOCKER_RESOLVED":
         return "Blocker resolved"
+    if event_type == "EMPLOYER_RESPONSE_HUMAN_CLASSIFIED":
+        label = _CLASSIFICATION_RESOLUTION_LABELS.get(event.get("reason"), event.get("reason") or "")
+        return f"Ambiguous employer message classified as: {label}" if label else "Ambiguous employer message classified"
     return None
 
 
@@ -893,7 +909,7 @@ def _next_action(tracker_id: int, record: dict, service: OpportunityCRMService) 
 _MAJOR_OUTCOME_STAGES = ("OFFER", "ACCEPTED", "DECLINED_OFFER", "REJECTED", "HIRED")
 
 
-def _application_feedback_trigger(record: dict, detail: dict) -> dict | None:
+def _application_feedback_trigger(record: dict, detail: dict, service: OpportunityCRMService) -> dict | None:
     """Returns the single highest-priority trigger (or None for the
     ordinary case), each carrying `arose_at` so the caller can tell whether
     feedback already recorded since then has addressed it."""
@@ -921,8 +937,14 @@ def _application_feedback_trigger(record: dict, detail: dict) -> dict | None:
             }
 
     # 3. A genuinely ambiguous employer message the system could not
-    # confidently classify.
-    unknown_responses = [r for r in detail["employer_responses"] if r["response_type"] == "UNKNOWN"]
+    # confidently classify -- EXCLUDING one already resolved via the
+    # Employer Inbox (Web App Phase 5: that page is now the proper place to
+    # resolve these; re-nudging here after it's already been handled there
+    # would be a redundant, competing prompt for the same fact).
+    unknown_responses = [
+        r for r in detail["employer_responses"]
+        if r["response_type"] == "UNKNOWN" and not service.is_employer_response_reviewed(r["id"])
+    ]
     if unknown_responses:
         arose_at = max(r["received_at"] for r in unknown_responses)
         return {"type": "AMBIGUOUS_EMPLOYER", "mode": "worth_pursuing", "arose_at": arose_at,
@@ -1033,7 +1055,7 @@ def application_detail(request: Request, tracker_id: int, service: OpportunityCR
     ]
 
     latest_feedback = service.get_latest_application_feedback(tracker_id)
-    feedback_trigger = _application_feedback_trigger(record, detail)
+    feedback_trigger = _application_feedback_trigger(record, detail, service)
 
     return templates.TemplateResponse(
         request,
@@ -1098,6 +1120,210 @@ def record_application_feedback(
         except ValueError:
             pass
     return RedirectResponse(url=f"/application/{tracker_id}", status_code=303)
+
+
+# -- Web App Phase 5: Employer Inbox -----------------------------------------
+# Communication workspace/evidence ONLY (item 9) -- Action Required stays the
+# one consolidated "what must I actually do" queue. Every fact here comes
+# from OpportunityCRMService.employer_inbox_items()/employer_inbox_summary();
+# this module only adds plain-language labels and the actionable/required-
+# action presentation rule (item 5), the same fact/presentation split
+# _decorate_action_item already uses for Action Required.
+_EMPLOYER_INBOX_ACTIONABLE_TYPES = frozenset({
+    "RECRUITER_CONTACT", "SCREENING_REQUEST", "INTERVIEW_INVITATION", "ASSESSMENT_REQUEST", "OFFER",
+})
+_EMPLOYER_INBOX_REQUIRED_ACTION = {
+    "RECRUITER_CONTACT": "Answer employer",
+    "SCREENING_REQUEST": "Complete screening",
+    "INTERVIEW_INVITATION": "Review interview invitation",
+    "ASSESSMENT_REQUEST": "Complete assessment",
+    "OFFER": "Review offer",
+}
+
+
+def _decorate_employer_inbox_item(item: dict) -> dict:
+    """Non-actionable by design: ACKNOWLEDGEMENT and a confidently-classified
+    REJECTION (item 5's own examples) -- neither response_type is even in
+    `_EMPLOYER_INBOX_ACTIONABLE_TYPES`, so no evidence is ever needed to
+    prove "no response required" for them. A genuinely UNKNOWN message is
+    actionable ("Human classification required") until -- and only until --
+    a human classification is recorded for it (never blindly forever, and
+    never blindly resolved either). Every other type is actionable exactly
+    until it is marked reviewed (the SAME resolved fact Action Required's
+    own EMPLOYER_ACTION category uses) -- so "do not blindly treat every
+    RECRUITER_RESPONSE as actionable" is satisfied by the same existing
+    resolution mechanism, never a second, invented heuristic."""
+    response_type = item["response_type"]
+    classification = item.get("classification")
+    if response_type == "UNKNOWN":
+        actionable = classification is None
+        required_action = "Human classification required" if actionable else "No action required"
+    elif response_type in _EMPLOYER_INBOX_ACTIONABLE_TYPES:
+        actionable = not item["resolved"]
+        required_action = _EMPLOYER_INBOX_REQUIRED_ACTION[response_type] if actionable else "No action required"
+    else:  # ACKNOWLEDGEMENT, REJECTION
+        actionable = False
+        required_action = "No action required"
+    return {
+        **item,
+        "classification_label": _EMPLOYER_RESPONSE_PLAIN.get(response_type, response_type),
+        "is_meaningful": response_type not in ("ACKNOWLEDGEMENT", "UNKNOWN"),
+        "actionable": actionable,
+        "required_action": required_action,
+        "resolved_classification_label": (
+            _CLASSIFICATION_RESOLUTION_LABELS.get(classification["resolved_type"], classification["resolved_type"])
+            if classification else None
+        ),
+    }
+
+
+_EMPLOYER_INBOX_FILTERS = {
+    "needs_action": lambda item: item["actionable"],
+    "meaningful": lambda item: item["is_meaningful"],
+    "interview": lambda item: item["response_type"] == "INTERVIEW_INVITATION",
+    "assessment": lambda item: item["response_type"] == "ASSESSMENT_REQUEST",
+    "rejected": lambda item: item["response_type"] == "REJECTION",
+    "offer": lambda item: item["response_type"] == "OFFER",
+    "acknowledgement": lambda item: item["response_type"] == "ACKNOWLEDGEMENT",
+    "unknown": lambda item: item["response_type"] == "UNKNOWN",
+}
+
+
+@app.get("/employer-inbox", response_class=HTMLResponse)
+def employer_inbox(
+    request: Request,
+    filter: str = "",
+    search: str = "",
+    priority: str = "",
+    service: OpportunityCRMService = Depends(get_crm_service),
+):
+    summary = service.employer_inbox_summary()
+    items = [_decorate_employer_inbox_item(item) for item in service.employer_inbox_items()]
+
+    if filter:
+        predicate = _EMPLOYER_INBOX_FILTERS.get(filter)
+        if predicate:
+            items = [item for item in items if predicate(item)]
+        else:
+            filter = ""
+    if search:
+        needle = search.lower()
+        items = [
+            item for item in items
+            if needle in (item["company"] or "").lower() or needle in (item["job_title"] or "").lower()
+        ]
+    if priority:
+        if priority == "UNSCORED":
+            items = [item for item in items if not item.get("intelligence_priority")]
+        else:
+            items = [item for item in items if item.get("intelligence_priority") == priority]
+
+    # Default ordering (item 2): unresolved actionable communications first,
+    # rather than pure chronological noise -- a display-ranking concern
+    # only, never a new scoring system. Python's sort is stable, so recency
+    # from the first pass survives within the actionable/not-actionable split.
+    items.sort(key=lambda item: item.get("received_at") or "", reverse=True)
+    items.sort(key=lambda item: not item["actionable"])
+
+    return templates.TemplateResponse(
+        request,
+        "employer_inbox.html",
+        {
+            "active_nav": "employer_inbox",
+            "wide_content": True,
+            "summary": summary,
+            "items": items,
+            "filter": filter,
+            "search": search,
+            "priority": priority,
+            "priority_labels": _PRIORITY_LABELS,
+        },
+    )
+
+
+@app.get("/employer-inbox/{tracker_id}/{response_id}", response_class=HTMLResponse)
+def employer_inbox_detail(
+    request: Request,
+    tracker_id: int,
+    response_id: int,
+    service: OpportunityCRMService = Depends(get_crm_service),
+):
+    detail = service.get_opportunity_detail(tracker_id)
+    response = service.get_employer_response(response_id)
+    if detail is None or response is None or response["tracker_id"] != tracker_id:
+        return templates.TemplateResponse(
+            request, "not_found.html", {"tracker_id": tracker_id, "active_nav": "employer_inbox"}, status_code=404,
+        )
+    record = detail["opportunity"]
+    classification = (
+        service.get_employer_response_classification(response_id) if response["response_type"] == "UNKNOWN" else None
+    )
+    item = _decorate_employer_inbox_item({
+        "employer_response_id": response["id"], "tracker_id": tracker_id,
+        "company": record.get("company") or "", "job_title": record.get("job_title") or "",
+        "intelligence_priority": record.get("intelligence_priority"), "crm_stage": record.get("crm_stage"),
+        "applied_at": record.get("applied_at"),
+        "response_type": response["response_type"], "received_at": response["received_at"],
+        "summary": response.get("summary") or "", "evidence_reference": response.get("evidence_reference") or "",
+        "source": response.get("source") or "",
+        "resolved": service.is_employer_response_reviewed(response_id),
+        "classification": classification,
+    })
+
+    # A short, relevant employer/application milestone list -- deliberately
+    # NOT the full Application working paper (item 4: "avoid duplicating");
+    # reuses the SAME plain-language timeline builder Application Detail
+    # already uses, scoped to this tracker.
+    plain_entries = []
+    for entry in detail["timeline"]:
+        label = _describe_timeline_entry(entry)
+        if label:
+            plain_entries.append({"tracker_id": tracker_id, "label": label, "occurred_at": entry.get("at")})
+    plain_timeline = _collapse_repeated_activity(plain_entries)
+
+    return templates.TemplateResponse(
+        request,
+        "employer_communication_detail.html",
+        {
+            "active_nav": "employer_inbox",
+            "detail": detail,
+            "tracker_id": tracker_id,
+            "item": item,
+            "status_label": _STAGE_TO_GROUP_LABEL.get(record.get("crm_stage"), record.get("crm_stage") or "Unknown"),
+            "plain_timeline": plain_timeline,
+            # Item 8: link toward an existing application/opportunity view
+            # only -- never a fabricated per-interview page (Interviews
+            # itself is still a Phase 6 placeholder), and never a duplicate
+            # interviews-table row invented solely for this presentation.
+            "has_application": record.get("crm_stage") in OpportunityCRMService.APPLICATION_WORKSPACE_STAGES or bool(record.get("applied_at")),
+            "has_interview_record": bool(detail["interviews"]),
+            "classification_options": list(_CLASSIFICATION_RESOLUTION_LABELS.keys()),
+            "classification_labels": _CLASSIFICATION_RESOLUTION_LABELS,
+            "classification_history": service.list_employer_response_classifications(tracker_id),
+        },
+    )
+
+
+@app.post("/employer-inbox/{tracker_id}/{response_id}/classify")
+def classify_employer_response(
+    tracker_id: int,
+    response_id: int,
+    resolved_type: str = Form(...),
+    note: str = Form(""),
+    service: OpportunityCRMService = Depends(get_crm_service),
+):
+    """The one write endpoint for resolving a genuinely UNKNOWN employer
+    message (item 6) -- an explicit, audited human judgment call. NEVER
+    rewrites the original Gmail-sourced employer_responses row, and never
+    sends/drafts/modifies/labels anything in Gmail itself -- this only calls
+    the CRM's own append-only classification record."""
+    if resolved_type not in EMPLOYER_RESPONSE_HUMAN_CLASSIFICATIONS:
+        return RedirectResponse(url=f"/employer-inbox/{tracker_id}/{response_id}", status_code=303)
+    try:
+        service.record_employer_response_classification(tracker_id, response_id, resolved_type, note=note, actor="USER")
+    except ValueError:
+        pass
+    return RedirectResponse(url=f"/employer-inbox/{tracker_id}/{response_id}", status_code=303)
 
 
 def _register_placeholder_route(path: str, key: str, label: str, description: str) -> None:

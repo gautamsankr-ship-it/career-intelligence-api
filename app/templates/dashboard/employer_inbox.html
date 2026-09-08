@@ -1,0 +1,91 @@
+{% extends "_shell.html" %}
+{% block title %}Employer Inbox -- Career Intelligence{% endblock %}
+{% block content %}
+  <div class="page-header">
+    <h1>Employer Inbox</h1>
+    <div class="subtitle">What have employers told me, and what actually needs my attention?</div>
+  </div>
+
+  <div class="section">
+    <div class="cards">
+      <div class="card card--highlight"><div class="n">{{ summary.employer_messages }}</div><div class="l">Employer Messages</div></div>
+      <div class="card"><div class="n">{{ summary.needs_action }}</div><div class="l">Needs Action</div></div>
+      <div class="card"><div class="n">{{ summary.meaningful_responses }}</div><div class="l">Meaningful Responses</div></div>
+      <div class="card"><div class="n">{{ summary.screening_requests }}</div><div class="l">Screening Requests</div></div>
+      <div class="card"><div class="n">{{ summary.interviews }}</div><div class="l">Interviews</div></div>
+      <div class="card"><div class="n">{{ summary.assessments }}</div><div class="l">Assessments</div></div>
+      <div class="card"><div class="n">{{ summary.rejections }}</div><div class="l">Rejections</div></div>
+      <div class="card"><div class="n">{{ summary.offers }}</div><div class="l">Offers</div></div>
+    </div>
+    <p class="section-hint">An automated acknowledgement is never counted as a meaningful response -- same definition as the Dashboard and Applications.</p>
+  </div>
+
+  <div class="section">
+    <div class="chip-row">
+      <a class="chip {{ 'is-active' if not filter else '' }}" href="/employer-inbox">All</a>
+      <a class="chip {{ 'is-active' if filter == 'needs_action' else '' }}" href="/employer-inbox?filter=needs_action">Needs Action</a>
+      <a class="chip {{ 'is-active' if filter == 'meaningful' else '' }}" href="/employer-inbox?filter=meaningful">Meaningful</a>
+      <a class="chip {{ 'is-active' if filter == 'interview' else '' }}" href="/employer-inbox?filter=interview">Interview</a>
+      <a class="chip {{ 'is-active' if filter == 'assessment' else '' }}" href="/employer-inbox?filter=assessment">Assessment</a>
+      <a class="chip {{ 'is-active' if filter == 'rejected' else '' }}" href="/employer-inbox?filter=rejected">Rejected</a>
+      <a class="chip {{ 'is-active' if filter == 'offer' else '' }}" href="/employer-inbox?filter=offer">Offer</a>
+      <a class="chip {{ 'is-active' if filter == 'acknowledgement' else '' }}" href="/employer-inbox?filter=acknowledgement">Acknowledgement</a>
+      <a class="chip {{ 'is-active' if filter == 'unknown' else '' }}" href="/employer-inbox?filter=unknown">Unknown</a>
+    </div>
+    <div class="filters-card">
+      <form method="get" action="/employer-inbox">
+        <input type="hidden" name="filter" value="{{ filter }}">
+        <div class="filters">
+          <div class="field">
+            <label>Search (company / job)</label>
+            <input type="text" name="search" value="{{ search }}" placeholder="e.g. Isla Health" style="padding:7px 10px;border-radius:6px;border:1px solid #d1d5db;min-width:190px;font-size:13px;">
+          </div>
+          <div class="field">
+            <label>Priority</label>
+            <select name="priority">
+              <option value="">All</option>
+              {% for grade in ["A", "B", "C", "D", "E", "UNSCORED"] %}
+              <option value="{{ grade }}" {{ "selected" if grade == priority }}>{{ priority_labels[grade] }} ({{ grade }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button class="apply" type="submit">Apply</button>
+          <a class="clear" href="/employer-inbox?filter={{ filter }}">Clear</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="section">
+    {% if items %}
+    <div style="overflow-x:auto">
+    <table class="table">
+      <tr>
+        <th>Company / Job</th><th>Classification</th><th>Received</th><th>Summary</th>
+        <th>Priority</th><th>Application Stage</th><th>Action Status</th><th></th>
+      </tr>
+      {% for item in items %}
+      <tr>
+        <td><strong>{{ item.company or "-" }}</strong><br><span style="color:var(--text-muted);font-size:12.5px;">{{ item.job_title or "-" }}</span></td>
+        <td>{{ item.classification_label }}</td>
+        <td>{{ item.received_at[:16] if item.received_at else "-" }}</td>
+        <td style="max-width:280px;">{{ item.summary or "-" }}</td>
+        <td class="col-center">{% if item.intelligence_priority %}<span class="badge p-{{ item.intelligence_priority }}">{{ item.intelligence_priority }}</span>{% else %}<span class="badge" style="background:#f3f4f6;color:#6b7280;">-</span>{% endif %}</td>
+        <td>{{ item.crm_stage | humanize }}</td>
+        <td>
+          {% if item.actionable %}
+          <span class="status-chip" style="background:#fef3c7;color:#92400e;">{{ item.required_action }}</span>
+          {% else %}
+          <span style="color:var(--text-muted);font-size:12.5px;">No action required</span>
+          {% endif %}
+        </td>
+        <td><a href="/employer-inbox/{{ item.tracker_id }}/{{ item.employer_response_id }}">View &rarr;</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+    {% else %}
+    <div class="empty-state">No employer communications match this view.</div>
+    {% endif %}
+  </div>
+{% endblock %}
