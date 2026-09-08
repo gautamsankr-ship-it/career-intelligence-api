@@ -881,6 +881,72 @@ def _next_action(tracker_id: int, record: dict, service: OpportunityCRMService) 
     return {"text": text, "link": None, "urgency": None}
 
 
+# -- Web App Phase 4.1: event-triggered feedback only ------------------------
+# Operational objective (see app/models/crm.py): minimize human
+# interventions. An ordinary Applied -> automated-acknowledgement -> waiting
+# application must never prompt for feedback -- a prominent prompt is
+# surfaced only for the four genuinely high-information events below, and
+# only once (a later view after feedback was already recorded for that same
+# event is suppressed, though the record itself is always still visible/
+# auditable and the user can always add more via the secondary, collapsed
+# "Add my feedback" control regardless).
+_MAJOR_OUTCOME_STAGES = ("OFFER", "ACCEPTED", "DECLINED_OFFER", "REJECTED", "HIRED")
+
+
+def _application_feedback_trigger(record: dict, detail: dict) -> dict | None:
+    """Returns the single highest-priority trigger (or None for the
+    ordinary case), each carrying `arose_at` so the caller can tell whether
+    feedback already recorded since then has addressed it."""
+    # 1. An interview reached a real outcome -- the compact interest-level
+    # prompt, not the general worth-pursuing one.
+    completed_interviews = [i for i in detail["interviews"] if i.get("outcome") and i["outcome"] not in ("", "SCHEDULED")]
+    if completed_interviews:
+        arose_at = max((i.get("completed_at") or i.get("updated_at") or "") for i in completed_interviews)
+        return {"type": "INTERVIEW_COMPLETED", "mode": "interest_only", "arose_at": arose_at,
+                "prompt": "How interested are you after the interview?"}
+
+    # 2. The user's own decision overrode the system's recommendation --
+    # informational only; the reason is captured via the EXISTING My
+    # Decision mechanism on Opportunity Detail, never a second form.
+    latest_decision = detail["user_decisions"][0] if detail["user_decisions"] else None
+    priority = record.get("intelligence_priority")
+    if latest_decision:
+        decision = latest_decision["decision"]
+        overrode = (priority in ("A", "B") and decision in ("WATCH", "REJECT")) or (priority in ("D", "E") and decision == "APPLY")
+        if overrode:
+            return {
+                "type": "OVERRIDE", "mode": "reuse_decision", "arose_at": latest_decision["decided_at"],
+                "prompt": f"You chose {decision.title()} where the system recommended {_RECOMMENDATION_TEXT.get(priority, priority)}.",
+                "already_explained": bool(latest_decision.get("reason_code") or latest_decision.get("note")),
+            }
+
+    # 3. A genuinely ambiguous employer message the system could not
+    # confidently classify.
+    unknown_responses = [r for r in detail["employer_responses"] if r["response_type"] == "UNKNOWN"]
+    if unknown_responses:
+        arose_at = max(r["received_at"] for r in unknown_responses)
+        return {"type": "AMBIGUOUS_EMPLOYER", "mode": "worth_pursuing", "arose_at": arose_at,
+                "prompt": "The system could not confidently classify a recent employer message -- your read?"}
+
+    # 4. A major, system-unobservable outcome (offer, withdrawal, rejection).
+    offer_responses = [r for r in detail["employer_responses"] if r["response_type"] == "OFFER"]
+    if record.get("crm_stage") in _MAJOR_OUTCOME_STAGES or offer_responses:
+        arose_at = record.get("crm_stage_updated_at") or (offer_responses[0]["received_at"] if offer_responses else "")
+        return {"type": "MAJOR_OUTCOME", "mode": "worth_pursuing", "arose_at": arose_at,
+                "prompt": "A major outcome was reached for this application -- was it worth pursuing?"}
+
+    return None
+
+
+def _should_show_prominent_feedback_prompt(trigger: dict | None, latest_feedback: dict | None) -> bool:
+    if not trigger or trigger["mode"] == "reuse_decision":
+        return False
+    if not latest_feedback:
+        return True
+    arose_at = trigger.get("arose_at") or ""
+    return latest_feedback["created_at"] < arose_at
+
+
 @app.get("/applications", response_class=HTMLResponse)
 def applications(
     request: Request,
@@ -966,6 +1032,9 @@ def application_detail(request: Request, tracker_id: int, service: OpportunityCR
         for response in detail["employer_responses"]
     ]
 
+    latest_feedback = service.get_latest_application_feedback(tracker_id)
+    feedback_trigger = _application_feedback_trigger(record, detail)
+
     return templates.TemplateResponse(
         request,
         "application_detail.html",
@@ -982,10 +1051,12 @@ def application_detail(request: Request, tracker_id: int, service: OpportunityCR
             "employer_feedback": employer_feedback,
             "plain_timeline": plain_timeline,
             "next_action": _next_action(tracker_id, record, service),
-            "latest_feedback": service.get_latest_application_feedback(tracker_id),
+            "latest_feedback": latest_feedback,
             "feedback_history": service.list_application_feedback(tracker_id),
             "worth_pursuing_options": sorted(OpportunityCRMService.APPLICATION_FEEDBACK_WORTH_PURSUING),
             "interest_change_options": sorted(OpportunityCRMService.APPLICATION_FEEDBACK_INTEREST_CHANGE),
+            "feedback_trigger": feedback_trigger,
+            "show_prominent_feedback_prompt": _should_show_prominent_feedback_prompt(feedback_trigger, latest_feedback),
         },
     )
 

@@ -1749,7 +1749,7 @@ def test_application_detail_employer_feedback_separates_acknowledgement_from_mea
     try:
         client = _client(db_path)
         body = client.get(f"/application/{ids['acknowledged_twice']}").text
-        feedback_section = body.split("Employer Feedback")[1].split("Human Feedback")[0]
+        feedback_section = body.split("Employer Feedback")[1].split('<h2 class="section-title">Feedback</h2>')[0]
         assert "Automated" in feedback_section  # acknowledgement flagged as automated
     finally:
         app.dependency_overrides.clear()
@@ -1784,8 +1784,10 @@ def test_application_detail_records_human_feedback_append_only_and_never_touches
         )
         assert response.status_code == 303
         body = client.get(f"/application/{ids['applied']}").text
-        assert "YES" in body.split("Human Feedback")[1][:200]
-        assert "Great opportunity" in body
+        feedback_section = body.split('<h2 class="section-title">Feedback</h2>')[1]
+        assert "Last recorded" in feedback_section
+        assert "YES" in feedback_section
+        assert "Great opportunity" in feedback_section
     finally:
         app.dependency_overrides.clear()
     service = _open(db_path)
@@ -1893,3 +1895,280 @@ def test_opportunity_detail_shows_view_application_for_real_production_trackers(
     for tracker_id in (61, 103, 81):
         body = client.get(f"/opportunity/{tracker_id}").text
         assert f'href="/application/{tracker_id}"' in body
+
+
+# --- Web App Phase 4.1: event-triggered feedback only -----------------------
+def _feedback_section(body: str) -> str:
+    return body.split('<h2 class="section-title">Feedback</h2>')[1].split('<div class="section">')[0]
+
+
+def test_ordinary_applied_application_demands_no_feedback(tmp_path):
+    """Applied -> automated acknowledgement -> waiting requires ZERO manual
+    feedback: no prominent prompt, only the optional secondary control."""
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get(f"/application/{ids['applied']}").text
+        section = _feedback_section(body)
+        assert "decision-card\" style=\"margin-bottom:10px" not in section
+        assert "Add my feedback" in section
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_automated_acknowledgement_alone_does_not_trigger_feedback(tmp_path):
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get(f"/application/{ids['acknowledged_twice']}").text
+        section = _feedback_section(body)
+        assert "decision-card\" style=\"margin-bottom:10px" not in section
+        assert "Add my feedback" in section
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_add_my_feedback_secondary_control_still_saves_via_the_same_endpoint(tmp_path):
+    """The optional collapsed control uses the SAME append-only mechanism --
+    no second write path."""
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    try:
+        client = _client(db_path)
+        response = client.post(
+            f"/application/{ids['applied']}/feedback",
+            data={"worth_pursuing": "MAYBE", "note": "Uncertain about culture fit"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+    finally:
+        app.dependency_overrides.clear()
+    service = _open(db_path)
+    try:
+        history = service.list_application_feedback(ids["applied"])
+        assert len(history) == 1
+        assert history[0]["worth_pursuing"] == "MAYBE"
+    finally:
+        service.close()
+
+
+def _seed_interview_completed(tmp_path):
+    db_path = tmp_path / "interview.db"
+    history = ApplicationHistoryService(db_path)
+    service = OpportunityCRMService(history)
+    fingerprint = job_fingerprint(source="LinkedIn", external_job_id="trig-interview")
+    record = service.create_opportunity(fingerprint, company="Interviewed Co", job_title="Analyst")
+    service.record_submission_confirmation(record["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    interview = service.record_interview(record["id"], "SCREENING")
+    service.update_interview_outcome(interview["id"], "PASSED", completed_at="2026-09-05T00:00:00Z")
+    tracker_id = record["id"]
+    service.close()
+    return db_path, tracker_id
+
+
+def test_interview_completed_shows_compact_interest_prompt(tmp_path):
+    db_path, tracker_id = _seed_interview_completed(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get(f"/application/{tracker_id}").text
+        section = _feedback_section(body)
+        assert "How interested are you after the interview?" in section
+        assert "More interested" in section and "Less interested" in section
+        assert 'name="worth_pursuing" value="YES" required' not in section  # interest-only, not the general prompt
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_interview_completed_prompt_suppressed_once_feedback_recorded_after_it(tmp_path):
+    db_path, tracker_id = _seed_interview_completed(tmp_path)
+    try:
+        client = _client(db_path)
+        client.post(f"/application/{tracker_id}/feedback", data={"worth_pursuing": "YES", "interest_change": "HIGHER"}, follow_redirects=False)
+        body = client.get(f"/application/{tracker_id}").text
+        section = _feedback_section(body)
+        assert "How interested are you after the interview?" not in section
+        assert "Last recorded" in section
+        assert "Add my feedback" in section  # still available to update
+    finally:
+        app.dependency_overrides.clear()
+
+
+def _seed_override(tmp_path, *, priority="B", decision="REJECT", with_reason=False):
+    db_path = tmp_path / "override.db"
+    history = ApplicationHistoryService(db_path)
+    service = OpportunityCRMService(history)
+    fingerprint = job_fingerprint(source="LinkedIn", external_job_id="trig-override")
+    record = service.create_opportunity(fingerprint, company="Overridden Co", job_title="Analyst")
+    service.update_opportunity(record["id"], intelligence_priority=priority)
+    service.transition_stage(record["id"], "READY_FOR_HUMAN_SUBMIT")
+    kwargs = {"reason_code": "COMPANY_UNATTRACTIVE", "note": "Not a fit"} if with_reason else {}
+    service.record_user_decision(record["id"], decision, **kwargs)
+    tracker_id = record["id"]
+    service.close()
+    return db_path, tracker_id
+
+
+def test_override_of_system_recommendation_shows_informational_banner_not_a_form(tmp_path):
+    db_path, tracker_id = _seed_override(tmp_path, priority="B", decision="REJECT")
+    try:
+        client = _client(db_path)
+        body = client.get(f"/application/{tracker_id}").text
+        section = _feedback_section(body)
+        assert "You chose Reject where the system recommended" in section
+        assert "Add a reason" in section
+        assert "decision-card\" style=\"margin-bottom:10px" not in section  # no duplicate form -- reuses existing decision mechanism
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_override_with_existing_reason_shows_reason_recorded(tmp_path):
+    db_path, tracker_id = _seed_override(tmp_path, priority="B", decision="REJECT", with_reason=True)
+    try:
+        client = _client(db_path)
+        body = client.get(f"/application/{tracker_id}").text
+        section = _feedback_section(body)
+        assert "Reason recorded" in section
+        assert "Add a reason" not in section
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_matching_decision_and_priority_never_triggers_override_banner(tmp_path):
+    # A/B priority + APPLY decision is agreement, not an override.
+    db_path = tmp_path / "agree.db"
+    history = ApplicationHistoryService(db_path)
+    service = OpportunityCRMService(history)
+    fingerprint = job_fingerprint(source="LinkedIn", external_job_id="trig-agree")
+    record = service.create_opportunity(fingerprint, company="Agreed Co", job_title="Analyst")
+    service.update_opportunity(record["id"], intelligence_priority="B")
+    service.transition_stage(record["id"], "READY_FOR_HUMAN_SUBMIT")
+    service.record_user_decision(record["id"], "APPLY")
+    tracker_id = record["id"]
+    service.close()
+    try:
+        client = _client(db_path)
+        body = client.get(f"/application/{tracker_id}").text
+        section = _feedback_section(body)
+        assert "You chose" not in section
+    finally:
+        app.dependency_overrides.clear()
+
+
+def _seed_ambiguous_employer(tmp_path):
+    db_path = tmp_path / "ambiguous.db"
+    history = ApplicationHistoryService(db_path)
+    service = OpportunityCRMService(history)
+    fingerprint = job_fingerprint(source="LinkedIn", external_job_id="trig-ambiguous")
+    record = service.create_opportunity(fingerprint, company="Ambiguous Co", job_title="Analyst")
+    service.record_submission_confirmation(record["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    service.record_employer_response(record["id"], "UNKNOWN", summary="Unclear message from employer")
+    tracker_id = record["id"]
+    service.close()
+    return db_path, tracker_id
+
+
+def test_ambiguous_employer_message_triggers_worth_pursuing_prompt(tmp_path):
+    db_path, tracker_id = _seed_ambiguous_employer(tmp_path)
+    try:
+        client = _client(db_path)
+        body = client.get(f"/application/{tracker_id}").text
+        section = _feedback_section(body)
+        assert "could not confidently classify" in section
+        assert 'value="YES" required' in section  # Yes/Maybe/No worth-pursuing radios shown
+    finally:
+        app.dependency_overrides.clear()
+
+
+def _seed_major_outcome(tmp_path, stage="REJECTED"):
+    db_path = tmp_path / "major.db"
+    history = ApplicationHistoryService(db_path)
+    service = OpportunityCRMService(history)
+    fingerprint = job_fingerprint(source="LinkedIn", external_job_id=f"trig-major-{stage}")
+    record = service.create_opportunity(fingerprint, company="Major Outcome Co", job_title="Analyst")
+    service.record_submission_confirmation(record["id"], confirmation_evidence="confirmed", submission_reference="s1")
+    if stage == "REJECTED":
+        service.record_rejection(record["id"], rejection_reason="Not a fit")
+    else:
+        service.transition_stage(record["id"], stage)
+    tracker_id = record["id"]
+    service.close()
+    return db_path, tracker_id
+
+
+def test_major_outcome_rejection_triggers_worth_pursuing_prompt(tmp_path):
+    db_path, tracker_id = _seed_major_outcome(tmp_path, stage="REJECTED")
+    try:
+        client = _client(db_path)
+        body = client.get(f"/application/{tracker_id}").text
+        section = _feedback_section(body)
+        assert "A major outcome was reached" in section
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_existing_feedback_history_always_remains_visible(tmp_path):
+    """Existing feedback records must remain visible/auditable regardless
+    of whether a prominent prompt is currently showing."""
+    db_path, ids = _seed_applications_fixture(tmp_path)
+    service = _open(db_path)
+    try:
+        service.record_application_feedback(ids["applied"], "NO", note="Historical entry")
+    finally:
+        service.close()
+    try:
+        client = _client(db_path)
+        body = client.get(f"/application/{ids['applied']}").text
+        assert "Historical entry" in body  # via Technical Details' Feedback History table
+        section = _feedback_section(body)
+        assert "Last recorded" in section
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_feedback_remains_append_only_across_multiple_trigger_events(tmp_path):
+    db_path, tracker_id = _seed_interview_completed(tmp_path)
+    try:
+        client = _client(db_path)
+        client.post(f"/application/{tracker_id}/feedback", data={"worth_pursuing": "YES", "interest_change": "HIGHER"}, follow_redirects=False)
+        client.post(f"/application/{tracker_id}/feedback", data={"worth_pursuing": "MAYBE", "interest_change": "SAME", "note": "Second thoughts"}, follow_redirects=False)
+    finally:
+        app.dependency_overrides.clear()
+    service = _open(db_path)
+    try:
+        history = service.list_application_feedback(tracker_id)
+        assert len(history) == 2  # append-only, never overwritten
+    finally:
+        service.close()
+
+
+def test_feedback_trigger_never_alters_intelligence_priority_or_crm_stage(tmp_path):
+    db_path, tracker_id = _seed_interview_completed(tmp_path)
+    service = _open(db_path)
+    try:
+        before = dict(service.get_opportunity(tracker_id))
+    finally:
+        service.close()
+    try:
+        client = _client(db_path)
+        client.post(f"/application/{tracker_id}/feedback", data={"worth_pursuing": "YES", "interest_change": "LOWER"}, follow_redirects=False)
+    finally:
+        app.dependency_overrides.clear()
+    service = _open(db_path)
+    try:
+        after = dict(service.get_opportunity(tracker_id))
+        assert after["intelligence_priority"] == before["intelligence_priority"]
+        assert after["crm_stage"] == before["crm_stage"]
+    finally:
+        service.close()
+
+
+def test_production_applications_show_no_prominent_feedback_prompt_read_only():
+    """Read-only: none of the 3 real confirmed applications have an active
+    high-information trigger today (no completed interview, no override, no
+    ambiguous message, no major outcome) -- confirms the ordinary case on
+    real data."""
+    client = TestClient(app)
+    for tracker_id in (61, 103, 81):
+        body = client.get(f"/application/{tracker_id}").text
+        section = _feedback_section(body)
+        assert "decision-card\" style=\"margin-bottom:10px" not in section
+        assert "Add my feedback" in section

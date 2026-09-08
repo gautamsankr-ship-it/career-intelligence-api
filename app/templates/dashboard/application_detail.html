@@ -186,31 +186,35 @@
   </div>
 
   <div class="section">
-    <h2 class="section-title">Human Feedback</h2>
-    <div class="decision-card">
-      {% if latest_feedback %}
-      <p style="font-size:13px;margin:0 0 12px;">
-        Latest: <strong>{{ latest_feedback.worth_pursuing }}</strong>{% if latest_feedback.interest_change %} -- interest {{ latest_feedback.interest_change | lower }}{% endif %}{% if latest_feedback.note %} ({{ latest_feedback.note }}){% endif %}
-        <span style="color:var(--text-muted);">on {{ latest_feedback.created_at[:16] }}</span>
-      </p>
-      {% else %}
-      <p style="font-size:13px;color:var(--text-muted);margin:0 0 12px;">No feedback recorded yet.</p>
-      {% endif %}
+    <h2 class="section-title">Feedback</h2>
+
+    {% if feedback_trigger and feedback_trigger.mode == "reuse_decision" %}
+    <div class="detail-card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;">
+      <span style="font-size:13px;">{{ feedback_trigger.prompt }}</span>
+      {% if feedback_trigger.already_explained %}<span class="status-chip">Reason recorded</span>
+      {% else %}<a href="/opportunity/{{ tracker_id }}">Add a reason &rarr;</a>{% endif %}
+    </div>
+    {% endif %}
+
+    {% if show_prominent_feedback_prompt %}
+    <div class="decision-card" style="margin-bottom:10px;">
+      <p style="font-size:13px;font-weight:600;margin:0 0 10px;">{{ feedback_trigger.prompt }}</p>
       <form method="post" action="/application/{{ tracker_id }}/feedback">
-        <p style="font-size:12.5px;font-weight:600;margin:0 0 6px;">Was this opportunity worth pursuing?</p>
+        {% if feedback_trigger.mode == "interest_only" %}
+        <input type="hidden" name="worth_pursuing" value="YES">
+        <div class="decision-buttons">
+          <label class="decision-btn yes"><input type="radio" name="interest_change" value="HIGHER" required style="margin-right:6px;">More interested</label>
+          <label class="decision-btn maybe"><input type="radio" name="interest_change" value="SAME" style="margin-right:6px;">Same</label>
+          <label class="decision-btn no"><input type="radio" name="interest_change" value="LOWER" style="margin-right:6px;">Less interested</label>
+        </div>
+        {% else %}
         <div class="decision-buttons">
           <label class="decision-btn yes"><input type="radio" name="worth_pursuing" value="YES" required style="margin-right:6px;">Yes</label>
           <label class="decision-btn maybe"><input type="radio" name="worth_pursuing" value="MAYBE" style="margin-right:6px;">Maybe</label>
           <label class="decision-btn no"><input type="radio" name="worth_pursuing" value="NO" style="margin-right:6px;">No</label>
         </div>
+        {% endif %}
         <div class="filters">
-          <div class="field">
-            <label>Interest change (optional)</label>
-            <select name="interest_change">
-              <option value="">-- none --</option>
-              {% for opt in interest_change_options %}<option value="{{ opt }}">{{ opt | humanize }}</option>{% endfor %}
-            </select>
-          </div>
           <div class="field" style="flex:1;min-width:200px;">
             <label>Note (optional)</label>
             <input type="text" name="note" style="padding:6px 8px;border-radius:6px;border:1px solid #d1d5db;width:100%;">
@@ -219,7 +223,45 @@
         </div>
       </form>
     </div>
-    <p class="section-hint">This is a post-outcome learning signal for later Analytics -- recorded separately from, and never alters, the intelligence engine's Priority.</p>
+    {% endif %}
+
+    {% if latest_feedback %}
+    <p class="section-hint" style="margin:0 0 8px;">
+      Last recorded: <strong>{{ latest_feedback.worth_pursuing }}</strong>{% if latest_feedback.interest_change %} -- interest {{ latest_feedback.interest_change | lower }}{% endif %}{% if latest_feedback.note %} ({{ latest_feedback.note }}){% endif %}
+      on {{ latest_feedback.created_at[:16] }}
+    </p>
+    {% endif %}
+
+    {% if not show_prominent_feedback_prompt %}
+    <details>
+      <summary style="cursor:pointer;font-size:12.5px;color:var(--text-muted);">Add my feedback</summary>
+      <div class="decision-card" style="margin-top:8px;">
+        <form method="post" action="/application/{{ tracker_id }}/feedback">
+          <p style="font-size:12.5px;font-weight:600;margin:0 0 6px;">Was this opportunity worth pursuing?</p>
+          <div class="decision-buttons">
+            <label class="decision-btn yes"><input type="radio" name="worth_pursuing" value="YES" required style="margin-right:6px;">Yes</label>
+            <label class="decision-btn maybe"><input type="radio" name="worth_pursuing" value="MAYBE" style="margin-right:6px;">Maybe</label>
+            <label class="decision-btn no"><input type="radio" name="worth_pursuing" value="NO" style="margin-right:6px;">No</label>
+          </div>
+          <div class="filters">
+            <div class="field">
+              <label>Interest change (optional)</label>
+              <select name="interest_change">
+                <option value="">-- none --</option>
+                {% for opt in interest_change_options %}<option value="{{ opt }}">{{ opt | humanize }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="field" style="flex:1;min-width:200px;">
+              <label>Note (optional)</label>
+              <input type="text" name="note" style="padding:6px 8px;border-radius:6px;border:1px solid #d1d5db;width:100%;">
+            </div>
+            <button class="apply" type="submit">Save Feedback</button>
+          </div>
+        </form>
+      </div>
+    </details>
+    {% endif %}
+    <p class="section-hint">Feedback is optional and event-triggered -- recorded separately from, and never alters, the intelligence engine's Priority. Ordinary applications require none.</p>
   </div>
 
   <div class="section">

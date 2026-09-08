@@ -81,6 +81,38 @@ LEGACY_STATUS_TO_CRM_STAGE = {
 }
 
 
+# --- Frozen operational objective (Web App Phase 4.1) -----------------------
+# Career Intelligence must minimize human interventions while preserving
+# application quality, factual accuracy, safety, and consequential-action
+# controls. Human input is an expensive resource: never ask the user for
+# something the system already knows, can safely infer from an authoritative
+# stored fact, can observe from an application/employer outcome, or that
+# provides little incremental learning value (e.g. a routine Applied ->
+# automated-acknowledgement -> waiting application requires ZERO manual
+# feedback). This governs future UI/workflow design across every screen, not
+# only Applications/Human Feedback.
+#
+# "Human Interventions per Application" is the planned future system-
+# effectiveness metric this objective points toward -- deliberately not
+# implemented as a stored counter/table here (no new architecture for one
+# sentence). A genuine intervention is a real action/judgment the system
+# could not safely complete itself: an OPEN `human_blockers` row (see
+# HUMAN_BLOCKER_TYPES below -- eligibility judgment, unknown/salary screening
+# answer, CAPTCHA/MFA/login), the one human-authorized final-submission click
+# (Task 21 MVP policy), an ambiguous employer communication requiring
+# classification, or an interview/offer decision. Passive viewing/navigation
+# is never counted. When this metric is eventually computed, it should be
+# derived from these ALREADY-recorded facts (human_blockers rows, the
+# Action Required read model's own categories, submission-authorization
+# events) -- never a new manual-tally mechanism.
+#
+# Reducing intervention must never mean bypassing any of: factual
+# uncertainty, legal/work-right uncertainty, CAPTCHA, MFA, authentication,
+# explicit final-submit authorization during MVP, an ambiguous consequential
+# screening answer, employer-communication approval, interview-scheduling
+# acceptance, or an offer decision -- the system still only ever acts
+# automatically where existing policy already, safely permits it.
+
 # --- Human blockers ---------------------------------------------------------
 # Distinct from `intelligence_priority` (a career-fit/funnel signal) -- a
 # human blocker records a concrete reason a *human*, not the pipeline, must
