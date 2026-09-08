@@ -55,6 +55,24 @@ _PRIORITY_LABELS = {
 }
 _PRIORITY_ORDER = ("A", "B", "C", "D", "E", "UNSCORED")
 
+# Web App Phase 7.1 (item 13): business-readable KPI definitions, surfaced
+# as a plain HTML `title` tooltip on the card itself -- the smallest
+# possible "audit detail" affordance, never a SQL/implementation dump.
+_KPI_DEFINITIONS = {
+    "opportunities_discovered": "Every opportunity ever discovered by the pipeline, regardless of current status.",
+    "applications_submitted": "Distinct opportunities with confirmed submission evidence (CRM submission confirmation) -- never a prepared, ready, or attempted-only package.",
+    "acknowledged": "Distinct submitted applications with at least one automated employer acknowledgement recorded -- an automated receipt, not a meaningful response.",
+    "meaningful_responses": "Distinct submitted applications with at least one genuinely meaningful employer/recruiter response (never an automated acknowledgement).",
+    "interviews": "Distinct submitted applications with at least one recorded interview.",
+    "offers": "Distinct submitted applications with at least one recorded offer.",
+    "hired": "Distinct submitted applications resulting in a recorded hire.",
+    "application_rate": "Applications Submitted / Opportunities Discovered.",
+    "meaningful_response_rate": "Applications with a meaningful response / Applications Submitted.",
+    "interview_rate": "Applications reaching interview / Applications Submitted.",
+    "offer_rate": "Applications reaching offer / Applications Submitted.",
+    "hire_rate": "Applications resulting in hire / Applications Submitted.",
+}
+
 # Every PIPELINE_GROUPS stage relabeled to its business-facing group -- reused
 # for the Opportunities workspace's "Current Status" column so it never shows
 # a raw internal crm_stage code either.
@@ -525,6 +543,7 @@ def home(
             "filters": filters,
             "filtered_opportunities": filtered_opportunities,
             "selected": {"crm_stage": crm_stage, "intelligence_priority": intelligence_priority},
+            "kpi_definitions": _KPI_DEFINITIONS,
         },
     )
 
@@ -541,17 +560,27 @@ def opportunities(
     source: str = "",
     min_score: float | None = None,
     max_score: float | None = None,
+    application_state: str = "",
     page: int = 1,
     page_size: int = 25,
     service: OpportunityCRMService = Depends(get_crm_service),
 ):
     page = max(page, 1)
     page_size = min(max(page_size, 10), 100)
-    result = service.search_opportunities(
-        search=search, intelligence_priority=intelligence_priority, crm_stage=crm_stage,
-        market=market, work_arrangement=work_arrangement, career_track=career_track, source=source,
-        min_score=min_score, max_score=max_score, page=page, page_size=page_size,
-    )
+    try:
+        result = service.search_opportunities(
+            search=search, intelligence_priority=intelligence_priority, crm_stage=crm_stage,
+            market=market, work_arrangement=work_arrangement, career_track=career_track, source=source,
+            min_score=min_score, max_score=max_score, application_state=application_state,
+            page=page, page_size=page_size,
+        )
+    except ValueError:
+        application_state = ""
+        result = service.search_opportunities(
+            search=search, intelligence_priority=intelligence_priority, crm_stage=crm_stage,
+            market=market, work_arrangement=work_arrangement, career_track=career_track, source=source,
+            min_score=min_score, max_score=max_score, page=page, page_size=page_size,
+        )
     for row in result["results"]:
         row["status_label"] = _STAGE_TO_GROUP_LABEL.get(row.get("crm_stage"), row.get("crm_stage") or "Unknown")
         row["eligibility_badge"] = _REMOTE_ELIGIBILITY_BADGE.get(row.get("remote_eligibility"), "UNKNOWN")
@@ -575,6 +604,7 @@ def opportunities(
                 "search": search, "intelligence_priority": intelligence_priority, "crm_stage": crm_stage,
                 "market": market, "work_arrangement": work_arrangement, "career_track": career_track,
                 "source": source, "min_score": min_score, "max_score": max_score, "page_size": page_size,
+                "application_state": application_state,
             },
         },
     )
@@ -1566,6 +1596,7 @@ def analytics(request: Request, period: str = "all", service: OpportunityCRMServ
     rejections = analytics_service.rejection_intelligence(service)
     employer_feedback = analytics_service.employer_feedback_intelligence(service)
     observations = analytics_service.generate_observations(service)
+    reconciliation = analytics_service.reconciliation_checks(service)
 
     candidates = analytics_service.generate_learning_candidates(service)
     persisted = {row["key"]: row for row in service.list_proposed_learnings()}
@@ -1608,10 +1639,27 @@ def analytics(request: Request, period: str = "all", service: OpportunityCRMServ
             "rejections": rejections,
             "employer_feedback": employer_feedback,
             "observations": observations,
+            "reconciliation": reconciliation,
+            "kpi_definitions": _KPI_DEFINITIONS,
             "learning_by_status": learning_by_status,
             "domain_labels": _LEARNING_DOMAIN_LABELS,
             "status_labels": _LEARNING_STATUS_LABELS,
         },
+    )
+
+
+@app.get("/analytics/rate/{metric}", response_class=HTMLResponse)
+def analytics_rate_detail(request: Request, metric: str, service: OpportunityCRMService = Depends(get_crm_service)):
+    """Web App Phase 7.1 item 11/12: the "Summary -> Calculation ->
+    Population -> Underlying records" drill-down for one rate KPI."""
+    try:
+        detail = analytics_service.rate_detail(service, metric)
+    except ValueError:
+        raise HTTPException(status_code=404, detail=f"Unknown rate metric: {metric!r}")
+    return templates.TemplateResponse(
+        request,
+        "analytics_rate_detail.html",
+        {"active_nav": "analytics", "detail": detail},
     )
 
 

@@ -39,13 +39,27 @@
   <div class="section">
     <h2 class="section-title">Performance Overview</h2>
     <div class="cards">
-      <div class="card"><div class="n">{{ overview.opportunities_discovered }}</div><div class="l">Opportunities Discovered</div></div>
-      <div class="card card--highlight"><div class="n">{{ overview.applications_submitted }}</div><div class="l">Applications Submitted</div></div>
-      <div class="card"><div class="n">{{ overview.application_rate }}</div><div class="l">Application Rate</div></div>
-      <div class="card"><div class="n">{{ overview.meaningful_response_rate }}</div><div class="l">Meaningful Response Rate</div></div>
-      <div class="card"><div class="n">{{ overview.interview_rate }}</div><div class="l">Interview Rate</div></div>
-      <div class="card"><div class="n">{{ overview.offer_rate }}</div><div class="l">Offer Rate</div></div>
-      <div class="card"><div class="n">{{ overview.hire_rate }}</div><div class="l">Hire Rate</div></div>
+      <a class="card card--clickable" href="/opportunities" title="{{ kpi_definitions.opportunities_discovered }}">
+        <div class="n">{{ overview.opportunities_discovered }}</div><div class="l">Opportunities Discovered</div><span class="view-details">View details &rarr;</span>
+      </a>
+      <a class="card card--highlight card--clickable" href="/applications?tab=submitted" title="{{ kpi_definitions.applications_submitted }}">
+        <div class="n">{{ overview.applications_submitted }}</div><div class="l">Applications Submitted</div><span class="view-details">View details &rarr;</span>
+      </a>
+      <a class="card card--clickable" href="/analytics/rate/application" title="{{ kpi_definitions.application_rate }}">
+        <div class="n">{{ overview.application_rate }}</div><div class="l">Application Rate</div><span class="view-details">View calculation &rarr;</span>
+      </a>
+      <a class="card card--clickable" href="/analytics/rate/meaningful_response" title="{{ kpi_definitions.meaningful_response_rate }}">
+        <div class="n">{{ overview.meaningful_response_rate }}</div><div class="l">Meaningful Response Rate</div><span class="view-details">View calculation &rarr;</span>
+      </a>
+      <a class="card card--clickable" href="/analytics/rate/interview" title="{{ kpi_definitions.interview_rate }}">
+        <div class="n">{{ overview.interview_rate }}</div><div class="l">Interview Rate</div><span class="view-details">View calculation &rarr;</span>
+      </a>
+      <a class="card card--clickable" href="/analytics/rate/offer" title="{{ kpi_definitions.offer_rate }}">
+        <div class="n">{{ overview.offer_rate }}</div><div class="l">Offer Rate</div><span class="view-details">View calculation &rarr;</span>
+      </a>
+      <a class="card card--clickable" href="/analytics/rate/hire" title="{{ kpi_definitions.hire_rate }}">
+        <div class="n">{{ overview.hire_rate }}</div><div class="l">Hire Rate</div><span class="view-details">View calculation &rarr;</span>
+      </a>
     </div>
     {% if overview.early_data_note %}<p class="section-hint">{{ overview.early_data_note }}.</p>{% endif %}
     <p class="section-hint">An automated acknowledgement is never counted as a meaningful response -- same definitions as the Dashboard, Applications and Employer Inbox.</p>
@@ -182,6 +196,34 @@
     </div>
     {% if employer_feedback.interpretation %}<p class="section-hint">{{ employer_feedback.interpretation }}</p>{% endif %}
     <p class="section-footer"><a href="/employer-inbox">Open Employer Inbox &rarr;</a></p>
+  </div>
+
+  <!-- Data Integrity / Reconciliation (item 14) -->
+  <div class="section">
+    <h2 class="section-title">Data Integrity</h2>
+    <div class="detail-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div class="kv" style="grid-template-columns:220px 1fr;font-size:13px;">
+          <dt>Opportunity population</dt><dd>{{ reconciliation.opportunity_population }} / {{ reconciliation.opportunity_population }} reconciled</dd>
+          <dt>Priority population</dt><dd>{{ reconciliation.priority_population }} / {{ reconciliation.opportunity_population }} reconciled</dd>
+          <dt>Confirmed applications</dt><dd>{{ reconciliation.confirmed_applications }}</dd>
+          <dt>Application &rarr; acknowledgement</dt><dd>{{ reconciliation.acknowledged }}</dd>
+          <dt>Application &rarr; meaningful response</dt><dd>{{ reconciliation.meaningful_responses }}</dd>
+          <dt>Interview records</dt><dd>{{ reconciliation.interview_records }}</dd>
+          <dt>Offer records</dt><dd>{{ reconciliation.offer_records }}</dd>
+        </div>
+        <span class="status-chip" style="{{ 'background:#dcfce7;color:#166534;' if reconciliation.status == 'Reconciled' else 'background:#fee2e2;color:#991b1b;' }}font-size:13px;padding:6px 14px;">{{ reconciliation.status }}</span>
+      </div>
+      {% if reconciliation.status != "Reconciled" %}
+      <table>
+        <tr><th>Check</th><th>Expected</th><th>Actual</th></tr>
+        {% for c in reconciliation.checks if not c.passed %}
+        <tr><td>{{ c.name }}</td><td class="col-num">{{ c.expected }}</td><td class="col-num">{{ c.actual }}</td></tr>
+        {% endfor %}
+      </table>
+      {% endif %}
+      <p class="section-hint" style="margin-top:8px;margin-bottom:0;">Every figure above is cross-checked against an independently-queried value -- a discrepancy is shown here, never hidden.</p>
+    </div>
   </div>
 
   <!-- 5. Learning Center -->

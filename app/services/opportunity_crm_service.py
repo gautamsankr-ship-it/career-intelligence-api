@@ -1548,6 +1548,18 @@ class OpportunityCRMService:
         "ELSE 3 END"
     )
 
+    # Web App Phase 7.1: a reserved tab value, deliberately NOT a crm_stage
+    # grouping like the business tabs above -- "applied" (a APPLICATION_TABS
+    # entry) means "currently sitting at the APPLIED stage right now" (1
+    # record today, since 61/81 have since moved on to ACKNOWLEDGED), which
+    # is a genuinely different, smaller population than "ever confirmed
+    # submitted" (3 records: 61, 81, 103) -- the SAME evidence
+    # (`applied_at IS NOT NULL`) `cumulative_funnel_counts()`'s own APPLIED
+    # figure and the Dashboard/Analytics "Applications Submitted" KPI use.
+    # This is the one drill-through URL that reconciles exactly with that
+    # KPI; never conflated with the "applied" business-stage tab.
+    SUBMITTED_TAB = "submitted"
+
     def applications_register(self, *, tab: str = "", page: int = 1, page_size: int = 25) -> dict:
         """Paginated Applications workspace list, scoped to the business
         tabs above. `tab=""` ("All") still scopes to the application
@@ -1559,13 +1571,16 @@ class OpportunityCRMService:
             raise ValueError("page must be >= 1")
         if page_size < 1:
             raise ValueError("page_size must be >= 1")
-        if tab:
+        if tab == self.SUBMITTED_TAB:
+            where = "WHERE applied_at IS NOT NULL"
+            params: tuple = ()
+        elif tab:
             stages = self.APPLICATION_TABS.get(tab)
             if not stages:
                 raise ValueError(f"Unknown applications tab: {tab!r}. Allowed: {sorted(self.APPLICATION_TABS)}")
             placeholders = ",".join("?" * len(stages))
             where = f"WHERE crm_stage IN ({placeholders})"
-            params: tuple = stages
+            params = stages
         else:
             placeholders = ",".join("?" * len(self.APPLICATION_WORKSPACE_STAGES))
             where = f"WHERE crm_stage IN ({placeholders}) OR applied_at IS NOT NULL"
@@ -1713,10 +1728,16 @@ class OpportunityCRMService:
     # -- Web App Phase 2: Opportunities workspace read model -----------------
     _PRIORITY_RANK_SQL = "CASE intelligence_priority WHEN 'A' THEN 0 WHEN 'B' THEN 1 WHEN 'C' THEN 2 WHEN 'D' THEN 3 WHEN 'E' THEN 4 ELSE 5 END"
 
+    # Web App Phase 7.1: an "opportunity" here means the raw discovery
+    # population -- `applied` == `applied_at IS NOT NULL` (the SAME evidence
+    # `cumulative_funnel_counts()`'s APPLIED figure uses), `not_applied` its
+    # exact complement. Never a second definition of "applied".
+    APPLICATION_STATES = frozenset({"applied", "not_applied"})
+
     def search_opportunities(
         self, *, search: str = "", intelligence_priority: str = "", crm_stage: str = "",
         market: str = "", work_arrangement: str = "", career_track: str = "", source: str = "",
-        min_score: float | None = None, max_score: float | None = None,
+        min_score: float | None = None, max_score: float | None = None, application_state: str = "",
         page: int = 1, page_size: int = 25,
     ) -> dict:
         """Paginated, filterable, searchable Opportunities workspace list --
@@ -1729,6 +1750,8 @@ class OpportunityCRMService:
             raise ValueError("page must be >= 1")
         if page_size < 1:
             raise ValueError("page_size must be >= 1")
+        if application_state and application_state not in self.APPLICATION_STATES:
+            raise ValueError(f"Unknown application_state: {application_state!r}. Allowed: {sorted(self.APPLICATION_STATES)}")
         clauses: list[str] = []
         params: dict[str, Any] = {}
         if search:
@@ -1747,6 +1770,10 @@ class OpportunityCRMService:
             if value:
                 clauses.append(f"{column} = :{column}")
                 params[column] = value
+        if application_state == "applied":
+            clauses.append("applied_at IS NOT NULL")
+        elif application_state == "not_applied":
+            clauses.append("applied_at IS NULL")
         if min_score is not None:
             clauses.append("career_score >= :min_score")
             params["min_score"] = min_score

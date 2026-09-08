@@ -8,12 +8,24 @@
 
   <div class="section">
     <div class="cards">
-      <div class="card"><div class="n">{{ total_opportunities }}</div><div class="l">Total Opportunities</div></div>
-      <a class="card" href="/applications?tab=applied" style="text-decoration:none;color:inherit;"><div class="n">{{ cumulative.APPLIED }}</div><div class="l">Applications Submitted</div></a>
-      <div class="card"><div class="n">{{ cumulative.ACKNOWLEDGED }}</div><div class="l">Acknowledgements</div></div>
-      <div class="card card--highlight"><div class="n">{{ cumulative.MEANINGFUL_RESPONSE }}</div><div class="l">Meaningful Responses</div></div>
-      <div class="card"><div class="n">{{ cumulative.INTERVIEW }}</div><div class="l">Interviews</div></div>
-      <div class="card"><div class="n">{{ cumulative.OFFER }}</div><div class="l">Offers</div></div>
+      <a class="card card--clickable" href="/opportunities" title="{{ kpi_definitions.opportunities_discovered }}">
+        <div class="n">{{ total_opportunities }}</div><div class="l">Total Opportunities</div><span class="view-details">View details &rarr;</span>
+      </a>
+      <a class="card card--clickable" href="/applications?tab=submitted" title="{{ kpi_definitions.applications_submitted }}">
+        <div class="n">{{ cumulative.APPLIED }}</div><div class="l">Applications Submitted</div><span class="view-details">View details &rarr;</span>
+      </a>
+      <a class="card card--clickable" href="/employer-inbox?filter=acknowledgement" title="{{ kpi_definitions.acknowledged }}">
+        <div class="n">{{ cumulative.ACKNOWLEDGED }}</div><div class="l">Acknowledgements</div><span class="view-details">View details &rarr;</span>
+      </a>
+      <a class="card card--highlight card--clickable" href="/employer-inbox?filter=meaningful" title="{{ kpi_definitions.meaningful_responses }}">
+        <div class="n">{{ cumulative.MEANINGFUL_RESPONSE }}</div><div class="l">Meaningful Responses</div><span class="view-details">View details &rarr;</span>
+      </a>
+      <a class="card card--clickable" href="/interviews" title="{{ kpi_definitions.interviews }}">
+        <div class="n">{{ cumulative.INTERVIEW }}</div><div class="l">Interviews</div><span class="view-details">View details &rarr;</span>
+      </a>
+      <a class="card card--clickable" href="/interviews" title="{{ kpi_definitions.offers }}">
+        <div class="n">{{ cumulative.OFFER }}</div><div class="l">Offers</div><span class="view-details">View details &rarr;</span>
+      </a>
     </div>
   </div>
 

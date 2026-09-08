@@ -68,6 +68,11 @@
     .card .n.na { color: #9ca3af; }
     .card .l { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
     .card--highlight { border-color: var(--primary); background: #eff6ff; }
+    /* Phase 7.1: a restrained clickable cue for KPI cards with genuine
+       drill-through evidence behind them -- never applied to a dead card. */
+    a.card.card--clickable { text-decoration: none; color: inherit; display: block; cursor: pointer; transition: box-shadow .15s, transform .15s; }
+    a.card.card--clickable:hover { box-shadow: 0 4px 12px rgba(0,0,0,.10); transform: translateY(-1px); }
+    a.card.card--clickable .view-details { display: block; font-size: 10.5px; color: var(--primary); margin-top: 4px; font-weight: 600; }
 
     .rates { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
     .rate { background: var(--surface); border-radius: 10px; padding: 14px; text-align: center; box-shadow: var(--shadow); border: 1px solid var(--border); }

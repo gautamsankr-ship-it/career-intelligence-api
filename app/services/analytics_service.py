@@ -22,6 +22,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+from app.services.opportunity_crm_service import MEANINGFUL_RESPONSE_TYPES
+
 # -- Confidence framework (item 22) -- explicit, conservative, no decimals --
 EMERGING = "Emerging"
 MODERATE = "Moderate"
@@ -490,3 +492,146 @@ def generate_learning_candidates(service) -> list[dict]:
         })
 
     return candidates
+
+
+# -- Web App Phase 7.1: KPI drill-through (rate detail) ----------------------
+# "Summary -> Calculation -> Population -> Underlying records" (item 1) --
+# every rate here reuses the SAME numerator/denominator evidence
+# `cumulative_funnel_counts()`/`performance_overview()` already compute,
+# never a second definition. Only "application" carries a composition
+# (Applied/Not Applied) -- the one two-category part-to-whole relationship
+# item 19 approves a chart for.
+RATE_METRICS = ("application", "meaningful_response", "interview", "offer", "hire")
+
+_RATE_LABELS = {
+    "application": "Application Rate", "meaningful_response": "Meaningful Response Rate",
+    "interview": "Interview Rate", "offer": "Offer Rate", "hire": "Hire Rate",
+}
+_RATE_NUMERATOR_LABELS = {
+    "application": "Applications Submitted", "meaningful_response": "Applications with a Meaningful Response",
+    "interview": "Applications Reaching Interview", "offer": "Applications Reaching Offer",
+    "hire": "Applications Resulting in Hire",
+}
+_RATE_DENOMINATOR_LABELS = {
+    "application": "Opportunities Discovered", "meaningful_response": "Applications Submitted",
+    "interview": "Applications Submitted", "offer": "Applications Submitted", "hire": "Applications Submitted",
+}
+_RATE_NUMERATOR_LINKS = {
+    "application": "/applications?tab=submitted", "meaningful_response": "/employer-inbox?filter=meaningful",
+    "interview": "/interviews", "offer": "/interviews", "hire": None,
+}
+_RATE_DENOMINATOR_LINKS = {
+    "application": "/opportunities", "meaningful_response": "/applications?tab=submitted",
+    "interview": "/applications?tab=submitted", "offer": "/applications?tab=submitted",
+    "hire": "/applications?tab=submitted",
+}
+
+
+def rate_detail(service, metric: str) -> dict:
+    """Numerator/denominator/exact/display for one rate, plus (application
+    only) an Applied/Not-Applied composition -- the drill-down item 11/12
+    describe. Raises ValueError for an unknown metric (caller's
+    responsibility to fall back, matching every other filter in this app)."""
+    if metric not in RATE_METRICS:
+        raise ValueError(f"Unknown rate metric: {metric!r}. Allowed: {RATE_METRICS}")
+    funnel = service.cumulative_funnel_counts()
+    discovered, applied = funnel["DISCOVERED"], funnel["APPLIED"]
+    hired = service.connection.execute("SELECT COUNT(*) FROM application_history WHERE hired_at IS NOT NULL").fetchone()[0]
+
+    numerator_by_metric = {
+        "application": applied, "meaningful_response": funnel["MEANINGFUL_RESPONSE"],
+        "interview": funnel["INTERVIEW"], "offer": funnel["OFFER"], "hire": hired,
+    }
+    denominator_by_metric = {
+        "application": discovered, "meaningful_response": applied,
+        "interview": applied, "offer": applied, "hire": applied,
+    }
+    numerator = numerator_by_metric[metric]
+    denominator = denominator_by_metric[metric]
+    exact_ratio = _ratio(numerator, denominator)
+
+    result = {
+        "metric": metric, "label": _RATE_LABELS[metric],
+        "numerator": numerator, "numerator_label": _RATE_NUMERATOR_LABELS[metric],
+        "numerator_link": _RATE_NUMERATOR_LINKS[metric],
+        "denominator": denominator, "denominator_label": _RATE_DENOMINATOR_LABELS[metric],
+        "denominator_link": _RATE_DENOMINATOR_LINKS[metric],
+        "exact_percent": (round(exact_ratio * 100, 2) if exact_ratio is not None else None),
+        "display_percent": _rate_label(numerator, denominator),
+    }
+    if metric == "application":
+        not_applied = discovered - applied
+        result["composition"] = {
+            "applied": applied, "applied_label": "Applied", "applied_link": "/applications?tab=submitted",
+            "not_applied": not_applied, "not_applied_label": "Not Applied",
+            "not_applied_link": "/opportunities?application_state=not_applied",
+        }
+    return result
+
+
+# -- Web App Phase 7.1: Data Integrity / Reconciliation -----------------------
+# Accounting-style rule (item 20): no management KPI without traceable
+# supporting records and a reconciled definition. Every check below
+# compares a figure already surfaced somewhere in the product against an
+# INDEPENDENTLY re-queried value -- never the same call twice -- so a future
+# edit that quietly changes one definition without the other would be
+# caught here rather than silently drifting.
+def _check(name: str, expected, actual, detail: str = "") -> dict:
+    return {"name": name, "expected": expected, "actual": actual, "passed": expected == actual, "detail": detail}
+
+
+def reconciliation_checks(service) -> dict:
+    conn = service.connection
+    priority_mix = service.priority_mix_counts()
+    funnel = service.cumulative_funnel_counts()
+    quality = service.response_quality_counts()
+    total = conn.execute("SELECT COUNT(*) FROM application_history").fetchone()[0]
+
+    checks = []
+
+    checks.append(_check(
+        "Opportunity population: A+B+C+D+E+Unscored sums to total",
+        total, sum(priority_mix.values()),
+    ))
+
+    independent_submitted = conn.execute("SELECT COUNT(*) FROM application_history WHERE applied_at IS NOT NULL").fetchone()[0]
+    drillthrough_submitted = service.applications_register(tab=service.SUBMITTED_TAB, page_size=1000)["total"]
+    checks.append(_check("Submitted applications: funnel count matches independent query", funnel["APPLIED"], independent_submitted))
+    checks.append(_check("Submitted applications: funnel count matches Applications drill-through", funnel["APPLIED"], drillthrough_submitted))
+
+    independent_ack = conn.execute(
+        "SELECT COUNT(DISTINCT tracker_id) FROM employer_responses WHERE response_type = 'ACKNOWLEDGEMENT'"
+    ).fetchone()[0]
+    checks.append(_check("Acknowledgements: funnel count matches independent query", funnel["ACKNOWLEDGED"], independent_ack))
+    checks.append(_check("Acknowledgements: funnel count matches response_quality_counts", funnel["ACKNOWLEDGED"], quality["acknowledgements"]))
+
+    independent_meaningful = conn.execute(
+        f"SELECT COUNT(DISTINCT tracker_id) FROM employer_responses WHERE response_type IN "
+        f"({','.join('?' * len(MEANINGFUL_RESPONSE_TYPES))})",
+        MEANINGFUL_RESPONSE_TYPES,
+    ).fetchone()[0]
+    checks.append(_check("Meaningful responses: funnel count matches independent query", funnel["MEANINGFUL_RESPONSE"], independent_meaningful))
+    checks.append(_check("Acknowledgement is never classified as a meaningful response", True, "ACKNOWLEDGEMENT" not in MEANINGFUL_RESPONSE_TYPES))
+
+    independent_interviews = conn.execute("SELECT COUNT(DISTINCT tracker_id) FROM interviews").fetchone()[0]
+    checks.append(_check("Interviews: funnel count matches independent query", funnel["INTERVIEW"], independent_interviews))
+
+    independent_offers = conn.execute("SELECT COUNT(DISTINCT tracker_id) FROM offers").fetchone()[0]
+    checks.append(_check("Offers: funnel count matches independent query", funnel["OFFER"], independent_offers))
+
+    applied_state_count = conn.execute("SELECT COUNT(*) FROM application_history WHERE applied_at IS NOT NULL").fetchone()[0]
+    not_applied_state_count = conn.execute("SELECT COUNT(*) FROM application_history WHERE applied_at IS NULL").fetchone()[0]
+    checks.append(_check("Applied + Not Applied reconciles to total opportunities", total, applied_state_count + not_applied_state_count))
+
+    all_passed = all(c["passed"] for c in checks)
+    return {
+        "checks": checks,
+        "status": "Reconciled" if all_passed else "Attention Required",
+        "opportunity_population": total,
+        "priority_population": sum(priority_mix.values()),
+        "confirmed_applications": funnel["APPLIED"],
+        "acknowledged": funnel["ACKNOWLEDGED"],
+        "meaningful_responses": funnel["MEANINGFUL_RESPONSE"],
+        "interview_records": funnel["INTERVIEW"],
+        "offer_records": funnel["OFFER"],
+    }

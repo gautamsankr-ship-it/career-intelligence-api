@@ -1861,12 +1861,19 @@ def test_download_application_document_404s_when_no_package(tmp_path):
 
 
 # --- Navigation integration (item 18) ---------------------------------------
-def test_dashboard_applications_kpi_links_to_applications_applied_tab(tmp_path):
+def test_dashboard_applications_kpi_links_to_applications_submitted_population(tmp_path):
+    """Web App Phase 7.1: the Applications Submitted KPI must link to the
+    population that actually reconciles with its own count (`applied_at IS
+    NOT NULL`, all 3 of 61/81/103 in production) -- NOT the "applied"
+    business-stage tab, which only shows records CURRENTLY sitting at the
+    APPLIED crm_stage (a smaller, different population once a submitted
+    application progresses to ACKNOWLEDGED)."""
     db_path, ids = _seed_applications_fixture(tmp_path)
     try:
         client = _client(db_path)
         body = client.get("/").text
-        assert 'href="/applications?tab=applied"' in body
+        assert 'href="/applications?tab=submitted"' in body
+        assert 'href="/applications?tab=applied"' not in body
     finally:
         app.dependency_overrides.clear()
 
