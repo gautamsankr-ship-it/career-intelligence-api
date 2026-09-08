@@ -83,7 +83,10 @@
 
   <div class="next-action-banner">
     <span>Next Action: {{ next_action.text }}</span>
-    {% if next_action.link %}<a href="{{ next_action.link }}">Go to Action Required &rarr;</a>{% endif %}
+    <span style="display:flex;gap:14px;">
+      {% if latest_interview_id %}<a href="/interview/{{ latest_interview_id }}">Prepare for Interview &rarr;</a>{% endif %}
+      {% if next_action.link %}<a href="{{ next_action.link }}">Go to Action Required &rarr;</a>{% endif %}
+    </span>
   </div>
 
   <div class="section">

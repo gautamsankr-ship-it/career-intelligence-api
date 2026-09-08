@@ -884,6 +884,16 @@ def _assess_requirement_evidence(
     return tuple(assessments)
 
 
+def assess_requirement_evidence(
+    job_analysis: dict | None, profile: dict | None, job_description: str = "",
+) -> tuple[RequirementEvidence, ...]:
+    """Public entry point for read-only reuse of the SAME per-requirement
+    evidence assessment `evaluate()` already computes (e.g. Web App Phase 6's
+    Interview readiness matrix) -- never a second, divergent matching
+    algorithm over job requirements/candidate evidence."""
+    return _assess_requirement_evidence(job_analysis, profile, job_description)
+
+
 def _tier_ratio(ratio: float | None) -> str | None:
     if ratio is None:
         return None

@@ -1,0 +1,268 @@
+{% extends "_shell.html" %}
+{% block title %}Interview -- {{ detail.opportunity.company }} -- Career Intelligence{% endblock %}
+{% block extra_style %}
+  <style>
+    a.back { color: #2563eb; text-decoration: none; font-size: 13px; }
+    .detail-card { background: white; border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .kv { display: grid; grid-template-columns: 200px 1fr; gap: 6px 12px; font-size: 13px; }
+    .kv dt { color: #6b7280; }
+    .kv dd { margin: 0; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #eef0f2; font-size: 13px; vertical-align: top; }
+    th { background: #f3f4f6; }
+    .empty { color: #9ca3af; font-size: 13px; padding: 6px 0; }
+    .decision-card { background: #f8fafc; border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: 10px; padding: 16px; }
+    .decision-buttons { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    .decision-btn { display: inline-flex; align-items: center; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; cursor: pointer; }
+    .decision-btn.yes { border-color: #059669; color: #059669; }
+    .decision-btn.maybe { border-color: #d97706; color: #d97706; }
+    .decision-btn.no { border-color: #dc2626; color: #dc2626; }
+    .memo-header { background: var(--surface); border-radius: 10px; padding: 22px 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06); border: 1px solid var(--border); margin-bottom: 16px; }
+    .memo-header h1 { margin: 0 0 6px; font-size: 22px; }
+    .memo-header__meta { font-size: 13.5px; color: var(--text-muted); }
+    .next-action-banner { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 14px 16px; font-size: 13.5px; color: #1e40af; font-weight: 600; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .next-action-banner a { color: #1e40af; text-decoration: underline; }
+    .tab-nav { position: sticky; top: calc(var(--topbar-h) + 12px); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px; z-index: 3; }
+    .tab-nav a { padding: 6px 12px; border-radius: 999px; font-size: 12.5px; color: var(--text); }
+    .tab-nav a:hover { background: #f3f4f6; text-decoration: none; }
+    .prep-section { margin-bottom: 36px; scroll-margin-top: 90px; }
+    .prep-section h2.section-title { font-size: 15px; text-transform: none; letter-spacing: 0; color: var(--text); font-weight: 700; margin: 0 0 12px; }
+    .question-group { margin-bottom: 16px; }
+    .question-group h3 { font-size: 12.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--text-muted); margin: 0 0 8px; }
+    .question-list { list-style: none; margin: 0; padding: 0; }
+    .question-list li { padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; font-size: 13px; }
+    .star-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
+    .star-card .q { font-weight: 600; font-size: 13.5px; margin-bottom: 8px; }
+    .star-card .core { color: var(--primary-dark); font-weight: 600; font-size: 12.5px; margin-bottom: 8px; }
+    .star-card dl.kv { grid-template-columns: 110px 1fr; }
+    .star-card .risk { color: var(--warning); font-size: 12px; margin-top: 6px; }
+    .evidence-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .evidence-badge.strong { background: #dcfce7; color: #166534; }
+    .evidence-badge.supporting { background: #dbeafe; color: #1e40af; }
+    .evidence-badge.gap { background: #fee2e2; color: #991b1b; }
+    .evidence-badge.clarify { background: #fef3c7; color: #92400e; }
+    details.practice-q summary { cursor: pointer; font-size: 13px; font-weight: 600; padding: 10px 0; }
+  </style>
+{% endblock %}
+{% block content %}
+  <a class="back" href="/interviews">&larr; Back to Interviews</a>
+
+  <div class="memo-header" style="margin-top:10px;">
+    <h1>{{ detail.opportunity.company or "-" }} -- {{ detail.opportunity.job_title or "-" }}</h1>
+    <div class="memo-header__meta">
+      {{ stage_label }} &middot; {{ current_status }}
+      {% if detail.opportunity.intelligence_priority %} &middot; <span class="badge p-{{ detail.opportunity.intelligence_priority }}">{{ detail.opportunity.intelligence_priority }}</span>{% endif %}
+      &middot;
+      {% if has_application %}<a href="/application/{{ tracker_id }}">View Application</a>{% else %}<a href="/opportunity/{{ tracker_id }}">View Opportunity</a>{% endif %}
+      {% if employer_inbox_link %} &middot; <a href="{{ employer_inbox_link }}">View Employer Communication</a>{% endif %}
+    </div>
+  </div>
+
+  {% if show_prominent_feedback_prompt %}
+  <div class="decision-card" style="margin-bottom:20px;">
+    <p style="font-size:13px;font-weight:600;margin:0 0 10px;">{{ feedback_trigger.prompt }}</p>
+    <form method="post" action="/application/{{ tracker_id }}/feedback">
+      <input type="hidden" name="worth_pursuing" value="YES">
+      <div class="decision-buttons">
+        <label class="decision-btn yes"><input type="radio" name="interest_change" value="HIGHER" required style="margin-right:6px;">More interested</label>
+        <label class="decision-btn maybe"><input type="radio" name="interest_change" value="SAME" style="margin-right:6px;">Same</label>
+        <label class="decision-btn no"><input type="radio" name="interest_change" value="LOWER" style="margin-right:6px;">Less interested</label>
+      </div>
+      <div class="filters">
+        <div class="field" style="flex:1;min-width:220px;">
+          <label>Anything important we should remember? (optional)</label>
+          <input type="text" name="note" style="padding:6px 8px;border-radius:6px;border:1px solid #d1d5db;width:100%;">
+        </div>
+        <button class="apply" type="submit">Save</button>
+      </div>
+    </form>
+    <p class="section-hint" style="margin-top:8px;margin-bottom:0;">Optional -- if you skip this, preparation and workflow continue normally.</p>
+  </div>
+  {% elif latest_feedback %}
+  <p class="section-hint">Last recorded after an interview: <strong>{{ latest_feedback.interest_change | lower if latest_feedback.interest_change else latest_feedback.worth_pursuing }}</strong> on {{ latest_feedback.created_at[:16] }}.</p>
+  {% endif %}
+
+  {% if not interview.scheduled_at and (interview.outcome == "SCHEDULED" or not interview.outcome) %}
+  <div class="next-action-banner">
+    <span>This interview doesn't have a confirmed time yet.</span>
+    <form method="post" action="/interview/{{ interview.id }}/schedule" style="display:flex;gap:8px;align-items:center;">
+      <input type="datetime-local" name="scheduled_at" required style="padding:6px 8px;border-radius:6px;border:1px solid #d1d5db;">
+      <button class="action-btn" type="submit">Confirm Time</button>
+    </form>
+  </div>
+  {% endif %}
+
+  <div class="tab-nav">
+    <a href="#briefing">Briefing</a>
+    <a href="#questions">Questions</a>
+    <a href="#evidence">My Evidence</a>
+    <a href="#company">Company</a>
+    <a href="#practice">Practice</a>
+    <a href="#notes">Notes</a>
+  </div>
+
+  <div class="prep-section" id="briefing">
+    <h2 class="section-title">Briefing</h2>
+    <div class="detail-card">
+      <p style="font-size:13.5px;margin:0 0 14px;">{{ briefing.summary or "No job-analysis summary recorded for this vacancy." }}</p>
+      <div class="two-col-grid">
+        <div>
+          <h3 style="font-size:12.5px;text-transform:uppercase;color:var(--text-muted);margin:0 0 6px;">Why This Role Matters</h3>
+          {% if briefing.why_it_matters %}<ul class="reason-list pursue" style="list-style:none;padding:0;margin:0;">{% for r in briefing.why_it_matters %}<li style="padding:4px 0;">+ {{ r }}</li>{% endfor %}</ul>
+          {% else %}<div class="empty">No positive evidence recorded.</div>{% endif %}
+        </div>
+        <div>
+          <h3 style="font-size:12.5px;text-transform:uppercase;color:var(--text-muted);margin:0 0 6px;">Potential Concerns</h3>
+          {% if briefing.potential_concerns %}<ul style="list-style:none;padding:0;margin:0;">{% for c in briefing.potential_concerns %}<li style="padding:4px 0;">! {{ c }}</li>{% endfor %}</ul>
+          {% else %}<div class="empty">No risks flagged.</div>{% endif %}
+        </div>
+      </div>
+      <h3 style="font-size:12.5px;text-transform:uppercase;color:var(--text-muted);margin:16px 0 6px;">What The Employer Appears To Need</h3>
+      {% if briefing.what_employer_needs %}<p style="font-size:13px;margin:0;">{{ briefing.what_employer_needs | join(", ") }}</p>{% else %}<div class="empty">Not recorded.</div>{% endif %}
+      <h3 style="font-size:12.5px;text-transform:uppercase;color:var(--text-muted);margin:16px 0 6px;">Interview Objective</h3>
+      <p style="font-size:13.5px;font-weight:600;margin:0;">{{ briefing.objective }}</p>
+    </div>
+
+    <h2 class="section-title" style="margin-top:20px;">Requirement Readiness</h2>
+    <div class="detail-card">
+      {% if readiness %}
+      <table>
+        <tr><th>Requirement</th><th>Evidence</th><th>Readiness</th></tr>
+        {% for row in readiness %}
+        <tr>
+          <td>{{ row.requirement }}{% if row.is_mandatory %} <span class="status-chip">Mandatory</span>{% endif %}</td>
+          <td>{{ row.evidence }}</td>
+          <td>
+            {% if row.readiness == "Strong Evidence" %}<span class="evidence-badge strong">Strong Evidence</span>
+            {% elif row.readiness == "Supporting Evidence" %}<span class="evidence-badge supporting">Supporting Evidence</span>
+            {% elif row.readiness == "Clarify" %}<span class="evidence-badge clarify">Clarify</span>
+            {% else %}<span class="evidence-badge gap">Evidence Gap</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}<div class="empty">No structured job requirements recorded for this vacancy yet.</div>{% endif %}
+      <p class="section-hint" style="margin-top:8px;margin-bottom:0;">No evidence -&gt; no factual claim. This reuses the same requirement-evidence assessment the intelligence engine already computed.</p>
+    </div>
+  </div>
+
+  <div class="prep-section" id="questions">
+    <h2 class="section-title">Likely Interview Questions</h2>
+    <div class="detail-card">
+      {% set any_questions = false %}
+      {% for category, qs in likely_questions.items() %}
+        {% if qs %}
+        {% set any_questions = true %}
+        <div class="question-group">
+          <h3>{{ category }}</h3>
+          <ul class="question-list">{% for q in qs %}<li>{{ q }}</li>{% endfor %}</ul>
+        </div>
+        {% endif %}
+      {% endfor %}
+      {% if not any_questions %}<div class="empty">Not enough structured evidence yet to derive likely questions.</div>{% endif %}
+    </div>
+
+    <h2 class="section-title" style="margin-top:20px;">Questions For The Employer</h2>
+    <div class="detail-card">
+      {% if employer_questions %}<ul class="question-list">{% for q in employer_questions %}<li>{{ q }}</li>{% endfor %}</ul>
+      {% else %}<div class="empty">Not enough context yet to suggest questions.</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="prep-section" id="evidence">
+    <h2 class="section-title">My Evidence</h2>
+    <div class="detail-card">
+      {% if my_evidence %}
+      <table>
+        <tr><th>Requirement</th><th>Strongest Verified Evidence</th></tr>
+        {% for e in my_evidence %}
+        <tr><td>{{ e.requirement }}</td><td>{{ e.evidence }}</td></tr>
+        {% endfor %}
+      </table>
+      {% else %}<div class="empty">No requirement evidence recorded.</div>{% endif %}
+    </div>
+
+    <h2 class="section-title" style="margin-top:20px;">Answer Preparation</h2>
+    {% if answer_prep %}
+    {% for p in answer_prep %}
+    <div class="star-card">
+      <div class="q">{{ p.question }}</div>
+      <div class="core">{{ p.core_point }}</div>
+      <dl class="kv">
+        <dt>Situation</dt><dd>{{ p.situation }}</dd>
+        <dt>Action</dt><dd>{{ p.action }}</dd>
+        <dt>Result</dt><dd>{{ p.result }}</dd>
+        {% if p.important_fact %}<dt>Important Fact</dt><dd>{{ p.important_fact }}</dd>{% endif %}
+      </dl>
+      <div class="risk">Risk to avoid: {{ p.risk_to_avoid }}</div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty-state">Not enough strong-match evidence yet to prepare a STAR structure -- see My Evidence above for what is currently on file.</div>
+    {% endif %}
+    <p class="section-hint">These are evidence structures, not scripts -- use them to speak naturally, never to memorize a fixed answer.</p>
+  </div>
+
+  <div class="prep-section" id="company">
+    <h2 class="section-title">Company Intelligence</h2>
+    <div class="detail-card">
+      <h3 style="font-size:12.5px;text-transform:uppercase;color:var(--text-muted);margin:0 0 8px;">Stored Application Evidence</h3>
+      {% if company_intelligence.available %}
+      <dl class="kv">
+        <dt>Industry</dt><dd>{{ company_intelligence.industry or "-" }}</dd>
+        <dt>Company Size</dt><dd>{{ company_intelligence.company_size or "-" }}</dd>
+        <dt>Remote-Friendly</dt><dd>{{ "Yes" if company_intelligence.remote_friendly else "Not stated" }}</dd>
+      </dl>
+      {% if company_intelligence.strengths %}
+      <h3 style="font-size:12.5px;text-transform:uppercase;color:var(--text-muted);margin:14px 0 6px;">Strengths</h3>
+      <ul class="reason-list pursue" style="list-style:none;padding:0;margin:0;">{% for s in company_intelligence.strengths %}<li style="padding:4px 0;">+ {{ s }}</li>{% endfor %}</ul>
+      {% endif %}
+      {% if company_intelligence.risks %}
+      <h3 style="font-size:12.5px;text-transform:uppercase;color:var(--text-muted);margin:14px 0 6px;">Risks</h3>
+      <ul style="list-style:none;padding:0;margin:0;">{% for r in company_intelligence.risks %}<li style="padding:4px 0;">! {{ r }}</li>{% endfor %}</ul>
+      {% endif %}
+      {% if company_intelligence.reason %}
+      <p style="font-size:13px;margin:14px 0 0;font-style:italic;color:var(--text-muted);">{{ company_intelligence.reason }}</p>
+      {% endif %}
+      {% else %}
+      <div class="empty">No stored company assessment recorded for this vacancy yet.</div>
+      {% endif %}
+      <h3 style="font-size:12.5px;text-transform:uppercase;color:var(--text-muted);margin:16px 0 6px;">External Research</h3>
+      <div class="empty">Additional company research has not yet been collected.</div>
+      <p class="section-hint" style="margin-top:8px;margin-bottom:0;">This never blocks interview preparation.</p>
+    </div>
+  </div>
+
+  <div class="prep-section" id="practice">
+    <h2 class="section-title">Practice</h2>
+    <div class="detail-card">
+      {% if answer_prep %}
+      {% for p in answer_prep[:5] %}
+      <details class="practice-q">
+        <summary>{{ loop.index }}. {{ p.question }}</summary>
+        <div style="padding:0 0 12px 16px;font-size:13px;">
+          <p style="margin:0 0 6px;"><strong>Core point:</strong> {{ p.core_point }}</p>
+          <p style="margin:0 0 6px;"><strong>Evidence:</strong> {{ p.action }}</p>
+          {% if p.result and "No separately" not in p.result %}<p style="margin:0 0 6px;"><strong>Result:</strong> {{ p.result }}</p>{% endif %}
+          <p style="margin:0;color:var(--warning);"><strong>Risk to avoid:</strong> {{ p.risk_to_avoid }}</p>
+        </div>
+      </details>
+      {% endfor %}
+      {% else %}
+      <div class="empty">Not enough strong-match evidence yet to build a practice set.</div>
+      {% endif %}
+      <p class="section-hint" style="margin-top:10px;margin-bottom:0;">A full mock-interview/voice-practice engine is not part of this phase.</p>
+    </div>
+  </div>
+
+  <div class="prep-section" id="notes">
+    <h2 class="section-title">Notes</h2>
+    <div class="detail-card">
+      <form method="post" action="/interview/{{ interview.id }}/notes">
+        <textarea name="notes" rows="4" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid #d1d5db;font-size:13px;font-family:inherit;">{{ interview.notes or "" }}</textarea>
+        <div style="margin-top:8px;"><button class="apply" type="submit">Save Notes</button></div>
+      </form>
+      <p class="section-hint" style="margin-top:8px;margin-bottom:0;">Optional -- notes are never required for interview preparation.</p>
+    </div>
+  </div>
+{% endblock %}

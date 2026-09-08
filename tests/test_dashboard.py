@@ -455,13 +455,14 @@ def test_sidebar_lists_all_nine_approved_sections_and_marks_dashboard_active(tmp
 
 
 @pytest.mark.parametrize("path", [
-    "/interviews", "/analytics", "/automation", "/settings",
+    "/analytics", "/automation", "/settings",
 ])
 def test_every_placeholder_nav_route_renders_the_shared_shell(path):
-    """No fabricated functionality -- each of the remaining 4 approved
+    """No fabricated functionality -- each of the remaining 3 approved
     sections (Opportunities since Phase 2, Action Required since Phase 3,
-    Applications since Phase 4, Employer Inbox since Phase 5 are all real)
-    renders honestly as a placeholder inside the same shared shell."""
+    Applications since Phase 4, Employer Inbox since Phase 5, Interviews
+    since Phase 6 are all real) renders honestly as a placeholder inside the
+    same shared shell."""
     client = TestClient(app)
     response = client.get(path)
     assert response.status_code == 200
@@ -2266,7 +2267,9 @@ def test_interview_invitation_is_actionable_and_links_to_application(tmp_path):
         assert "Review interview invitation" in body
         body2 = client.get(f"/employer-inbox/{tracker_id}/{response_id}").text
         assert "Required Action: Review interview invitation" in body2
-        assert "Interviews workspace is coming in a later phase" in body2
+        # Web App Phase 6: a real interview record is now auto-created from
+        # this same invitation, so the Interview workspace link is real.
+        assert "Open Interview Workspace" in body2
     finally:
         app.dependency_overrides.clear()
 

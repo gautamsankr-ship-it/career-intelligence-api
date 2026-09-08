@@ -19,7 +19,7 @@ application_eligibility_policy) are completely untouched.
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.models.crm import (
@@ -507,9 +507,33 @@ class OpportunityCRMService:
             self.record_rejection(tracker_id, rejection_reason=summary, rejected_at=received_at)
         elif response_type == "OFFER":
             self.record_offer(tracker_id, offer_date=received_at, details_reference=evidence_reference or summary)
+        elif response_type == "INTERVIEW_INVITATION":
+            self._maybe_auto_create_interview_from_invitation(tracker_id, evidence_reference=evidence_reference, summary=summary)
 
         row = self.connection.execute("SELECT * FROM employer_responses WHERE id = ?", (cursor.lastrowid,)).fetchone()
         return dict(row)
+
+    def _maybe_auto_create_interview_from_invitation(self, tracker_id: int, *, evidence_reference: str = "", summary: str = "") -> None:
+        """Web App Phase 6: turns a genuinely detected interview invitation
+        into a real interview record automatically -- the operational
+        objective's "assemble the preparation workspace automatically", not
+        a second interview-creation mechanism. Never invents a date/round the
+        evidence doesn't support (`scheduled_at` stays blank until a real
+        time is confirmed), and only fires once per tracker: if ANY interview
+        row already exists, a further round is left to be recorded through
+        the SAME existing `record_interview()` this always uses -- never a
+        second, competing automatic path."""
+        existing = self.connection.execute(
+            "SELECT 1 FROM interviews WHERE tracker_id = ? LIMIT 1", (tracker_id,)
+        ).fetchone()
+        if existing:
+            return
+        note = "Auto-created from a detected employer interview invitation."
+        if evidence_reference:
+            note += f" Evidence: {evidence_reference}."
+        if summary:
+            note += f" \"{summary}\""
+        self.record_interview(tracker_id, "INTERVIEW_1", notes=note)
 
     # -- interviews -----------------------------------------------------------
     def record_interview(self, tracker_id: int, stage: str, *, scheduled_at: str = "", notes: str = "") -> dict:
@@ -540,6 +564,48 @@ class OpportunityCRMService:
         )
         self.connection.commit()
         self.append_event(interview["tracker_id"], "INTERVIEW_OUTCOME_RECORDED", reason=outcome, evidence_reference=str(interview_id))
+        return self._interview_row(interview_id)
+
+    def update_interview_schedule(self, interview_id: int, scheduled_at: str, *, notes: str = "") -> dict:
+        """The one genuinely consequential interview-record write this
+        workspace exposes beyond outcome/notes: confirming a real date/time
+        (item 17 -- "confirming an interview time if employer proposes
+        alternatives" is explicitly a human decision, never inferred or
+        auto-accepted)."""
+        if not scheduled_at:
+            raise ValueError("update_interview_schedule requires a non-empty scheduled_at.")
+        interview = self._interview_row(interview_id)
+        if not interview:
+            raise ValueError(f"No interview found with ID {interview_id}.")
+        now = _now()
+        self.connection.execute(
+            "UPDATE interviews SET scheduled_at = ?, notes = ?, updated_at = ? WHERE id = ?",
+            (scheduled_at, notes or interview.get("notes") or "", now, interview_id),
+        )
+        self.connection.commit()
+        self.append_event(interview["tracker_id"], "INTERVIEW_SCHEDULE_CONFIRMED", reason=scheduled_at, evidence_reference=str(interview_id))
+        return self._interview_row(interview_id)
+
+    def update_interview_notes(self, interview_id: int, notes: str) -> dict:
+        """Optional user notes (item 14) -- never required. The smallest
+        additive change: reuses the interviews table's own existing `notes`
+        column rather than a new table, while still recording the change on
+        the SAME append-only `opportunity_events` audit trail so a note
+        history remains reconstructable even though the live column itself
+        is overwritten (the same pattern `resolve_human_blocker`'s
+        resolution_note already uses)."""
+        interview = self._interview_row(interview_id)
+        if not interview:
+            raise ValueError(f"No interview found with ID {interview_id}.")
+        now = _now()
+        self.connection.execute(
+            "UPDATE interviews SET notes = ?, updated_at = ? WHERE id = ?", (notes, now, interview_id),
+        )
+        self.connection.commit()
+        self.append_event(
+            interview["tracker_id"], "INTERVIEW_NOTES_UPDATED", reason=(notes[:200] if notes else ""),
+            evidence_reference=str(interview_id),
+        )
         return self._interview_row(interview_id)
 
     def _interview_row(self, interview_id: int) -> dict | None:
@@ -1682,6 +1748,10 @@ class OpportunityCRMService:
         )
         note_summary = f"Human-classified as {resolved_type}" + (f": {note}" if note else "")
         self.mark_employer_response_reviewed(tracker_id, employer_response_id, note=note_summary, actor=actor)
+        if resolved_type == "INTERVIEW_INVITATION":
+            self._maybe_auto_create_interview_from_invitation(
+                tracker_id, evidence_reference=str(employer_response_id), summary=row.get("summary") or ""
+            )
         return self._employer_response_classification_row(cursor.lastrowid)
 
     def get_employer_response_classification(self, employer_response_id: int) -> dict | None:
@@ -1703,6 +1773,86 @@ class OpportunityCRMService:
             "SELECT * FROM employer_response_classifications WHERE id = ?", (classification_id,)
         ).fetchone()
         return dict(row) if row else None
+
+    # -- Web App Phase 6: Interviews workspace read model --------------------
+    # The ONE interview-creation path remains `record_interview()`
+    # (unchanged, called either automatically -- see
+    # `_maybe_auto_create_interview_from_invitation` -- or explicitly). This
+    # section only reads what's already there: no second pipeline, no
+    # duplicated employer/application data.
+    def get_interview(self, interview_id: int) -> dict | None:
+        return self._interview_row(interview_id)
+
+    def list_interviews(self, *, tracker_id: int | None = None) -> list[dict]:
+        if tracker_id is not None:
+            rows = self.connection.execute(
+                "SELECT * FROM interviews WHERE tracker_id = ? ORDER BY id DESC", (tracker_id,)
+            )
+        else:
+            rows = self.connection.execute("SELECT * FROM interviews ORDER BY id DESC")
+        return [dict(row) for row in rows]
+
+    _INTERVIEW_RECENT_COMPLETION_WINDOW_DAYS = 14
+
+    def _interview_bucket(self, interview: dict) -> str:
+        """One of upcoming / needs_time / recently_completed / historical --
+        a pure fact about the stored `scheduled_at`/`outcome`/`completed_at`
+        values, never a new scoring system (item 4's default ordering)."""
+        outcome = interview.get("outcome") or ""
+        if outcome == "SCHEDULED" or not outcome:
+            return "upcoming" if interview.get("scheduled_at") else "needs_time"
+        completed_at = interview.get("completed_at") or ""
+        if completed_at:
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=self._INTERVIEW_RECENT_COMPLETION_WINDOW_DAYS)).isoformat()
+            if completed_at >= cutoff:
+                return "recently_completed"
+        return "historical"
+
+    def interview_register(self) -> list[dict]:
+        """Every real interview record, joined with its opportunity, each
+        carrying its bucket (see `_interview_bucket`) so the caller can order
+        upcoming-by-date, then needing a time confirmed, then recently
+        completed, then historical (item 4) without recomputing anything."""
+        rows = []
+        for interview in self.list_interviews():
+            record = self.get_opportunity(interview["tracker_id"])
+            if not record:
+                continue
+            rows.append({
+                **interview,
+                "company": record.get("company") or "", "job_title": record.get("job_title") or "",
+                "intelligence_priority": record.get("intelligence_priority"), "crm_stage": record.get("crm_stage"),
+                "bucket": self._interview_bucket(interview),
+            })
+        bucket_order = {"upcoming": 0, "needs_time": 1, "recently_completed": 2, "historical": 3}
+        rows.sort(key=lambda r: r.get("scheduled_at") or r.get("completed_at") or "")
+        rows.sort(key=lambda r: bucket_order.get(r["bucket"], 4))
+        return rows
+
+    def interviews_summary(self) -> dict:
+        """KPI counts -- `offers` reuses `cumulative_funnel_counts()`'s own
+        OFFER definition (the `offers` table) so this workspace can never
+        disagree with the Dashboard/Applications about what counts as an
+        offer."""
+        all_interviews = self.list_interviews()
+        upcoming = [i for i in all_interviews if self._interview_bucket(i) in ("upcoming", "needs_time")]
+        completed = [i for i in all_interviews if self._interview_bucket(i) in ("recently_completed", "historical")]
+        final_stage = [i for i in all_interviews if i.get("stage") == "FINAL_INTERVIEW"]
+        upcoming_with_date = sorted((i for i in upcoming if i.get("scheduled_at")), key=lambda i: i["scheduled_at"])
+        next_interview = upcoming_with_date[0] if upcoming_with_date else None
+
+        def _has_prep_evidence(interview: dict) -> bool:
+            record = self.get_opportunity(interview["tracker_id"]) or {}
+            return bool(record.get("evaluation_snapshot") or record.get("job_description"))
+
+        return {
+            "upcoming": len(upcoming),
+            "completed": len(completed),
+            "final_stage": len(final_stage),
+            "offers": self.cumulative_funnel_counts()["OFFER"],
+            "next_interview": next_interview,
+            "preparation_ready": sum(1 for i in upcoming if _has_prep_evidence(i)),
+        }
 
     def close(self) -> None:
         self.history.close()

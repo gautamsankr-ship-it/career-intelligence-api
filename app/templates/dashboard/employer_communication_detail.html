@@ -89,11 +89,14 @@
       </form>
       <p class="section-hint" style="margin-top:10px;">This never changes the original Gmail evidence or the recorded message classification -- it is recorded as your own, separately audited judgment, and is never sent to the employer.</p>
       {% elif item.actionable %}
-      <p style="font-size:13px;margin:0 0 12px;">{{ item.required_action }}.{% if item.response_type == "INTERVIEW_INVITATION" %} A dedicated Interviews workspace is coming in a later phase; the invitation evidence is already preserved above and in the timeline below.{% endif %}</p>
+      <p style="font-size:13px;margin:0 0 12px;">{{ item.required_action }}.{% if item.response_type == "INTERVIEW_INVITATION" and not has_interview_record %} The preparation workspace will be created automatically once this invitation is processed.{% endif %}</p>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        {% if item.response_type == "INTERVIEW_INVITATION" and has_interview_record %}
+        <a class="action-btn" href="/interview/{{ interview_id }}">Open Interview Workspace &rarr;</a>
+        {% endif %}
         <form method="post" action="/action-required/employer-response/{{ tracker_id }}/{{ item.employer_response_id }}/review">
           <input type="hidden" name="note" value="Reviewed from Employer Inbox">
-          <button class="action-btn" type="submit">Mark Reviewed</button>
+          <button class="action-btn action-btn--secondary" type="submit">Mark Reviewed</button>
         </form>
         <span class="btn-disabled" title="Response drafting is not yet available in this phase -- employer communication always requires human authorship and approval.">Prepare Response (coming later)</span>
       </div>

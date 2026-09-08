@@ -16,9 +16,11 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.models.application_package import ApplicationPackage
+from app.services import interview_briefing_service as briefing_service
 from app.services.application_answer_vault import ApplicationAnswerVault
 from app.services.application_eligibility_policy import intelligence_priority_gate
 from app.services.application_package_orchestrator import PACKAGE_DIR
+from app.services.master_profile_service import MasterProfileService
 from app.services.opportunity_crm_service import (
     EMPLOYER_RESPONSE_HUMAN_CLASSIFICATIONS,
     OpportunityCRMService,
@@ -328,10 +330,6 @@ def _dashboard_attention_items(service: OpportunityCRMService, *, priority: str 
 # the shared shell with a short, honest "coming later" message -- no
 # fabricated functionality.
 _PLACEHOLDER_PAGES = {
-    "/interviews": (
-        "interviews", "Interviews",
-        "A dedicated Interviews view is coming in a later phase.",
-    ),
     "/analytics": (
         "analytics", "Analytics & Learning",
         "Deeper analytics are coming in a later phase. Conversion rates are already "
@@ -1079,6 +1077,9 @@ def application_detail(request: Request, tracker_id: int, service: OpportunityCR
             "interest_change_options": sorted(OpportunityCRMService.APPLICATION_FEEDBACK_INTEREST_CHANGE),
             "feedback_trigger": feedback_trigger,
             "show_prominent_feedback_prompt": _should_show_prominent_feedback_prompt(feedback_trigger, latest_feedback),
+            # Item 20: the smallest contextual link -- only shown once a
+            # real interview record exists, never a fabricated one.
+            "latest_interview_id": detail["interviews"][-1]["id"] if detail["interviews"] else None,
         },
     )
 
@@ -1291,12 +1292,12 @@ def employer_inbox_detail(
             "item": item,
             "status_label": _STAGE_TO_GROUP_LABEL.get(record.get("crm_stage"), record.get("crm_stage") or "Unknown"),
             "plain_timeline": plain_timeline,
-            # Item 8: link toward an existing application/opportunity view
-            # only -- never a fabricated per-interview page (Interviews
-            # itself is still a Phase 6 placeholder), and never a duplicate
-            # interviews-table row invented solely for this presentation.
+            # Item 19 (Phase 6): link to the real Interview workspace once a
+            # genuine interview record exists for this tracker -- never a
+            # fabricated one invented solely for this presentation.
             "has_application": record.get("crm_stage") in OpportunityCRMService.APPLICATION_WORKSPACE_STAGES or bool(record.get("applied_at")),
             "has_interview_record": bool(detail["interviews"]),
+            "interview_id": detail["interviews"][-1]["id"] if detail["interviews"] else None,
             "classification_options": list(_CLASSIFICATION_RESOLUTION_LABELS.keys()),
             "classification_labels": _CLASSIFICATION_RESOLUTION_LABELS,
             "classification_history": service.list_employer_response_classifications(tracker_id),
@@ -1324,6 +1325,181 @@ def classify_employer_response(
     except ValueError:
         pass
     return RedirectResponse(url=f"/employer-inbox/{tracker_id}/{response_id}", status_code=303)
+
+
+# -- Web App Phase 6: Interviews ---------------------------------------------
+# The interview record itself is created exactly ONE way --
+# OpportunityCRMService.record_interview(), called automatically from a
+# genuinely detected INTERVIEW_INVITATION (see
+# _maybe_auto_create_interview_from_invitation) or explicitly -- never a
+# second pipeline here. Preparation material is assembled read-only from
+# EXISTING evidence via interview_briefing_service; nothing here writes a
+# new candidate/job fact.
+_INTERVIEW_STAGE_LABELS = {
+    "SCREENING": "Screening", "INTERVIEW_1": "First Interview",
+    "INTERVIEW_2": "Technical / Case", "FINAL_INTERVIEW": "Final Interview",
+}
+_INTERVIEW_BUCKET_LABELS = {
+    "upcoming": "Upcoming", "needs_time": "Needs a Confirmed Time",
+    "recently_completed": "Recently Completed", "historical": "Historical",
+}
+
+
+def _interview_current_status(interview: dict) -> str:
+    stage_label = _INTERVIEW_STAGE_LABELS.get(interview.get("stage"), interview.get("stage") or "Unknown")
+    outcome = interview.get("outcome") or ""
+    if not outcome or outcome == "SCHEDULED":
+        return f"{stage_label} -- Scheduled" if interview.get("scheduled_at") else f"{stage_label} -- Time Not Yet Confirmed"
+    return f"{stage_label} -- {_humanize(outcome)}"
+
+
+def _interview_preparation_status(record: dict) -> str:
+    return "Ready" if (record.get("evaluation_snapshot") or record.get("job_description")) else "Limited Evidence"
+
+
+def _interview_next_action(interview: dict, record: dict, service: OpportunityCRMService) -> dict:
+    """Reuses the SAME Action Required read model (item 18) -- an active,
+    concrete item for this tracker always takes precedence. Otherwise a
+    small, honest, interview-specific fallback -- never a fabricated one."""
+    own_actions = [item for item in service.action_required_items() if item["tracker_id"] == interview["tracker_id"]]
+    if own_actions:
+        decorated = _decorate_action_item(own_actions[0])
+        return {"text": decorated["primary_action"], "link": "/action-required"}
+    if not interview.get("scheduled_at") and (interview.get("outcome") or "SCHEDULED") == "SCHEDULED":
+        return {"text": "Confirm interview time", "link": f"/interview/{interview['id']}"}
+    outcome = interview.get("outcome") or ""
+    if outcome and outcome != "SCHEDULED":
+        return {"text": "Review preparation for the next round, or add an optional debrief", "link": f"/interview/{interview['id']}"}
+    return {"text": "Review preparation", "link": f"/interview/{interview['id']}"}
+
+
+@app.get("/interviews", response_class=HTMLResponse)
+def interviews(request: Request, service: OpportunityCRMService = Depends(get_crm_service)):
+    summary = service.interviews_summary()
+    register = service.interview_register()
+
+    rows = []
+    for interview in register[:100]:  # bounded rendering (item 4)
+        record = service.get_opportunity(interview["tracker_id"]) or {}
+        next_action = _interview_next_action(interview, record, service)
+        rows.append({
+            **interview,
+            "stage_label": _INTERVIEW_STAGE_LABELS.get(interview.get("stage"), interview.get("stage") or "Unknown"),
+            "bucket_label": _INTERVIEW_BUCKET_LABELS.get(interview["bucket"], interview["bucket"]),
+            "current_status": _interview_current_status(interview),
+            "preparation_status": _interview_preparation_status(record),
+            "next_action_text": next_action["text"],
+            "next_action_link": next_action["link"],
+        })
+
+    next_interview = summary.get("next_interview")
+    if next_interview:
+        next_record = service.get_opportunity(next_interview["tracker_id"]) or {}
+        next_interview = {**next_interview, "company": next_record.get("company"), "job_title": next_record.get("job_title")}
+
+    return templates.TemplateResponse(
+        request,
+        "interviews.html",
+        {
+            "active_nav": "interviews",
+            "wide_content": True,
+            "summary": summary,
+            "next_interview": next_interview,
+            "rows": rows,
+        },
+    )
+
+
+@app.get("/interview/{interview_id}", response_class=HTMLResponse)
+def interview_workspace(request: Request, interview_id: int, service: OpportunityCRMService = Depends(get_crm_service)):
+    interview = service.get_interview(interview_id)
+    if interview is None:
+        return templates.TemplateResponse(
+            request, "not_found.html", {"tracker_id": interview_id, "active_nav": "interviews"}, status_code=404,
+        )
+    tracker_id = interview["tracker_id"]
+    detail = service.get_opportunity_detail(tracker_id)
+    record = detail["opportunity"]
+    package = _load_application_package(tracker_id)
+    profile = MasterProfileService().load()
+
+    readiness = briefing_service.build_readiness_matrix(record, profile)
+    why_pursue = _build_why_pursue(record)
+    risks = [_humanize_action_reason_prefix(r) for r in _build_risks(record)]
+    briefing = briefing_service.build_briefing(record, profile, readiness, risks, why_pursue)
+    my_evidence = briefing_service.build_my_evidence(readiness, profile)
+    answer_prep = briefing_service.build_answer_preparation(readiness, profile)
+    likely_questions = briefing_service.build_likely_questions(record, readiness, risks)
+    company_intelligence = briefing_service.build_company_intelligence(record)
+    employer_questions = briefing_service.build_employer_questions(record, readiness)
+
+    latest_feedback = service.get_latest_application_feedback(tracker_id)
+    feedback_trigger = _application_feedback_trigger(record, detail, service)
+
+    interview_invitation = next(
+        (r for r in detail["employer_responses"] if r["response_type"] == "INTERVIEW_INVITATION"), None
+    )
+
+    other_interviews = [i for i in detail["interviews"] if i["id"] != interview_id]
+
+    return templates.TemplateResponse(
+        request,
+        "interview_workspace.html",
+        {
+            "active_nav": "interviews",
+            "detail": detail,
+            "tracker_id": tracker_id,
+            "interview": interview,
+            "other_interviews": other_interviews,
+            "stage_label": _INTERVIEW_STAGE_LABELS.get(interview.get("stage"), interview.get("stage") or "Unknown"),
+            "current_status": _interview_current_status(interview),
+            "status_label": _STAGE_TO_GROUP_LABEL.get(record.get("crm_stage"), record.get("crm_stage") or "Unknown"),
+            "briefing": briefing,
+            "readiness": readiness,
+            "my_evidence": my_evidence,
+            "answer_prep": answer_prep,
+            "likely_questions": likely_questions,
+            "company_intelligence": company_intelligence,
+            "employer_questions": employer_questions,
+            "screening_answers": _build_screening_answers(record, package),
+            "has_application": record.get("crm_stage") in OpportunityCRMService.APPLICATION_WORKSPACE_STAGES or bool(record.get("applied_at")),
+            "employer_inbox_link": (f"/employer-inbox/{tracker_id}/{interview_invitation['id']}" if interview_invitation else None),
+            "latest_feedback": latest_feedback,
+            "feedback_trigger": feedback_trigger,
+            "show_prominent_feedback_prompt": _should_show_prominent_feedback_prompt(feedback_trigger, latest_feedback),
+            "worth_pursuing_options": sorted(OpportunityCRMService.APPLICATION_FEEDBACK_WORTH_PURSUING),
+        },
+    )
+
+
+@app.post("/interview/{interview_id}/schedule")
+def confirm_interview_schedule(
+    interview_id: int,
+    scheduled_at: str = Form(...),
+    service: OpportunityCRMService = Depends(get_crm_service),
+):
+    """The one genuinely consequential write this workspace exposes beyond
+    notes -- confirming a real date/time (item 17). Never auto-accepts a
+    time; a human must submit this form."""
+    try:
+        service.update_interview_schedule(interview_id, scheduled_at)
+    except ValueError:
+        pass
+    return RedirectResponse(url=f"/interview/{interview_id}", status_code=303)
+
+
+@app.post("/interview/{interview_id}/notes")
+def update_interview_notes(
+    interview_id: int,
+    notes: str = Form(""),
+    service: OpportunityCRMService = Depends(get_crm_service),
+):
+    """Optional notes (item 14) -- never required for preparation."""
+    try:
+        service.update_interview_notes(interview_id, notes)
+    except ValueError:
+        pass
+    return RedirectResponse(url=f"/interview/{interview_id}", status_code=303)
 
 
 def _register_placeholder_route(path: str, key: str, label: str, description: str) -> None:

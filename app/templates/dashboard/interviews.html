@@ -1,0 +1,51 @@
+{% extends "_shell.html" %}
+{% block title %}Interviews -- Career Intelligence{% endblock %}
+{% block content %}
+  <div class="page-header">
+    <h1>Interviews</h1>
+    <div class="subtitle">Which interviews are coming up, and am I prepared?</div>
+  </div>
+
+  <div class="section">
+    <div class="cards">
+      <div class="card card--highlight"><div class="n">{{ summary.upcoming }}</div><div class="l">Upcoming Interviews</div></div>
+      <div class="card"><div class="n">{{ summary.completed }}</div><div class="l">Completed Interviews</div></div>
+      <div class="card"><div class="n">{{ summary.final_stage }}</div><div class="l">Final Stage</div></div>
+      <div class="card"><div class="n">{{ summary.offers }}</div><div class="l">Offers</div></div>
+      <div class="card"><div class="n">{{ summary.preparation_ready }}</div><div class="l">Preparation Ready</div></div>
+    </div>
+    {% if next_interview %}
+    <p class="section-hint">Next interview: <strong>{{ next_interview.company }} -- {{ next_interview.job_title }}</strong> on {{ next_interview.scheduled_at[:16] }}.</p>
+    {% endif %}
+  </div>
+
+  <div class="section">
+    {% if rows %}
+    <div style="overflow-x:auto">
+    <table class="table">
+      <tr>
+        <th>Job / Company</th><th>Interview Stage</th><th>Date / Time</th><th>Priority</th>
+        <th>Preparation Status</th><th>Current Status</th><th>Next Action</th><th></th>
+      </tr>
+      {% for r in rows %}
+      <tr>
+        <td><strong>{{ r.company or "-" }}</strong><br><span style="color:var(--text-muted);font-size:12.5px;">{{ r.job_title or "-" }}</span></td>
+        <td>{{ r.stage_label }}</td>
+        <td>{{ r.scheduled_at[:16] if r.scheduled_at else "Not yet confirmed" }}</td>
+        <td class="col-center">{% if r.intelligence_priority %}<span class="badge p-{{ r.intelligence_priority }}">{{ r.intelligence_priority }}</span>{% else %}<span class="badge" style="background:#f3f4f6;color:#6b7280;">-</span>{% endif %}</td>
+        <td><span class="status-chip">{{ r.preparation_status }}</span></td>
+        <td>{{ r.current_status }}</td>
+        <td><a href="{{ r.next_action_link }}">{{ r.next_action_text }} &rarr;</a></td>
+        <td><a href="/interview/{{ r.id }}">View &rarr;</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <p style="margin:0 0 6px;font-weight:600;">No interviews scheduled yet.</p>
+      <p style="margin:0;">When an employer invitation is detected, Career Intelligence will automatically create the preparation workspace here.</p>
+    </div>
+    {% endif %}
+  </div>
+{% endblock %}
