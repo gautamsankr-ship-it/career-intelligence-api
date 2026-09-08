@@ -155,6 +155,37 @@ USER_DECISION_REASON_CODES = frozenset({
 # for (see record_employer_response_classification).
 EMPLOYER_RESPONSE_HUMAN_CLASSIFICATIONS = (EMPLOYER_RESPONSE_TYPES - {"UNKNOWN"}) | {"OTHER_NO_ACTION"}
 
+# -- Web App Phase 7: Analytics & Learning governance -----------------------
+# A Proposed Learning is the ONLY mechanism by which Analytics' observations
+# may ever point toward a future policy change -- and even then, Accepting
+# one in this phase records governance approval only (see
+# record_proposed_learning docstring); it never itself rewrites
+# intelligence_priority/scoring/eligibility logic. Never delete a row here:
+# a changed mind is a NEW status-history entry (same append-only convention
+# opportunity_events already uses), never a silent overwrite.
+LEARNING_DOMAINS = frozenset({
+    "SEARCH_STRATEGY", "MARKET", "PRIORITY", "ELIGIBILITY", "CV_STRATEGY",
+    "APPLICATION_STRATEGY", "SCREENING", "EVIDENCE", "AUTOMATION",
+})
+LEARNING_STATUS_PROPOSED = "PROPOSED"
+LEARNING_STATUS_ACCEPTED = "ACCEPTED"
+LEARNING_STATUS_NEED_MORE_EVIDENCE = "NEED_MORE_EVIDENCE"
+LEARNING_STATUS_REJECTED = "REJECTED"
+LEARNING_STATUS_RETIRED = "RETIRED"
+LEARNING_STATUSES = frozenset({
+    LEARNING_STATUS_PROPOSED, LEARNING_STATUS_ACCEPTED, LEARNING_STATUS_NEED_MORE_EVIDENCE,
+    LEARNING_STATUS_REJECTED, LEARNING_STATUS_RETIRED,
+})
+LEARNING_CONFIDENCE_LEVELS = frozenset({"Emerging", "Moderate", "High"})
+
+# A genuinely meaningful employer/recruiter response, as opposed to an
+# automated ACKNOWLEDGEMENT -- the ONE definition `response_quality_counts()`
+# and (Web App Phase 7) `cumulative_funnel_counts_since()` both reuse, so
+# Analytics can never silently diverge from the Dashboard's own figure.
+MEANINGFUL_RESPONSE_TYPES = (
+    "RECRUITER_CONTACT", "SCREENING_REQUEST", "INTERVIEW_INVITATION", "ASSESSMENT_REQUEST", "REJECTION", "OFFER",
+)
+
 
 class OpportunityCRMService:
     def __init__(self, history: ApplicationHistoryService | None = None) -> None:
@@ -298,6 +329,39 @@ class OpportunityCRMService:
                 classified_at TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 actor TEXT
+            )
+            """
+        )
+        self.connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS proposed_learnings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT NOT NULL UNIQUE,
+                domain TEXT NOT NULL,
+                title TEXT NOT NULL,
+                observation TEXT NOT NULL,
+                proposed_change TEXT NOT NULL,
+                evidence_summary TEXT NOT NULL,
+                sample_size INTEGER NOT NULL,
+                confidence TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                reviewed_at TEXT,
+                review_note TEXT,
+                actor TEXT
+            )
+            """
+        )
+        self.connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS proposed_learning_status_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                proposed_learning_id INTEGER NOT NULL,
+                previous_status TEXT,
+                new_status TEXT NOT NULL,
+                note TEXT,
+                actor TEXT,
+                occurred_at TEXT NOT NULL
             )
             """
         )
@@ -879,6 +943,49 @@ class OpportunityCRMService:
             "OFFER": self.connection.execute("SELECT COUNT(DISTINCT tracker_id) FROM offers").fetchone()[0],
         }
 
+    # `employer_responses.received_at` is Gmail-sourced and, in at least one
+    # real production row, was stored as the raw RFC-2822 header text
+    # ("Tue, 01 Sep 2026 ...") rather than normalized ISO-8601 -- a plain
+    # `>=` string comparison against an ISO cutoff would misplace that row
+    # (an ASCII letter always sorts after a digit). This GLOB guard trusts
+    # only genuinely ISO-shaped values for period math; a non-ISO row is
+    # simply excluded from period slicing (it is still counted in the
+    # All-Time figures, which do no date comparison at all) -- never a
+    # rewrite of that stored Gmail evidence.
+    _ISO_DATE_GLOB = "[0-9][0-9][0-9][0-9]-*"
+
+    def cumulative_funnel_counts_since(self, since_iso: str) -> dict[str, int]:
+        """Web App Phase 7: the SAME evidence definitions as
+        `cumulative_funnel_counts()`, scoped to a period -- each stage
+        filtered by its OWN genuine event timestamp (discovered_at/
+        applied_at/received_at/created_at), never a fabricated historical
+        series built by interpolating from current totals."""
+        placeholders = ",".join("?" * len(MEANINGFUL_RESPONSE_TYPES))
+        return {
+            "DISCOVERED": self.connection.execute(
+                "SELECT COUNT(*) FROM application_history WHERE discovered_at >= ?", (since_iso,)
+            ).fetchone()[0],
+            "APPLIED": self.connection.execute(
+                "SELECT COUNT(*) FROM application_history WHERE applied_at IS NOT NULL AND applied_at >= ?", (since_iso,)
+            ).fetchone()[0],
+            "ACKNOWLEDGED": self.connection.execute(
+                "SELECT COUNT(DISTINCT tracker_id) FROM employer_responses "
+                "WHERE response_type = 'ACKNOWLEDGEMENT' AND received_at GLOB ? AND received_at >= ?",
+                (self._ISO_DATE_GLOB, since_iso),
+            ).fetchone()[0],
+            "MEANINGFUL_RESPONSE": self.connection.execute(
+                f"SELECT COUNT(DISTINCT tracker_id) FROM employer_responses "
+                f"WHERE response_type IN ({placeholders}) AND received_at GLOB ? AND received_at >= ?",
+                (*MEANINGFUL_RESPONSE_TYPES, self._ISO_DATE_GLOB, since_iso),
+            ).fetchone()[0],
+            "INTERVIEW": self.connection.execute(
+                "SELECT COUNT(DISTINCT tracker_id) FROM interviews WHERE created_at >= ?", (since_iso,)
+            ).fetchone()[0],
+            "OFFER": self.connection.execute(
+                "SELECT COUNT(DISTINCT tracker_id) FROM offers WHERE created_at >= ?", (since_iso,)
+            ).fetchone()[0],
+        }
+
     def application_performance_rates(self) -> dict[str, float | None]:
         """Decision-useful conversion rates computed only from
         `cumulative_funnel_counts()`'s evidence-based figures -- replaces
@@ -955,11 +1062,6 @@ class OpportunityCRMService:
         screening request, interview invitation, assessment request,
         rejection, or offer) -- Web App Phase 1: an acknowledgement must
         never be presented as, or counted toward, a recruiter response."""
-        meaningful_types = (
-            "RECRUITER_CONTACT", "SCREENING_REQUEST", "INTERVIEW_INVITATION",
-            "ASSESSMENT_REQUEST", "REJECTION", "OFFER",
-        )
-
         def distinct_where_type_in(types: tuple[str, ...]) -> int:
             placeholders = ",".join("?" * len(types))
             row = self.connection.execute(
@@ -970,7 +1072,7 @@ class OpportunityCRMService:
 
         return {
             "acknowledgements": distinct_where_type_in(("ACKNOWLEDGEMENT",)),
-            "meaningful_responses": distinct_where_type_in(meaningful_types),
+            "meaningful_responses": distinct_where_type_in(MEANINGFUL_RESPONSE_TYPES),
             "unknown_responses": distinct_where_type_in(("UNKNOWN",)),
         }
 
@@ -1023,6 +1125,38 @@ class OpportunityCRMService:
             f"SELECT {field} AS value, COUNT(*) AS count FROM application_history GROUP BY {field} ORDER BY count DESC"
         ).fetchall()
         return [{"value": row["value"], "count": row["count"]} for row in rows]
+
+    def performance_by_dimension(self, field: str) -> list[dict]:
+        """Web App Phase 7 (Performance Drivers): opportunities/applications/
+        meaningful responses/interviews/offers per distinct value of `field`
+        -- every count reuses the SAME evidence definitions
+        `cumulative_funnel_counts()`/`response_quality_counts()` already use
+        (applied_at IS NOT NULL, `MEANINGFUL_RESPONSE_TYPES`, the
+        interviews/offers tables), never a second, parallel definition.
+        Bucket `"__UNSET__"` groups every NULL/blank value -- labeling it is
+        left to the caller (e.g. "Unscored" for priority)."""
+        if field not in _ALLOWED_BREAKDOWN_FIELDS:
+            raise ValueError(f"Unsupported breakdown field: {field!r}. Allowed: {sorted(_ALLOWED_BREAKDOWN_FIELDS)}")
+        placeholders = ",".join("?" * len(MEANINGFUL_RESPONSE_TYPES))
+        rows = self.connection.execute(
+            f"""
+            SELECT
+                COALESCE(NULLIF(ah.{field}, ''), '__UNSET__') AS bucket,
+                COUNT(DISTINCT ah.id) AS opportunities,
+                COUNT(DISTINCT CASE WHEN ah.applied_at IS NOT NULL THEN ah.id END) AS applications,
+                COUNT(DISTINCT CASE WHEN er.response_type IN ({placeholders}) THEN ah.id END) AS meaningful_responses,
+                COUNT(DISTINCT iv.tracker_id) AS interviews,
+                COUNT(DISTINCT ofr.tracker_id) AS offers
+            FROM application_history ah
+            LEFT JOIN employer_responses er ON er.tracker_id = ah.id
+            LEFT JOIN interviews iv ON iv.tracker_id = ah.id
+            LEFT JOIN offers ofr ON ofr.tracker_id = ah.id
+            GROUP BY bucket
+            ORDER BY opportunities DESC
+            """,
+            MEANINGFUL_RESPONSE_TYPES,
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     # -- dashboard (Task 21.33) ---------------------------------------------
     _LIST_FILTER_COLUMNS = frozenset({"crm_stage", "intelligence_priority", "market", "source", "application_portal"})
@@ -1853,6 +1987,104 @@ class OpportunityCRMService:
             "next_interview": next_interview,
             "preparation_ready": sum(1 for i in upcoming if _has_prep_evidence(i)),
         }
+
+    # -- Web App Phase 7: Analytics & Learning governance --------------------
+    def record_proposed_learning(
+        self, key: str, *, domain: str, title: str, observation: str, proposed_change: str,
+        evidence_summary: str, sample_size: int, confidence: str,
+        status: str = LEARNING_STATUS_PROPOSED, review_note: str = "", actor: str = "SYSTEM",
+    ) -> dict:
+        """Creates the ONE persisted row for a deterministic learning
+        candidate (identified by its stable `key`), idempotently -- a second
+        call with the same key updates its status instead of duplicating it
+        (see update_proposed_learning_status). "Accepting" a learning here
+        records governance approval ONLY; it never itself rewrites
+        intelligence_priority, scoring, or eligibility logic -- there is no
+        code path anywhere in this service that reads `proposed_learnings`
+        back into scoring."""
+        if domain not in LEARNING_DOMAINS:
+            raise ValueError(f"Unknown learning domain: {domain!r}. Allowed: {sorted(LEARNING_DOMAINS)}")
+        if status not in LEARNING_STATUSES:
+            raise ValueError(f"Unknown learning status: {status!r}. Allowed: {sorted(LEARNING_STATUSES)}")
+        if confidence not in LEARNING_CONFIDENCE_LEVELS:
+            raise ValueError(f"Unknown confidence level: {confidence!r}. Allowed: {sorted(LEARNING_CONFIDENCE_LEVELS)}")
+        existing = self.get_proposed_learning_by_key(key)
+        if existing:
+            if existing["status"] == status:
+                return existing  # already recorded at this status -- no redundant history entry
+            return self.update_proposed_learning_status(existing["id"], status, review_note=review_note, actor=actor)
+        now = _now()
+        cursor = self.connection.execute(
+            "INSERT INTO proposed_learnings "
+            "(key, domain, title, observation, proposed_change, evidence_summary, sample_size, confidence, "
+            "status, created_at, reviewed_at, review_note, actor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                key, domain, title, observation, proposed_change, evidence_summary, sample_size, confidence,
+                status, now, now if status != LEARNING_STATUS_PROPOSED else None, review_note, actor,
+            ),
+        )
+        self.connection.commit()
+        learning_id = cursor.lastrowid
+        self.connection.execute(
+            "INSERT INTO proposed_learning_status_history "
+            "(proposed_learning_id, previous_status, new_status, note, actor, occurred_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (learning_id, None, status, review_note, actor, now),
+        )
+        self.connection.commit()
+        return self._proposed_learning_row(learning_id)
+
+    def update_proposed_learning_status(
+        self, learning_id: int, status: str, *, review_note: str = "", actor: str = "USER",
+    ) -> dict:
+        """The one governance write (item 19): Accept / Need More Evidence /
+        Reject, and (programmatically) Retire. Every transition is appended
+        to `proposed_learning_status_history` -- a changed mind later is a
+        NEW history row, never a silent overwrite of the trail, matching the
+        append-only convention every other CRM governance table already
+        uses."""
+        if status not in LEARNING_STATUSES:
+            raise ValueError(f"Unknown learning status: {status!r}. Allowed: {sorted(LEARNING_STATUSES)}")
+        row = self._proposed_learning_row(learning_id)
+        if not row:
+            raise ValueError(f"No proposed learning found with ID {learning_id}.")
+        now = _now()
+        self.connection.execute(
+            "UPDATE proposed_learnings SET status = ?, reviewed_at = ?, review_note = ?, actor = ? WHERE id = ?",
+            (status, now, review_note, actor, learning_id),
+        )
+        self.connection.commit()
+        self.connection.execute(
+            "INSERT INTO proposed_learning_status_history "
+            "(proposed_learning_id, previous_status, new_status, note, actor, occurred_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (learning_id, row["status"], status, review_note, actor, now),
+        )
+        self.connection.commit()
+        return self._proposed_learning_row(learning_id)
+
+    def get_proposed_learning_by_key(self, key: str) -> dict | None:
+        row = self.connection.execute("SELECT * FROM proposed_learnings WHERE key = ?", (key,)).fetchone()
+        return dict(row) if row else None
+
+    def list_proposed_learnings(self, *, status: str | None = None) -> list[dict]:
+        if status:
+            rows = self.connection.execute(
+                "SELECT * FROM proposed_learnings WHERE status = ? ORDER BY id DESC", (status,)
+            )
+        else:
+            rows = self.connection.execute("SELECT * FROM proposed_learnings ORDER BY id DESC")
+        return [dict(row) for row in rows]
+
+    def list_proposed_learning_status_history(self, learning_id: int) -> list[dict]:
+        return [
+            dict(row) for row in self.connection.execute(
+                "SELECT * FROM proposed_learning_status_history WHERE proposed_learning_id = ? ORDER BY id DESC",
+                (learning_id,),
+            )
+        ]
+
+    def _proposed_learning_row(self, learning_id: int) -> dict | None:
+        row = self.connection.execute("SELECT * FROM proposed_learnings WHERE id = ?", (learning_id,)).fetchone()
+        return dict(row) if row else None
 
     def close(self) -> None:
         self.history.close()

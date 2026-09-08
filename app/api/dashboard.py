@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.models.application_package import ApplicationPackage
+from app.services import analytics_service
 from app.services import interview_briefing_service as briefing_service
 from app.services.application_answer_vault import ApplicationAnswerVault
 from app.services.application_eligibility_policy import intelligence_priority_gate
@@ -23,6 +24,10 @@ from app.services.application_package_orchestrator import PACKAGE_DIR
 from app.services.master_profile_service import MasterProfileService
 from app.services.opportunity_crm_service import (
     EMPLOYER_RESPONSE_HUMAN_CLASSIFICATIONS,
+    LEARNING_STATUS_ACCEPTED,
+    LEARNING_STATUS_NEED_MORE_EVIDENCE,
+    LEARNING_STATUS_PROPOSED,
+    LEARNING_STATUS_REJECTED,
     OpportunityCRMService,
 )
 
@@ -330,11 +335,6 @@ def _dashboard_attention_items(service: OpportunityCRMService, *, priority: str 
 # the shared shell with a short, honest "coming later" message -- no
 # fabricated functionality.
 _PLACEHOLDER_PAGES = {
-    "/analytics": (
-        "analytics", "Analytics & Learning",
-        "Deeper analytics are coming in a later phase. Conversion rates are already "
-        "available on the Dashboard.",
-    ),
     "/automation": (
         "automation", "Automation",
         "Automation controls are coming in a later phase. Run the pipeline today with: "
@@ -1500,6 +1500,137 @@ def update_interview_notes(
     except ValueError:
         pass
     return RedirectResponse(url=f"/interview/{interview_id}", status_code=303)
+
+
+# -- Web App Phase 7: Analytics & Learning -----------------------------------
+# Every figure reuses an EXISTING CRM read model (see analytics_service.py's
+# own module docstring) -- this section only adds presentation labels and
+# the Learning Center's governance wiring. No code path here writes to
+# intelligence_priority/scoring/eligibility/candidate facts/the Answer
+# Vault; the ONLY writes are governance decisions on a proposed_learnings
+# row (see _govern_learning), which record human approval only.
+_LEARNING_DOMAIN_LABELS = {
+    "SEARCH_STRATEGY": "Search Strategy", "MARKET": "Market", "PRIORITY": "Priority",
+    "ELIGIBILITY": "Eligibility", "CV_STRATEGY": "CV Strategy", "APPLICATION_STRATEGY": "Application Strategy",
+    "SCREENING": "Screening", "EVIDENCE": "Evidence", "AUTOMATION": "Automation",
+}
+_LEARNING_STATUS_LABELS = {
+    "PROPOSED": "Proposed", "ACCEPTED": "Accepted", "NEED_MORE_EVIDENCE": "Need More Evidence",
+    "REJECTED": "Rejected", "RETIRED": "Retired",
+}
+_FUNNEL_STAGE_LABELS = (
+    ("DISCOVERED", "Discovered"), ("APPLIED", "Applied"), ("MEANINGFUL_RESPONSE", "Meaningful Response"),
+    ("INTERVIEW", "Interview"), ("OFFER", "Offer"),
+)
+
+
+def _learning_candidates_by_key(service: OpportunityCRMService) -> dict[str, dict]:
+    return {c["key"]: c for c in analytics_service.generate_learning_candidates(service)}
+
+
+def _govern_learning(service: OpportunityCRMService, key: str, status: str, review_note: str) -> None:
+    """The one write path for every Learning Center governance action
+    (item 19). Never mutates intelligence_priority/scoring/eligibility --
+    only records the human's decision, on the SAME deterministic candidate
+    `generate_learning_candidates()` would compute right now, so what gets
+    persisted always matches what was actually shown on screen."""
+    candidate = _learning_candidates_by_key(service).get(key)
+    existing = service.get_proposed_learning_by_key(key)
+    if not candidate and not existing:
+        return  # unknown/stale key -- ignore, never crash
+    if existing:
+        service.update_proposed_learning_status(existing["id"], status, review_note=review_note, actor="USER")
+        return
+    service.record_proposed_learning(
+        key, domain=candidate["domain"], title=candidate["title"], observation=candidate["observation"],
+        proposed_change=candidate["proposed_change"], evidence_summary=candidate["evidence_summary"],
+        sample_size=candidate["sample_size"], confidence=candidate["confidence"],
+        status=status, review_note=review_note, actor="USER",
+    )
+
+
+@app.get("/analytics", response_class=HTMLResponse)
+def analytics(request: Request, period: str = "all", service: OpportunityCRMService = Depends(get_crm_service)):
+    overview = analytics_service.performance_overview(service)
+    intervention = analytics_service.human_intervention_metrics(service)
+    trends = analytics_service.funnel_and_trends(service, period)
+    drivers = {
+        "Priority": analytics_service.priority_effectiveness(service),
+        "Market": analytics_service.market_performance(service),
+        "Source": analytics_service.source_performance(service),
+        "Job Family": analytics_service.career_track_performance(service),
+        "Work Arrangement": analytics_service.work_arrangement_performance(service),
+    }
+    cv_strategy = analytics_service.cv_strategy_performance(service)
+    screening = analytics_service.screening_eligibility_intelligence(service)
+    rejections = analytics_service.rejection_intelligence(service)
+    employer_feedback = analytics_service.employer_feedback_intelligence(service)
+    observations = analytics_service.generate_observations(service)
+
+    candidates = analytics_service.generate_learning_candidates(service)
+    persisted = {row["key"]: row for row in service.list_proposed_learnings()}
+    learning_items = []
+    seen_keys = set()
+    for candidate in candidates:
+        key = candidate["key"]
+        seen_keys.add(key)
+        existing = persisted.get(key)
+        if existing:
+            learning_items.append({**existing, "is_persisted": True})
+        else:
+            learning_items.append({
+                **candidate, "id": None, "status": LEARNING_STATUS_PROPOSED,
+                "is_persisted": False, "reviewed_at": None, "review_note": "",
+            })
+    for key, row in persisted.items():
+        if key not in seen_keys:
+            learning_items.append({**row, "is_persisted": True})
+
+    learning_by_status = {
+        status: [item for item in learning_items if item["status"] == status]
+        for status in (LEARNING_STATUS_PROPOSED, LEARNING_STATUS_ACCEPTED, LEARNING_STATUS_NEED_MORE_EVIDENCE, LEARNING_STATUS_REJECTED)
+    }
+
+    return templates.TemplateResponse(
+        request,
+        "analytics.html",
+        {
+            "active_nav": "analytics",
+            "wide_content": True,
+            "overview": overview,
+            "intervention": intervention,
+            "trends": trends,
+            "funnel_stage_labels": _FUNNEL_STAGE_LABELS,
+            "period": period,
+            "drivers": drivers,
+            "cv_strategy": cv_strategy,
+            "screening": screening,
+            "rejections": rejections,
+            "employer_feedback": employer_feedback,
+            "observations": observations,
+            "learning_by_status": learning_by_status,
+            "domain_labels": _LEARNING_DOMAIN_LABELS,
+            "status_labels": _LEARNING_STATUS_LABELS,
+        },
+    )
+
+
+@app.post("/analytics/learning/{key}/accept")
+def accept_learning(key: str, review_note: str = Form(""), service: OpportunityCRMService = Depends(get_crm_service)):
+    _govern_learning(service, key, LEARNING_STATUS_ACCEPTED, review_note)
+    return RedirectResponse(url="/analytics", status_code=303)
+
+
+@app.post("/analytics/learning/{key}/need-more-evidence")
+def need_more_evidence_learning(key: str, review_note: str = Form(""), service: OpportunityCRMService = Depends(get_crm_service)):
+    _govern_learning(service, key, LEARNING_STATUS_NEED_MORE_EVIDENCE, review_note)
+    return RedirectResponse(url="/analytics", status_code=303)
+
+
+@app.post("/analytics/learning/{key}/reject")
+def reject_learning(key: str, review_note: str = Form(""), service: OpportunityCRMService = Depends(get_crm_service)):
+    _govern_learning(service, key, LEARNING_STATUS_REJECTED, review_note)
+    return RedirectResponse(url="/analytics", status_code=303)
 
 
 def _register_placeholder_route(path: str, key: str, label: str, description: str) -> None:

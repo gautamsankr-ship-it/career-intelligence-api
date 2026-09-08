@@ -1,0 +1,253 @@
+{% extends "_shell.html" %}
+{% block title %}Analytics & Learning -- Career Intelligence{% endblock %}
+{% block extra_style %}
+  <style>
+    .confidence-badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .confidence-Emerging { background: #f3f4f6; color: #374151; }
+    .confidence-Moderate { background: #dbeafe; color: #1e40af; }
+    .confidence-High { background: #dcfce7; color: #166534; }
+    .learning-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 10px; }
+    .learning-card__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+    .learning-card__title { font-weight: 700; font-size: 14px; }
+    .learning-card__domain { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--text-muted); }
+    .learning-card__body { font-size: 13px; margin: 6px 0; }
+    .learning-card__actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .obs-card { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--primary); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; font-size: 13px; }
+    .obs-card__meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    details.driver { margin-bottom: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    details.driver summary { cursor: pointer; padding: 12px 16px; font-weight: 600; font-size: 13.5px; }
+    details.driver .driver-body { padding: 0 16px 14px; }
+    .early-banner { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 16px 18px; margin-bottom: 20px; }
+    .early-banner strong { color: #9a3412; }
+    .na-note { color: var(--text-muted); font-size: 12px; }
+  </style>
+{% endblock %}
+{% block content %}
+  <div class="page-header">
+    <h1>Analytics & Learning</h1>
+    <div class="subtitle">What is working, what is not, and what has the system learned?</div>
+  </div>
+
+  {% if overview.applications_submitted < 10 %}
+  <div class="early-banner">
+    <strong>Learning status: Early data.</strong>
+    Career Intelligence is collecting outcome evidence. Current patterns are shown as observations; policy changes will require stronger evidence.
+  </div>
+  {% endif %}
+
+  <!-- 1. Performance Overview -->
+  <div class="section">
+    <h2 class="section-title">Performance Overview</h2>
+    <div class="cards">
+      <div class="card"><div class="n">{{ overview.opportunities_discovered }}</div><div class="l">Opportunities Discovered</div></div>
+      <div class="card card--highlight"><div class="n">{{ overview.applications_submitted }}</div><div class="l">Applications Submitted</div></div>
+      <div class="card"><div class="n">{{ overview.application_rate }}</div><div class="l">Application Rate</div></div>
+      <div class="card"><div class="n">{{ overview.meaningful_response_rate }}</div><div class="l">Meaningful Response Rate</div></div>
+      <div class="card"><div class="n">{{ overview.interview_rate }}</div><div class="l">Interview Rate</div></div>
+      <div class="card"><div class="n">{{ overview.offer_rate }}</div><div class="l">Offer Rate</div></div>
+      <div class="card"><div class="n">{{ overview.hire_rate }}</div><div class="l">Hire Rate</div></div>
+    </div>
+    {% if overview.early_data_note %}<p class="section-hint">{{ overview.early_data_note }}.</p>{% endif %}
+    <p class="section-hint">An automated acknowledgement is never counted as a meaningful response -- same definitions as the Dashboard, Applications and Employer Inbox.</p>
+
+    <h3 style="font-size:13px;margin:18px 0 8px;">Human Interventions per Application</h3>
+    <div class="detail-card">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+        <span style="font-size:22px;font-weight:700;color:var(--primary);">{{ intervention.per_application if intervention.per_application is not none else "—" }}</span>
+        <span style="font-size:12.5px;color:var(--text-muted);">per application ({{ intervention.total_observed_interventions }} observed across {{ intervention.applications }} application{{ "s" if intervention.applications != 1 else "" }})</span>
+        {% if intervention.partial_measurement %}<span class="status-chip" style="background:#fef3c7;color:#92400e;">Partial measurement</span>{% endif %}
+      </div>
+      <table>
+        <tr><th>Intervention Type</th><th>Observed</th></tr>
+        {% for label, count in intervention.counted_by_type.items() %}
+        <tr><td>{{ label }}{% if label in intervention.unobserved_types %} <span class="na-note">(no recorded history)</span>{% endif %}</td><td class="col-num">{{ count }}</td></tr>
+        {% endfor %}
+      </table>
+      <p class="section-hint" style="margin-top:8px;margin-bottom:0;">{{ intervention.explanation }}</p>
+    </div>
+  </div>
+
+  <!-- 2. Funnel & Trends -->
+  <div class="section">
+    <h2 class="section-title">Funnel & Trends</h2>
+    <div class="chip-row">
+      <a class="chip {{ 'is-active' if period == '7d' else '' }}" href="/analytics?period=7d">7 Days</a>
+      <a class="chip {{ 'is-active' if period == '30d' else '' }}" href="/analytics?period=30d">30 Days</a>
+      <a class="chip {{ 'is-active' if period == '90d' else '' }}" href="/analytics?period=90d">90 Days</a>
+      <a class="chip {{ 'is-active' if period == 'all' or not period else '' }}" href="/analytics?period=all">All Time</a>
+    </div>
+    <div class="funnel-card" style="max-height:none;">
+      {% for stage, label in funnel_stage_labels %}
+      <div class="funnel-row">
+        <span class="funnel-row__label">{{ label }}</span>
+        <span class="funnel-row__bar"><span class="funnel-row__fill funnel-row__fill--cumulative" style="width:{{ ((trends.funnel[stage] / trends.funnel.DISCOVERED * 100) if trends.funnel.DISCOVERED else 0) | round(1) }}%;"></span></span>
+        <span class="funnel-row__count {{ 'is-zero' if trends.funnel[stage] == 0 else '' }}">{{ trends.funnel[stage] }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="section-hint" style="margin-top:8px;">Acknowledged: {{ trends.funnel.ACKNOWLEDGED }} -- shown as operational information only, not a funnel stage.</p>
+    {% if not trends.trend_reliable %}
+    <p class="section-hint">Only {{ trends.history_days }} day(s) of history exist yet -- period comparisons are early data, not a reliable trend.</p>
+    {% endif %}
+  </div>
+
+  <!-- 3. Performance Drivers -->
+  <div class="section">
+    <h2 class="section-title">Performance Drivers</h2>
+    <p class="section-hint">Categories with a tiny sample are labelled as such rather than compared as though one performs objectively better.</p>
+
+    {% for dimension_name, rows in drivers.items() %}
+    <details class="driver" {{ "open" if dimension_name == "Priority" else "" }}>
+      <summary>{{ dimension_name }} ({{ rows | length }} categor{{ "y" if rows | length == 1 else "ies" }})</summary>
+      <div class="driver-body">
+        <div style="overflow-x:auto">
+        <table>
+          <tr><th>{{ dimension_name }}</th><th>Opportunities</th><th>Applications</th><th>Meaningful Responses</th><th>Interviews</th><th>Offers</th><th>Conversion</th><th></th></tr>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.label | humanize if dimension_name != "Priority" else row.label }}</td>
+            <td class="col-num">{{ row.opportunities }}</td>
+            <td class="col-num">{{ row.applications }}</td>
+            <td class="col-num">{{ row.meaningful_responses }}</td>
+            <td class="col-num">{{ row.interviews }}</td>
+            <td class="col-num">{{ row.offers }}</td>
+            <td class="col-num">{{ row.conversion_rate }}</td>
+            <td>
+              {% if dimension_name == "Priority" and row.label != "Unscored" %}<a href="/opportunities?intelligence_priority={{ row.label }}">View &rarr;</a>
+              {% elif dimension_name == "Market" and row.label != "Not Recorded" %}<a href="/opportunities?market={{ row.label }}">View &rarr;</a>
+              {% elif dimension_name == "Source" and row.label != "Not Recorded" %}<a href="/opportunities?source={{ row.label }}">View &rarr;</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% if row.note %}<tr><td colspan="8" class="na-note">{{ row.note }}</td></tr>{% endif %}
+          {% endfor %}
+        </table>
+        </div>
+      </div>
+    </details>
+    {% endfor %}
+
+    <h3 style="font-size:13px;margin:18px 0 8px;">CV / Application Strategy</h3>
+    <div class="detail-card"><div class="na-note">{{ cv_strategy.message }}</div></div>
+
+    <h3 style="font-size:13px;margin:18px 0 8px;">Screening & Eligibility Intelligence</h3>
+    <div class="detail-card">
+      {% if screening %}
+      <table>
+        <tr><th>Reason</th><th>Occurrences</th><th>Currently Unresolved</th><th>Applications Affected</th></tr>
+        {% for row in screening %}
+        <tr>
+          <td>{{ row.reason }}</td>
+          <td class="col-num">{{ row.occurrences }}</td>
+          <td class="col-num">{{ row.currently_unresolved }}</td>
+          <td class="col-num">{{ row.applications_affected }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      <p class="section-hint" style="margin-top:8px;margin-bottom:0;"><a href="/action-required">View in Action Required &rarr;</a></p>
+      {% else %}<div class="empty">No recurring screening/eligibility blockers recorded yet.</div>{% endif %}
+    </div>
+
+    <h3 style="font-size:13px;margin:18px 0 8px;">Rejection Intelligence</h3>
+    <div class="detail-card">
+      {% if rejections.available %}
+      <table>
+        <tr><th>Company / Role</th><th>Stage</th><th>Market</th><th>Priority</th><th>Employer Reason</th></tr>
+        {% for r in rejections.rejections %}
+        <tr>
+          <td><a href="/opportunity/{{ r.tracker_id }}">{{ r.company }} -- {{ r.job_title }}</a></td>
+          <td>{{ r.stage | humanize }}</td>
+          <td>{{ r.market | humanize }}</td>
+          <td>{% if r.priority %}<span class="badge p-{{ r.priority }}">{{ r.priority }}</span>{% else %}-{% endif %}</td>
+          <td>{% if r.explicit_reason %}<strong>Explicit employer reason:</strong> {{ r.explicit_reason }}{% else %}<span class="na-note">No explicit employer reason recorded -- never inferred.</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}<div class="empty">No rejections recorded yet -- a clean early-data state, not a fabricated conclusion.</div>{% endif %}
+    </div>
+  </div>
+
+  <!-- 4. Employer Feedback Intelligence -->
+  <div class="section">
+    <h2 class="section-title">Employer Feedback Intelligence</h2>
+    <div class="cards">
+      <div class="card"><div class="n">{{ employer_feedback.summary.employer_messages }}</div><div class="l">Employer Messages</div></div>
+      <div class="card"><div class="n">{{ employer_feedback.summary.needs_action }}</div><div class="l">Needs Action</div></div>
+      <div class="card"><div class="n">{{ employer_feedback.summary.meaningful_responses }}</div><div class="l">Meaningful Responses</div></div>
+      <div class="card"><div class="n">{{ employer_feedback.summary.screening_requests }}</div><div class="l">Screening Requests</div></div>
+      <div class="card"><div class="n">{{ employer_feedback.summary.interviews }}</div><div class="l">Interview Invitations</div></div>
+      <div class="card"><div class="n">{{ employer_feedback.summary.assessments }}</div><div class="l">Assessments</div></div>
+      <div class="card"><div class="n">{{ employer_feedback.summary.rejections }}</div><div class="l">Rejections</div></div>
+      <div class="card"><div class="n">{{ employer_feedback.summary.offers }}</div><div class="l">Offers</div></div>
+    </div>
+    {% if employer_feedback.interpretation %}<p class="section-hint">{{ employer_feedback.interpretation }}</p>{% endif %}
+    <p class="section-footer"><a href="/employer-inbox">Open Employer Inbox &rarr;</a></p>
+  </div>
+
+  <!-- 5. Learning Center -->
+  <div class="section" id="learning-center">
+    <h2 class="section-title">Learning Center</h2>
+
+    <h3 style="font-size:13px;margin:0 0 8px;">Observations</h3>
+    {% if observations %}
+      {% for obs in observations %}
+      <div class="obs-card">
+        {{ obs.text }}
+        <div class="obs-card__meta">
+          {{ obs.category }} &middot; <span class="confidence-badge confidence-{{ obs.confidence }}">{{ obs.confidence }}</span> &middot; sample: {{ obs.sample_size }}
+          {% if obs.drill_down %} &middot; <a href="{{ obs.drill_down }}">View evidence &rarr;</a>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+    <div class="empty-state">Not enough outcome data yet.</div>
+    {% endif %}
+
+    <h3 style="font-size:13px;margin:20px 0 8px;">Proposed Learnings</h3>
+    {% if learning_by_status.PROPOSED %}
+      {% for item in learning_by_status.PROPOSED %}
+      <div class="learning-card">
+        <div class="learning-card__top">
+          <div>
+            <div class="learning-card__domain">{{ domain_labels.get(item.domain, item.domain) }}</div>
+            <div class="learning-card__title">{{ item.title }}</div>
+          </div>
+          <span class="confidence-badge confidence-{{ item.confidence }}">{{ item.confidence }} confidence</span>
+        </div>
+        <div class="learning-card__body"><strong>Observation:</strong> {{ item.observation }}</div>
+        <div class="learning-card__body"><strong>Proposed change:</strong> {{ item.proposed_change }}</div>
+        <div class="learning-card__body na-note">Evidence sample: {{ item.sample_size }}</div>
+        <div class="learning-card__actions">
+          <form method="post" action="/analytics/learning/{{ item.key }}/accept"><button class="action-btn" type="submit">Accept</button></form>
+          <form method="post" action="/analytics/learning/{{ item.key }}/need-more-evidence"><button class="action-btn action-btn--secondary" type="submit">Need More Evidence</button></form>
+          <form method="post" action="/analytics/learning/{{ item.key }}/reject"><button class="action-btn action-btn--secondary" type="submit">Reject</button></form>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+    <div class="empty-state">No proposed learnings meet the evidence threshold yet -- see Observations above.</div>
+    {% endif %}
+
+    {% for status, heading in [("ACCEPTED", "Accepted Learnings"), ("NEED_MORE_EVIDENCE", "Need More Evidence"), ("REJECTED", "Rejected")] %}
+    {% if learning_by_status[status] %}
+    <h3 style="font-size:13px;margin:20px 0 8px;">{{ heading }}</h3>
+    {% for item in learning_by_status[status] %}
+    <div class="learning-card">
+      <div class="learning-card__top">
+        <div>
+          <div class="learning-card__domain">{{ domain_labels.get(item.domain, item.domain) }}</div>
+          <div class="learning-card__title">{{ item.title }}</div>
+        </div>
+        <span class="status-chip">{{ status_labels.get(item.status, item.status) }}</span>
+      </div>
+      <div class="learning-card__body"><strong>Observation:</strong> {{ item.observation }}</div>
+      {% if item.review_note %}<div class="learning-card__body na-note">Review note: {{ item.review_note }}</div>{% endif %}
+      {% if item.reviewed_at %}<div class="learning-card__body na-note">Reviewed {{ item.reviewed_at[:16] }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endfor %}
+
+    <p class="section-hint" style="margin-top:12px;">Accepting a learning here records governance approval only -- it never automatically changes scoring, priority thresholds, or eligibility policy.</p>
+  </div>
+{% endblock %}
