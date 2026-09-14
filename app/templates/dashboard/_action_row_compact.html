@@ -11,7 +11,7 @@
     <div class="company">{{ item.company or "-" }}</div>
   </div>
   <div class="ar-row__urgency"><span class="urgency-badge urgency-{{ item.urgency }}">{{ item.urgency }}</span></div>
-  <div class="ar-row__reason" title="{{ item.plain_reason }}">{{ item.plain_reason }}{% if item.resolved %} &middot; Resolved{% endif %}</div>
+  <div class="ar-row__reason" title="{{ item.plain_reason }}">{{ item.plain_reason }}{% if item.resolved %} &middot; Resolved{% endif %}{% if item.readiness_label %}<br><small>{{ item.readiness_label }}{% if item.reusable %} · Reusable decision{% endif %}</small>{% endif %}</div>
   <div class="ar-row__action">
     {% if item.category in ("REVIEW_AND_SUBMIT", "ELIGIBILITY_DECISION", "EMPLOYER_ACTION") %}
     <a class="action-btn" href="/opportunity/{{ item.tracker_id }}">{{ item.primary_action }} &rarr;</a>

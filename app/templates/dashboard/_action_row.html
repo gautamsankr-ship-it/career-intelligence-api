@@ -9,7 +9,7 @@
     </div>
     <div class="action-row__job">{{ item.job_title or "-" }}</div>
     <div class="action-row__company">{{ item.company or "-" }}{% if item.career_score is not none %} &middot; Career score {{ item.career_score | round(0) | int }}{% endif %}</div>
-    <div class="action-row__reason">{{ item.plain_reason }}</div>
+    <div class="action-row__reason">{{ item.plain_reason }}{% if item.readiness_label %}<br><small>{{ item.readiness_label }}{% if item.reusable %} · Reusable decision{% endif %}</small>{% endif %}</div>
     <div class="action-row__meta">
       Arose {{ item.arose_at[:10] if item.arose_at else "-" }} &middot; Current state: {{ item.crm_stage | humanize }}
     </div>

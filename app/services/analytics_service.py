@@ -165,6 +165,19 @@ def human_intervention_metrics(service) -> dict:
         "per_application": (round(total / applied, 2) if applied else None),
         "partial_measurement": bool(unobserved_types),
         "unobserved_types": unobserved_types,
+        # Execution-readiness events are additive and currently sparse.  A
+        # zero means no such auditable event is recorded; the existing
+        # partial-measurement flag prevents these from being mistaken for a
+        # complete historical baseline.
+        "automatically_resolved": service.connection.execute(
+            "SELECT COUNT(*) FROM opportunity_events WHERE event_type = 'EXECUTION_AUTO_RESOLVED'"
+        ).fetchone()[0],
+        "reusable_decisions_applied": service.connection.execute(
+            "SELECT COUNT(*) FROM opportunity_events WHERE event_type = 'REUSABLE_ANSWER_APPLIED'"
+        ).fetchone()[0],
+        "avoided_repeat_questions": service.connection.execute(
+            "SELECT COUNT(*) FROM opportunity_events WHERE event_type = 'BLOCKER_DEDUPLICATED'"
+        ).fetchone()[0],
         "explanation": (
             "Only intervention types with an existing auditable record (a human_blockers row, a recorded "
             "user_decisions row, an employer_response_classifications row, or a recorded interview-schedule/"

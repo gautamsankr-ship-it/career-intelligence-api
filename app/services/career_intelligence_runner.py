@@ -50,6 +50,7 @@ from app.services.career_agent import CareerAgent
 from app.services.final_review_service import FinalReviewService
 from app.services.gmail_outcome_monitor_service import GmailOutcomeMonitor
 from app.services.opportunity_crm_service import OpportunityCRMService
+from app.services.execution_readiness_service import ExecutionReadinessService
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -178,6 +179,7 @@ class CareerIntelligenceRunner:
         skip_discovery: bool = False,
         stop_check: Callable[[], bool] | None = None,
         progress_callback: Callable[[str], None] | None = None,
+        readiness_service=None,
     ) -> None:
         self.history = history or ApplicationHistoryService()
         self.career_agent = career_agent or CareerAgent(history_service=self.history)
@@ -196,6 +198,10 @@ class CareerIntelligenceRunner:
         self.skip_discovery = skip_discovery
         self.stop_check = stop_check or (lambda: False)
         self.progress_callback = progress_callback or (lambda _stage: None)
+        self.readiness = readiness_service or (
+            ExecutionReadinessService(self.crm, package_service=self.package_orchestrator)
+            if hasattr(self.package_orchestrator, "load") else None
+        )
 
     def _safe_boundary(self, stage: str) -> bool:
         """Report a stage and cooperatively stop before starting the next one."""
@@ -301,6 +307,11 @@ class CareerIntelligenceRunner:
             if self.stop_check():
                 break
             tracker_id = package.tracker_id
+            if self.readiness is not None:
+                readiness = self.readiness.for_tracker(tracker_id)
+                if not readiness.can_automate:
+                    summary.errors.append(f"execution_readiness[{tracker_id}]: {readiness.label} -- {readiness.reason}")
+                    continue
             try:
                 result = self.execution.execute(tracker_id, "PREPARE", headed=self.headed)
             except Exception as exc:

@@ -19,6 +19,7 @@ from google.oauth2.credentials import Credentials
 
 from app.models.application_package import ApplicationPackage
 from app.services import analytics_service
+from app.services.execution_readiness_service import ExecutionReadinessService
 from app.services import interview_briefing_service as briefing_service
 from app.services.application_answer_vault import ApplicationAnswerVault
 from app.services.application_eligibility_policy import intelligence_priority_gate
@@ -298,14 +299,23 @@ def _action_plain_reason(item: dict) -> str:
     return _humanize_action_reason_prefix(item.get("reason") or "")
 
 
-def _decorate_action_item(item: dict) -> dict:
-    return {
+def _decorate_action_item(item: dict, service=None) -> dict:
+    decorated = {
         **item,
         "category_label": _ACTION_CATEGORY_LABELS[item["category"]],
         "urgency": _action_urgency(item),
         "primary_action": _action_primary_label(item),
         "plain_reason": _action_plain_reason(item),
     }
+    if service is not None:
+        readiness = ExecutionReadinessService(service).for_tracker(item["tracker_id"])
+        decorated["execution_readiness"] = readiness
+        decorated["readiness_label"] = readiness.label
+        decorated["auto_resolvable"] = readiness.auto_resolvable
+        decorated["reusable"] = readiness.reusable
+        decorated["evidence_checked"] = readiness.evidence_checked
+        decorated["next_safe_action"] = readiness.next_safe_action
+    return decorated
 
 
 def _group_action_items(items: list[dict]) -> list[dict]:
@@ -842,7 +852,7 @@ def action_required(
         else:
             raw_items = [item for item in raw_items if item.get("intelligence_priority") == priority]
 
-    decorated = [_decorate_action_item(item) for item in raw_items]
+    decorated = [_decorate_action_item(item, service) for item in raw_items]
     rows = _group_action_items(decorated) if view == "active" else sorted(decorated, key=lambda i: i.get("arose_at") or "", reverse=True)
 
     # Phase 3.1: presentation-only reorganization of the SAME `rows` list

@@ -78,6 +78,13 @@
         {% endfor %}
       </table>
       <p class="section-hint" style="margin-top:8px;margin-bottom:0;">{{ intervention.explanation }}</p>
+      <div style="margin-top:12px;font-size:13px;color:var(--text-muted);">
+        <strong>Execution efficiency:</strong>
+        Automatically resolved {{ intervention.automatically_resolved }} ·
+        Reusable decisions applied {{ intervention.reusable_decisions_applied }} ·
+        Avoided repeat questions {{ intervention.avoided_repeat_questions }}
+        {% if intervention.partial_measurement %} · Partial measurement{% endif %}
+      </div>
     </div>
   </div>
 
