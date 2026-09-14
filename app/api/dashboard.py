@@ -420,16 +420,19 @@ def _gmail_readonly_status() -> str:
     return "Unavailable"
 
 
+def _browser_session_display() -> str:
+    """Describe configured mode separately from live session observability."""
+    if APPLICATION_BROWSER_SESSION_MODE == APPLICATION_BROWSER_SESSION_MODE_PERSISTENT_AUTHENTICATED:
+        profile = "Profile Configured" if APPLICATION_PERSISTENT_BROWSER_PROFILE_DIR else "Profile Not Configured"
+        return f"Persistent Authenticated Mode; {profile}; Session Status Unknown"
+    return "Isolated Browser Mode; Session Status Unknown"
+
+
 @app.get("/settings", response_class=HTMLResponse)
 def settings_page(request: Request, service: OpportunityCRMService = Depends(get_crm_service)):
     health = _automation_health(get_automation_control())
     health_by_name = {item["name"]: item["status"] for item in health}
-    if APPLICATION_BROWSER_SESSION_MODE == APPLICATION_BROWSER_SESSION_MODE_PERSISTENT_AUTHENTICATED and APPLICATION_PERSISTENT_BROWSER_PROFILE_DIR:
-        browser_value = "Persistent Authenticated Mode; profile configured; session status Unknown"
-    elif APPLICATION_BROWSER_SESSION_MODE == APPLICATION_BROWSER_SESSION_MODE_PERSISTENT_AUTHENTICATED:
-        browser_value = "Persistent Authenticated Mode; profile not configured; session status Unknown"
-    else:
-        browser_value = "Isolated Browser Mode; session status Unknown"
+    browser_value = _browser_session_display()
     integrations = [
         {"label": "Gmail", "value": health_by_name.get("Gmail Monitor", "Unknown"), "source": "Current read-only credential status", "control": "System-controlled", "system": True},
         {"label": "Gmail permission", "value": "READ ONLY", "source": "GMAIL_READONLY_SCOPES", "control": "System-controlled", "system": True},

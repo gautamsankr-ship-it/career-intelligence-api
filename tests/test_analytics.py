@@ -478,8 +478,10 @@ def test_production_analytics_funnel_matches_dashboard_read_only():
         overview = a.performance_overview(service)
     finally:
         service.close()
-    assert overview["opportunities_discovered"] == crm_funnel["DISCOVERED"] == 157
-    assert overview["applications_submitted"] == crm_funnel["APPLIED"] == 3
+    # Production is intentionally mutable.  Validate the read-model
+    # reconciliation invariant rather than pinning a historical snapshot.
+    assert overview["opportunities_discovered"] == crm_funnel["DISCOVERED"]
+    assert overview["applications_submitted"] == crm_funnel["APPLIED"]
 
 
 def test_production_analytics_page_creates_no_rows_read_only():
