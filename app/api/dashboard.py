@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -21,6 +22,16 @@ from app.services import interview_briefing_service as briefing_service
 from app.services.application_answer_vault import ApplicationAnswerVault
 from app.services.application_eligibility_policy import intelligence_priority_gate
 from app.services.application_package_orchestrator import PACKAGE_DIR
+from app.services.automation_control_service import AutomationControlService, AutomationRunAlreadyActive
+from app.config import (
+    APPLICATION_AUTO_SUBMIT,
+    APPLICATION_BROWSER_SESSION_MODE,
+    APPLICATION_DRY_RUN,
+    GMAIL_AUTO_SEND,
+    GMAIL_DRY_RUN,
+    JOB_SOURCES,
+    MAX_JOBS,
+)
 from app.services.master_profile_service import MasterProfileService
 from app.services.opportunity_crm_service import (
     EMPLOYER_RESPONSE_HUMAN_CLASSIFICATIONS,
@@ -353,11 +364,6 @@ def _dashboard_attention_items(service: OpportunityCRMService, *, priority: str 
 # the shared shell with a short, honest "coming later" message -- no
 # fabricated functionality.
 _PLACEHOLDER_PAGES = {
-    "/automation": (
-        "automation", "Automation",
-        "Automation controls are coming in a later phase. Run the pipeline today with: "
-        "python career_intelligence.py run",
-    ),
     "/settings": (
         "settings", "Settings",
         "Settings are coming in a later phase.",
@@ -371,6 +377,92 @@ def get_crm_service():
         yield service
     finally:
         service.close()
+
+
+_automation_control: AutomationControlService | None = None
+
+
+def get_automation_control() -> AutomationControlService:
+    global _automation_control
+    if _automation_control is None:
+        _automation_control = AutomationControlService()
+    return _automation_control
+
+
+def _automation_health(control: AutomationControlService) -> list[dict]:
+    """Expose only locally measurable/configured signals; no live probes."""
+    return [
+        {"name": "Worker", "status": "Running" if control.current() else "Idle"},
+        {"name": "Browser", "status": "Configured" if APPLICATION_DRY_RUN and not APPLICATION_AUTO_SUBMIT else "Unknown"},
+        {"name": "LinkedIn Session", "status": "Unknown"},
+        {"name": "Gmail Monitor", "status": "Configured (read-only)" if GMAIL_DRY_RUN and not GMAIL_AUTO_SEND else "Unknown"},
+        {"name": "CRM Database", "status": "Available" if control.db_path.exists() else "Unknown"},
+        {"name": "Discovery", "status": f"Configured ({', '.join(JOB_SOURCES)})" if JOB_SOURCES else "Unknown"},
+    ]
+
+
+@app.get("/automation", response_class=HTMLResponse)
+def automation_page(
+    request: Request,
+    message: str = "",
+    service: OpportunityCRMService = Depends(get_crm_service),
+):
+    control = get_automation_control()
+    current = control.current()
+    latest = control.latest()
+    action_items = service.action_required_items()
+    state = control.global_state(service)
+    return templates.TemplateResponse(
+        request,
+        "automation.html",
+        {
+            "active_nav": "automation",
+            "wide_content": True,
+            "global_state": state,
+            "current": current,
+            "latest": latest,
+            "recent_runs": control.recent(),
+            "events": control.events(latest["run_id"]) if latest else [],
+            "health": _automation_health(control),
+            "action_items": action_items[:5],
+            "action_count": len(action_items),
+            "max_jobs": MAX_JOBS,
+            "job_sources": JOB_SOURCES,
+            "browser_session_mode": APPLICATION_BROWSER_SESSION_MODE,
+            "message": message,
+        },
+    )
+
+
+@app.post("/automation/run")
+def automation_run(request: Request):
+    try:
+        get_automation_control().run_async("FULL", "WEB")
+        message = "Career Intelligence started."
+    except AutomationRunAlreadyActive:
+        message = "Another automation run is already active."
+    return RedirectResponse(url=f"/automation?message={quote(message)}", status_code=303)
+
+
+@app.post("/automation/gmail")
+def automation_gmail(request: Request):
+    try:
+        get_automation_control().run_async("GMAIL", "WEB")
+        message = "Employer inbox check started (read-only)."
+    except AutomationRunAlreadyActive:
+        message = "Another automation run is already active."
+    return RedirectResponse(url=f"/automation?message={quote(message)}", status_code=303)
+
+
+@app.post("/automation/stop")
+def automation_stop():
+    control = get_automation_control()
+    current = control.current()
+    message = "No active automation run to stop."
+    if current:
+        control.request_stop(current["run_id"])
+        message = "Stop requested; the current safe step will finish."
+    return RedirectResponse(url=f"/automation?message={quote(message)}", status_code=303)
 
 
 def _safe_json_list(raw) -> list[str]:

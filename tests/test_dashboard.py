@@ -455,10 +455,10 @@ def test_sidebar_lists_all_nine_approved_sections_and_marks_dashboard_active(tmp
 
 
 @pytest.mark.parametrize("path", [
-    "/automation", "/settings",
+    "/settings",
 ])
 def test_every_placeholder_nav_route_renders_the_shared_shell(path):
-    """No fabricated functionality -- each of the remaining 2 approved
+    """No fabricated functionality -- the remaining approved
     sections (Opportunities since Phase 2, Action Required since Phase 3,
     Applications since Phase 4, Employer Inbox since Phase 5, Interviews
     since Phase 6, Analytics & Learning since Phase 7 are all real) renders

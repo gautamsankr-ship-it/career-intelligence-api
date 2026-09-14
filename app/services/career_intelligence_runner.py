@@ -40,6 +40,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 from app.services.application_execution_orchestrator import ApplicationExecutionOrchestrator
 from app.services.application_history_service import ApplicationHistoryService
@@ -175,6 +176,8 @@ class CareerIntelligenceRunner:
         package_prepare_limit: int = 5,
         headed: bool = False,
         skip_discovery: bool = False,
+        stop_check: Callable[[], bool] | None = None,
+        progress_callback: Callable[[str], None] | None = None,
     ) -> None:
         self.history = history or ApplicationHistoryService()
         self.career_agent = career_agent or CareerAgent(history_service=self.history)
@@ -191,19 +194,39 @@ class CareerIntelligenceRunner:
         self.package_prepare_limit = package_prepare_limit
         self.headed = headed
         self.skip_discovery = skip_discovery
+        self.stop_check = stop_check or (lambda: False)
+        self.progress_callback = progress_callback or (lambda _stage: None)
+
+    def _safe_boundary(self, stage: str) -> bool:
+        """Report a stage and cooperatively stop before starting the next one."""
+        self.progress_callback(stage)
+        return bool(self.stop_check())
 
     # -- orchestration -----------------------------------------------------
     def run(self) -> RunSummary:
         summary = RunSummary()
+        if self._safe_boundary("DISCOVERY"):
+            return summary
         self._discover(summary)
+        if self._safe_boundary("EVALUATION"):
+            return summary
         self._evaluate_and_prioritize(summary)
+        if self._safe_boundary("PACKAGE_PREPARATION"):
+            return summary
         self._prepare_packages(summary)
+        if self._safe_boundary("CRM_SYNC"):
+            return summary
         try:
             self.crm.migrate_legacy_records()
         except Exception as exc:
             summary.errors.append(f"crm.migrate_legacy_records: {exc}")
+        if self._safe_boundary("BROWSER_PREPARATION"):
+            return summary
         self._execute_browser_workflow(summary)
+        if self._safe_boundary("GMAIL_MONITOR"):
+            return summary
         self._gmail_outcomes(summary)
+        self._safe_boundary("COMPLETE")
         try:
             summary.unresolved_human_blockers = len(self.crm.list_open_blockers())
         except Exception as exc:
@@ -211,6 +234,8 @@ class CareerIntelligenceRunner:
         return summary
 
     def gmail_only(self) -> dict:
+        if self._safe_boundary("GMAIL_MONITOR"):
+            return {"messages_checked": None, "matched": None, "human_review": None, "stopped": True}
         return self.gmail_monitor.run()
 
     def status_report(self) -> dict:
@@ -273,6 +298,8 @@ class CareerIntelligenceRunner:
             summary.errors.append(f"execution.ready: {exc}")
             return
         for package in ready_packages:
+            if self.stop_check():
+                break
             tracker_id = package.tracker_id
             try:
                 result = self.execution.execute(tracker_id, "PREPARE", headed=self.headed)
@@ -283,6 +310,8 @@ class CareerIntelligenceRunner:
                 self._handle_execution_result(tracker_id, result, summary)
             except Exception as exc:
                 summary.errors.append(f"execution_followup[{tracker_id}]: {exc}")
+            if self.stop_check():
+                break
 
     def _handle_execution_result(self, tracker_id: int, result, summary: RunSummary) -> None:
         status = result.status

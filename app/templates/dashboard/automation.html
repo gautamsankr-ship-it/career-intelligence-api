@@ -1,0 +1,92 @@
+{% extends "_shell.html" %}
+{% block title %}Automation -- Career Intelligence{% endblock %}
+{% block extra_style %}
+<style>
+  .automation-grid { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; }
+  .automation-card { background:#fff; border:1px solid var(--border); border-radius:8px; padding:16px; }
+  .automation-card h2 { margin:0 0 10px; font-size:15px; }
+  .state { display:inline-block; padding:6px 12px; border-radius:999px; font-size:12px; font-weight:700; background:#eef2ff; color:#3730a3; }
+  .state--attention,.state--stopped { background:#fee2e2; color:#991b1b; }
+  .state--waiting { background:#fef3c7; color:#92400e; }
+  .state--running { background:#dbeafe; color:#1d4ed8; }
+  .controls { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .controls form { margin:0; }
+  .controls button { border:0; border-radius:6px; padding:9px 13px; background:var(--primary); color:#fff; font-weight:600; cursor:pointer; }
+  .controls .secondary { background:#475569; }
+  .controls .danger { background:#b91c1c; }
+  .muted { color:var(--text-muted); font-size:12px; }
+  .health-row,.run-row { display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid #eef0f3; font-size:13px; }
+  .health-row:last-child,.run-row:last-child { border-bottom:0; }
+  .status-text { font-weight:600; }
+  .pause { border-left:4px solid #d97706; background:#fffbeb; padding:12px 14px; margin:14px 0; border-radius:6px; }
+  .pause a { color:var(--primary); font-weight:600; }
+  .summary { white-space:pre-wrap; font-size:12px; color:#475569; max-height:130px; overflow:auto; }
+  details summary { cursor:pointer; font-weight:600; }
+  @media (max-width:900px) { .automation-grid { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Automation</h1><div class="subtitle">Run and monitor Career Intelligence safely.</div></div>
+</div>
+
+{% if message %}<div class="pause" style="border-left-color:var(--primary);background:#eff6ff;">{{ message }}</div>{% endif %}
+
+<div class="automation-card">
+  <div class="muted">Current automation state</div>
+  <div style="margin-top:7px;"><span class="state state--{{ global_state | lower | replace(' ', '-') }}">{{ global_state }}</span></div>
+  <div class="controls">
+    {% if not current %}<form method="post" action="/automation/run"><button type="submit">Run Career Intelligence</button></form>{% endif %}
+    {% if not current %}<form method="post" action="/automation/gmail"><button type="submit" class="secondary">Check Employer Inbox</button></form>{% endif %}
+    {% if current %}<form method="post" action="/automation/stop"><button type="submit" class="danger">Stop After Current Safe Step</button></form>{% endif %}
+    <a class="action-btn action-btn--secondary" href="/automation">Refresh Status</a>
+  </div>
+</div>
+
+{% if action_items %}
+<div class="pause"><strong>Action needed ({{ action_count }})</strong><br>
+  Existing CRM evidence requires human attention. <a href="/action-required">Open Action Required</a>
+  <ul style="margin:8px 0 0 18px;padding:0;">{% for item in action_items %}<li>{{ item.company }} — {{ item.job_title }}: {{ item.reason or item.plain_reason or item.blocker_type }} <a href="/application/{{ item.tracker_id }}">Open application</a></li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<div class="automation-grid" style="margin-top:14px;">
+  <div class="automation-card"><h2>System Health</h2>
+    {% for item in health %}<div class="health-row"><span>{{ item.name }}</span><span class="status-text">{{ item.status }}</span></div>{% endfor %}
+  </div>
+  <div class="automation-card"><h2>Current / Last Run</h2>
+    {% set run = current or latest %}
+    {% if run %}
+      <div class="run-row"><span>Status</span><span class="status-text">{{ run.lifecycle_status }}</span></div>
+      <div class="run-row"><span>Mode / trigger</span><span>{{ run.mode }} / {{ run.trigger }}</span></div>
+      <div class="run-row"><span>Started</span><span>{{ run.started_at or "-" }}</span></div>
+      <div class="run-row"><span>Finished</span><span>{{ run.finished_at or "-" }}</span></div>
+      <div class="run-row"><span>Stage</span><span>{{ run.current_stage or "-" }}</span></div>
+      <div class="run-row"><span>Run limit</span><span>{{ run.configured_scope.max_jobs or "-" }}</span></div>
+      {% if run.human_pause_reason %}<div class="pause" style="margin-bottom:0;"><strong>Human pause</strong><br>{{ run.human_pause_reason }}</div>{% endif %}
+      {% if run.warnings %}<div class="muted" style="margin-top:10px;">Warnings: {{ run.warnings | join('; ') }}</div>{% endif %}
+    {% else %}<div class="muted">No automation run recorded yet.</div>{% endif %}
+  </div>
+  <div class="automation-card"><h2>Run Settings</h2>
+    <div class="run-row"><span>Next-run MAX_JOBS</span><span class="status-text">{{ max_jobs }}</span></div>
+    <div class="run-row"><span>Sources</span><span>{{ job_sources | join(', ') }}</span></div>
+    <div class="run-row"><span>Browser session</span><span>{{ browser_session_mode }}</span></div>
+    <p class="muted">These values are read-only here and apply only when the next run starts.</p>
+  </div>
+</div>
+
+<div class="automation-card" style="margin-top:14px;"><h2>Safety &amp; Autonomy</h2>
+  <div class="automation-grid">
+    <div class="muted">Browser Navigation — <strong>Automatic</strong><br>Form Filling — <strong>Automatic where evidence exists</strong><br>Document Upload — <strong>Automatic</strong><br>Safe Multi-Step Advance — <strong>Automatic</strong></div>
+    <div class="muted">CAPTCHA/MFA — <strong>Human only</strong><br>Unknown Screening Answers — <strong>Human review</strong><br>Final Application Submit — <strong>Human authorization required</strong><br>Employer Replies — <strong>Human controlled</strong></div>
+    <div class="muted">Gmail Monitoring — <strong>Automatic, Read Only</strong><br><br>Scheduling: <strong>On demand</strong><br>Scheduled runs are not configured.</div>
+  </div>
+</div>
+
+<div class="automation-card" style="margin-top:14px;"><h2>Recent Automation Activity</h2>
+  {% if recent_runs %}{% for item in recent_runs %}<div class="run-row"><span>{{ item.requested_at }} · {{ item.mode }} / {{ item.trigger }}</span><span>{{ item.lifecycle_status }} · {{ item.current_stage or "-" }}</span></div>{% endfor %}
+  {% else %}<div class="muted">No run history recorded.</div>{% endif %}
+  {% if events %}<details style="margin-top:12px;"><summary>Technical diagnostics</summary><div class="summary">{% for event in events %}{{ event.occurred_at }} — {{ event.event_type }}{% if event.detail %}: {{ event.detail }}{% endif %}
+{% endfor %}</div></details>{% endif %}
+</div>
+{% endblock %}

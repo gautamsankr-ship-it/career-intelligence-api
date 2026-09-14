@@ -1,0 +1,83 @@
+import time
+
+import pytest
+
+import app.services.automation_control_service as control_module
+from app.services.automation_control_service import (
+    AutomationControlService,
+    AutomationRunAlreadyActive,
+)
+
+
+class FakeSummary:
+    def to_dict(self):
+        return {"packages_prepared": 2, "confirmed_applications_submitted": None, "errors": []}
+
+
+class FakeRunner:
+    def run(self):
+        return FakeSummary()
+
+    def gmail_only(self):
+        return {"messages_checked": 3, "matched": 1, "human_review": 0}
+
+
+def service(tmp_path, runner_factory=None, gmail_factory=None):
+    return AutomationControlService(
+        tmp_path / "history.db", tmp_path / "automation.lock",
+        runner_factory=runner_factory, gmail_runner_factory=gmail_factory,
+    )
+
+
+def test_run_history_single_flight_and_release(tmp_path):
+    control = service(tmp_path, runner_factory=lambda: FakeRunner())
+    queued = control.acquire("FULL", "TEST")
+    assert queued["lifecycle_status"] == "QUEUED"
+    with pytest.raises(AutomationRunAlreadyActive):
+        control.acquire("FULL", "DOUBLE_CLICK")
+
+    control._run(queued["run_id"], "FULL")
+    record = control.get(queued["run_id"])
+    assert record["lifecycle_status"] == "COMPLETED"
+    assert record["summary_counts"]["packages_prepared"] == 2
+    assert record["summary_counts"]["confirmed_applications_submitted"] is None
+    assert control.current() is None
+    next_run = control.acquire("GMAIL", "TEST")
+    assert next_run["mode"] == "GMAIL"
+    control._run(next_run["run_id"], "GMAIL")
+
+
+def test_stop_request_is_durable(tmp_path):
+    control = service(tmp_path, runner_factory=lambda: FakeRunner())
+    run = control.acquire("FULL", "TEST")
+    requested = control.request_stop(run["run_id"])
+    assert requested["stop_requested"] is True
+    assert requested["lifecycle_status"] == "STOP_REQUESTED"
+    control._run(run["run_id"], "FULL")
+    assert control.get(run["run_id"])["lifecycle_status"] == "STOP_REQUESTED"
+
+
+def test_restart_reconciles_running_conservatively_and_does_not_resume(tmp_path):
+    first = service(tmp_path)
+    run = first.acquire("FULL", "TEST")
+    first.update(run["run_id"], status="RUNNING", stage="BROWSER_PREPARATION")
+
+    control_module._PROCESS_ACTIVE_RUN_IDS.clear()  # simulate a new process
+    try:
+        restarted = service(tmp_path)
+        record = restarted.get(run["run_id"])
+        assert record["lifecycle_status"] == "INTERRUPTED"
+        assert "automatic resume" in record["human_pause_reason"]
+        assert restarted.current() is None
+        assert not (tmp_path / "automation.lock").exists()
+    finally:
+        control_module._PROCESS_ACTIVE_RUN_IDS.clear()
+
+
+def test_gmail_summary_does_not_expose_message_content(tmp_path):
+    control = service(tmp_path, gmail_factory=lambda: FakeRunner())
+    run = control.acquire("GMAIL", "TEST")
+    control._run(run["run_id"], "GMAIL")
+    record = control.get(run["run_id"])
+    assert record["summary_counts"] == {"messages_checked": 3, "matched": 1, "human_review": 0}
+    assert "details" not in record["summary_counts"]
