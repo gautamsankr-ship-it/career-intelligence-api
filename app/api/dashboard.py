@@ -27,6 +27,8 @@ from app.services.automation_control_service import AutomationControlService, Au
 from app.config import (
     APPLICATION_AUTO_SUBMIT,
     APPLICATION_BROWSER_SESSION_MODE,
+    APPLICATION_BROWSER_SESSION_MODE_PERSISTENT_AUTHENTICATED,
+    APPLICATION_PERSISTENT_BROWSER_PROFILE_DIR,
     APPLICATION_DRY_RUN,
     GMAIL_AUTO_SEND,
     GMAIL_DRY_RUN,
@@ -36,6 +38,7 @@ from app.config import (
     MAX_JOBS,
 )
 from app.services.master_profile_service import MasterProfileService
+from app.services.settings_read_model import build_settings_read_model
 from app.services.opportunity_crm_service import (
     EMPLOYER_RESPONSE_HUMAN_CLASSIFICATIONS,
     LEARNING_STATUS_ACCEPTED,
@@ -367,10 +370,6 @@ def _dashboard_attention_items(service: OpportunityCRMService, *, priority: str 
 # the shared shell with a short, honest "coming later" message -- no
 # fabricated functionality.
 _PLACEHOLDER_PAGES = {
-    "/settings": (
-        "settings", "Settings",
-        "Settings are coming in a later phase.",
-    ),
 }
 
 
@@ -419,6 +418,36 @@ def _gmail_readonly_status() -> str:
     except Exception:
         pass
     return "Unavailable"
+
+
+@app.get("/settings", response_class=HTMLResponse)
+def settings_page(request: Request, service: OpportunityCRMService = Depends(get_crm_service)):
+    health = _automation_health(get_automation_control())
+    health_by_name = {item["name"]: item["status"] for item in health}
+    if APPLICATION_BROWSER_SESSION_MODE == APPLICATION_BROWSER_SESSION_MODE_PERSISTENT_AUTHENTICATED and APPLICATION_PERSISTENT_BROWSER_PROFILE_DIR:
+        browser_value = "Persistent Authenticated Mode; profile configured; session status Unknown"
+    elif APPLICATION_BROWSER_SESSION_MODE == APPLICATION_BROWSER_SESSION_MODE_PERSISTENT_AUTHENTICATED:
+        browser_value = "Persistent Authenticated Mode; profile not configured; session status Unknown"
+    else:
+        browser_value = "Isolated Browser Mode; session status Unknown"
+    integrations = [
+        {"label": "Gmail", "value": health_by_name.get("Gmail Monitor", "Unknown"), "source": "Current read-only credential status", "control": "System-controlled", "system": True},
+        {"label": "Gmail permission", "value": "READ ONLY", "source": "GMAIL_READONLY_SCOPES", "control": "System-controlled", "system": True},
+        {"label": "LinkedIn / browser", "value": browser_value, "source": "Application browser configuration", "control": "System-controlled", "system": True},
+        {"label": "CRM database", "value": health_by_name.get("CRM Database", "Unknown"), "source": "Current local database availability", "control": "System-controlled", "system": True},
+        {"label": "Discovery sources", "value": health_by_name.get("Discovery", "Unknown"), "source": "Existing job-source configuration", "control": "System-controlled", "system": True},
+    ]
+    return templates.TemplateResponse(
+        request,
+        "settings.html",
+        {
+            "active_nav": "settings",
+            "wide_content": True,
+            "model": build_settings_read_model(
+                learning=service.list_proposed_learnings(), integrations=integrations
+            ),
+        },
+    )
 
 
 @app.get("/automation", response_class=HTMLResponse)

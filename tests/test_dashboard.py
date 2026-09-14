@@ -454,20 +454,15 @@ def test_sidebar_lists_all_nine_approved_sections_and_marks_dashboard_active(tmp
         app.dependency_overrides.clear()
 
 
-@pytest.mark.parametrize("path", [
-    "/settings",
-])
-def test_every_placeholder_nav_route_renders_the_shared_shell(path):
-    """No fabricated functionality -- the remaining approved
-    sections (Opportunities since Phase 2, Action Required since Phase 3,
-    Applications since Phase 4, Employer Inbox since Phase 5, Interviews
-    since Phase 6, Analytics & Learning since Phase 7 are all real) renders
-    honestly as a placeholder inside the same shared shell."""
+def test_settings_route_renders_the_shared_shell():
+    """Settings is now the real Phase 9 read model inside the shared shell."""
     client = TestClient(app)
-    response = client.get(path)
+    response = client.get("/settings")
     assert response.status_code == 200
     body = response.text
-    assert "Coming in a later phase" in body
+    assert "Settings &amp; User Account" in body
+    assert "Profile" in body
+    assert "Answer Vault" in body
     assert "Career Intelligence" in body  # shared sidebar brand present
 
 

@@ -1,0 +1,48 @@
+{% extends "_shell.html" %}
+{% block title %}Settings -- Career Intelligence{% endblock %}
+{% block extra_style %}
+<style>
+  .settings-layout { display:grid; grid-template-columns:210px 1fr; gap:18px; align-items:start; }
+  .settings-nav { position:sticky; top:82px; background:#fff; border:1px solid var(--border); border-radius:10px; padding:8px; }
+  .settings-nav a { display:block; padding:9px 10px; font-size:12.5px; color:var(--text); border-radius:6px; }
+  .settings-nav a:hover { background:#eff6ff; text-decoration:none; color:var(--primary); }
+  .settings-section { background:#fff; border:1px solid var(--border); border-radius:10px; padding:18px; margin-bottom:14px; scroll-margin-top:80px; }
+  .settings-section h2 { margin:0 0 4px; font-size:16px; }
+  .settings-section .hint { margin:0 0 14px; color:var(--text-muted); font-size:12px; }
+  .setting-row { display:grid; grid-template-columns:190px minmax(160px,1fr) 210px; gap:14px; padding:9px 0; border-bottom:1px solid #eef0f2; font-size:13px; }
+  .setting-row:last-child { border-bottom:0; }
+  .setting-label { font-weight:600; }
+  .setting-source { color:var(--text-muted); font-size:11px; }
+  .setting-control { color:#475569; font-size:11px; text-align:right; }
+  .badge { display:inline-block; padding:3px 8px; border-radius:999px; background:#eff6ff; color:#1d4ed8; font-size:10px; font-weight:700; }
+  .badge--system { background:#f3f4f6; color:#475569; }
+  .badge--review { background:#fef3c7; color:#92400e; }
+  .answer-group { margin-top:12px; }
+  .answer-group h3 { font-size:13px; margin:0 0 5px; }
+  .compact-row { display:grid; grid-template-columns:180px 1fr 170px; gap:12px; padding:7px 0; border-bottom:1px solid #f1f3f5; font-size:12px; }
+  .compact-row:last-child { border-bottom:0; }
+  .notice { padding:11px 13px; border-left:4px solid var(--primary); background:#eff6ff; border-radius:6px; color:#334155; font-size:12px; margin-bottom:14px; }
+  .policy-list { margin:0; padding-left:20px; font-size:13px; line-height:1.8; }
+  @media (max-width:850px) { .settings-layout { grid-template-columns:1fr; } .settings-nav { position:static; display:flex; flex-wrap:wrap; gap:4px; } .setting-row,.compact-row { grid-template-columns:1fr; gap:3px; } .setting-control { text-align:left; } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>Settings &amp; User Account</h1><div class="subtitle">Authoritative facts, preferences, integrations, and operating policies.</div></div></div>
+<div class="notice"><strong>Source of truth:</strong> This page reads the existing profile, Candidate Evidence Library, Answer Vault, CRM learning governance, and system health models. Consequential facts are evidence-controlled; there is no generic editor that can silently overwrite them.</div>
+<div class="settings-layout">
+  <nav class="settings-nav" aria-label="Settings sections">
+    {% for key,label in [('profile','Profile'),('strategy','Career Strategy'),('eligibility','Eligibility & Work Rights'),('qualifications','Qualifications & Evidence'),('answers','Application Preferences / Answer Vault'),('integrations','Integrations'),('learning','Learning & Policies'),('account','Security & Account'),('audit','Audit History')] %}<a href="#{{ key }}">{{ label }}</a>{% endfor %}
+  </nav>
+  <div>
+    <section id="profile" class="settings-section"><h2>Profile</h2><p class="hint">Personal and professional facts used by the application pipeline.</p>{% for item in model.profile %}<div class="setting-row"><span class="setting-label">{{ item.label }}</span><span>{{ item.value }}</span><span class="setting-source">{{ item.source }}<br><span class="badge">{{ item.control }}</span></span></div>{% endfor %}</section>
+    <section id="strategy" class="settings-section"><h2>Career Strategy</h2><p class="hint">Authoritative preferences are distinct from observed market/application patterns.</p>{% for item in model.strategy %}<div class="setting-row"><span class="setting-label">{{ item.label }}</span><span>{{ item.value }}</span><span class="setting-source">{{ item.source }}<br><span class="badge {% if item.control == 'System-controlled' %}badge--system{% endif %}">{{ item.control }}</span></span></div>{% endfor %}</section>
+    <section id="eligibility" class="settings-section"><h2>Eligibility &amp; Work Rights</h2><p class="hint">These are the facts and safeguards used by the eligibility engine. Remote silence remains human review.</p>{% for item in model.eligibility %}<div class="setting-row"><span class="setting-label">{{ item.label }}</span><span>{{ item.value }}</span><span class="setting-source">{{ item.source }}<br><span class="badge {% if item.control == 'System-controlled' %}badge--system{% endif %}">{{ item.control }}</span></span></div>{% endfor %}</section>
+    <section id="qualifications" class="settings-section"><h2>Qualifications &amp; Evidence</h2><p class="hint">Verified evidence is shown as recorded. ICAI/ICAN Chartered Accountant status is not represented as ACA or ACCA.</p>{% for item in model.qualifications %}<div class="setting-row"><span class="setting-label">{{ item.label }}</span><span>{{ item.value }}</span><span class="setting-source">{{ item.source }}<br><span class="badge">{{ item.control }}</span></span></div>{% endfor %}</section>
+    <section id="answers" class="settings-section"><h2>Application Preferences / Answer Vault</h2><p class="hint">Existing approved reusable answers only; historical application answers remain immutable.</p>{% for category in ['Personal Details','Professional Qualifications & Experience','Work Rights','Location / Remote Work','Salary','Availability','Screening & Application Preferences'] %}<div class="answer-group"><h3>{{ category }}</h3>{% set rows = model.answers | selectattr('category','equalto',category) | list %}{% if rows %}{% for item in rows %}<div class="compact-row"><span><strong>{{ item.topic }}</strong><br><span class="setting-source">{{ item.source }}</span></span><span>{{ item.answer }}</span><span><span class="badge {% if item.status == 'Requires Human Review' %}badge--review{% endif %}">{{ item.status }}</span><br>{{ item.confidence }}</span></div>{% endfor %}{% else %}<div class="setting-source">No answer recorded.</div>{% endif %}</div>{% endfor %}</section>
+    <section id="integrations" class="settings-section"><h2>Integrations</h2><p class="hint">Status and permission level only. Credentials, tokens, cookies, and secrets are never displayed.</p>{% for item in model.integrations %}<div class="setting-row"><span class="setting-label">{{ item.label }}</span><span>{{ item.value }}</span><span class="setting-source">{{ item.source }}<br><span class="badge {% if item.system %}badge--system{% endif %}">{{ item.control }}</span></span></div>{% endfor %}</section>
+    <section id="learning" class="settings-section"><h2>Learning &amp; Policies</h2><p class="hint">Learning governance is the existing Phase 7 CRM workflow; accepted learning does not silently rewrite facts, scoring, eligibility, or answers.</p>{% for status in ['ACCEPTED','PROPOSED','NEED_MORE_EVIDENCE','REJECTED','RETIRED'] %}<div class="answer-group"><h3>{{ status.replace('_',' ').title() }}</h3>{% set rows = model.learning | selectattr('status','equalto',status) | list %}{% if rows %}{% for item in rows %}<div class="compact-row"><span>{{ item.title }}</span><span>{{ item.observation }}</span><span>{{ item.confidence or 'Unknown' }}</span></div>{% endfor %}{% else %}<div class="setting-source">No records.</div>{% endif %}</div>{% endfor %}<h3 style="font-size:13px;margin-top:16px;">Operating policies</h3><ul class="policy-list">{% for item in model.policy %}<li>{{ item }}</li>{% endfor %}</ul></section>
+    <section id="account" class="settings-section"><h2>Security &amp; User Account</h2><p class="hint">Stage 1 is a private local single-user application.</p>{% for item in model.account %}<div class="setting-row"><span class="setting-label">{{ item.label }}</span><span>{{ item.value }}</span><span class="setting-source">{{ item.source }}<br><span class="badge badge--system">{{ item.control }}</span></span></div>{% endfor %}</section>
+    <section id="audit" class="settings-section"><h2>Audit History</h2><p class="hint">Read-only view of existing Answer Vault history. Historical application facts are not rewritten by Settings.</p>{% for item in model.audit %}<div class="compact-row"><span>{{ item.domain }}</span><span>{{ item.reason }}</span><span>{{ item.changed_at }}<br>{{ item.actor }}</span></div>{% else %}<div class="setting-source">No audit entries recorded.</div>{% endfor %}</section>
+  </div>
+</div>
+{% endblock %}
