@@ -100,3 +100,26 @@ def test_waiting_for_human_run_is_distinct_from_existing_crm_actions(tmp_path):
                    human_pause_reason="CAPTCHA requires human action")
     control._release_lock(run["run_id"])
     assert control.global_state() == "WAITING FOR YOU"
+
+
+def test_historical_warning_does_not_override_healthy_current_services(tmp_path):
+    control = service(tmp_path)
+    run = control.acquire("FULL", "TEST")
+    control.update(run["run_id"], status="COMPLETED_WITH_WARNINGS", stage="COMPLETE",
+                   warnings=["historical Gmail invalid_grant"])
+    control._release_lock(run["run_id"])
+    health = {name: "Available" for name in {"Worker", "Browser", "Gmail Monitor", "CRM Database", "Discovery"}}
+    health["Gmail Monitor"] = "Connected Read-Only"
+    assert control.global_state(current_health=health) == "READY"
+    record = control.get(run["run_id"])
+    assert record["lifecycle_status"] == "COMPLETED_WITH_WARNINGS"
+    assert record["warnings"] == ["historical Gmail invalid_grant"]
+
+
+def test_current_gmail_unavailable_requires_attention(tmp_path):
+    control = service(tmp_path)
+    run = control.acquire("FULL", "TEST")
+    control.update(run["run_id"], status="COMPLETED_WITH_WARNINGS", stage="COMPLETE",
+                   warnings=["historical Gmail invalid_grant"])
+    control._release_lock(run["run_id"])
+    assert control.global_state(current_health={"Gmail Monitor": "Unavailable"}) == "ATTENTION REQUIRED"

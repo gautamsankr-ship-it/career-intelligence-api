@@ -15,6 +15,7 @@ from urllib.parse import quote
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from google.oauth2.credentials import Credentials
 
 from app.models.application_package import ApplicationPackage
 from app.services import analytics_service
@@ -29,6 +30,8 @@ from app.config import (
     APPLICATION_DRY_RUN,
     GMAIL_AUTO_SEND,
     GMAIL_DRY_RUN,
+    GMAIL_READONLY_SCOPES,
+    GMAIL_READONLY_TOKEN_PATH,
     JOB_SOURCES,
     MAX_JOBS,
 )
@@ -390,15 +393,32 @@ def get_automation_control() -> AutomationControlService:
 
 
 def _automation_health(control: AutomationControlService) -> list[dict]:
-    """Expose only locally measurable/configured signals; no live probes."""
+    """Expose current operational read-model signals; no message processing."""
+    gmail_status = _gmail_readonly_status()
     return [
         {"name": "Worker", "status": "Running" if control.current() else "Idle"},
         {"name": "Browser", "status": "Configured" if APPLICATION_DRY_RUN and not APPLICATION_AUTO_SUBMIT else "Unknown"},
         {"name": "LinkedIn Session", "status": "Unknown"},
-        {"name": "Gmail Monitor", "status": "Configured (read-only)" if GMAIL_DRY_RUN and not GMAIL_AUTO_SEND else "Unknown"},
+        {"name": "Gmail Monitor", "status": gmail_status},
         {"name": "CRM Database", "status": "Available" if control.db_path.exists() else "Unknown"},
         {"name": "Discovery", "status": f"Configured ({', '.join(JOB_SOURCES)})" if JOB_SOURCES else "Unknown"},
     ]
+
+
+def _gmail_readonly_status() -> str:
+    """Read the separate monitor token without refreshing or listing mail."""
+    try:
+        credentials = Credentials.from_authorized_user_file(
+            GMAIL_READONLY_TOKEN_PATH, GMAIL_READONLY_SCOPES
+        )
+        scopes = tuple(credentials.scopes or ())
+        if scopes != tuple(GMAIL_READONLY_SCOPES):
+            return "Unavailable"
+        if credentials.valid or credentials.refresh_token:
+            return "Connected Read-Only"
+    except Exception:
+        pass
+    return "Unavailable"
 
 
 @app.get("/automation", response_class=HTMLResponse)
@@ -411,7 +431,8 @@ def automation_page(
     current = control.current()
     latest = control.latest()
     action_items = service.action_required_items()
-    state = control.global_state(service)
+    health = _automation_health(control)
+    state = control.global_state(service, {item["name"]: item["status"] for item in health})
     return templates.TemplateResponse(
         request,
         "automation.html",
@@ -423,7 +444,7 @@ def automation_page(
             "latest": latest,
             "recent_runs": control.recent(),
             "events": control.events(latest["run_id"]) if latest else [],
-            "health": _automation_health(control),
+            "health": health,
             "action_items": action_items[:5],
             "action_count": len(action_items),
             "max_jobs": MAX_JOBS,

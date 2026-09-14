@@ -280,7 +280,14 @@ class AutomationControlService:
             row = connection.execute("SELECT stop_requested FROM automation_runs WHERE run_id = ?", (run_id,)).fetchone()
         return bool(row and row[0])
 
-    def global_state(self, crm=None) -> str:
+    def global_state(self, crm=None, current_health=None) -> str:
+        """Return current operational state, separate from historical outcomes.
+
+        ``COMPLETED_WITH_WARNINGS`` remains visible on the run record, but is
+        not itself a current incident.  Callers provide the current health
+        read-model so a resolved dependency warning does not keep the global
+        control state red.
+        """
         self.reconcile_interrupted()
         current = next((r for r in self.recent(20) if r["run_id"] in self._active_run_ids and r["lifecycle_status"] in {"QUEUED", "RUNNING", "STOP_REQUESTED"}), None)
         if current:
@@ -290,7 +297,11 @@ class AutomationControlService:
             return "STOPPED"
         if latest and latest["lifecycle_status"] == "WAITING_FOR_HUMAN":
             return "WAITING FOR YOU"
-        if latest and latest["lifecycle_status"] in {"FAILED", "INTERRUPTED", "COMPLETED_WITH_WARNINGS"}:
+        if latest and latest["lifecycle_status"] in {"FAILED", "INTERRUPTED"}:
+            return "ATTENTION REQUIRED"
+        required_services = {"Worker", "Browser", "Gmail Monitor", "CRM Database", "Discovery"}
+        unavailable = {"Unknown", "Unavailable", "Error", "Failed", "Disconnected", "Authentication Required"}
+        if current_health and any(current_health.get(name) in unavailable for name in required_services):
             return "ATTENTION REQUIRED"
         return "READY"
 

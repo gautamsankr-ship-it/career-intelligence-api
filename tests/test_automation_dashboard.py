@@ -61,3 +61,18 @@ def test_automation_page_reports_effective_persistent_configuration(tmp_path, mo
     assert "PERSISTENT_AUTHENTICATED" in body
     assert "LinkedIn Session" in body
     assert "Unknown" in body
+
+
+def test_automation_page_separates_current_health_from_historical_warning(tmp_path, monkeypatch):
+    control = AutomationControlService(tmp_path / "history.db", tmp_path / "automation.lock")
+    run = control.acquire("FULL", "TEST")
+    control.update(run["run_id"], status="COMPLETED_WITH_WARNINGS", stage="COMPLETE",
+                   warnings=["historical Gmail invalid_grant"])
+    control._release_lock(run["run_id"])
+    monkeypatch.setattr(dashboard, "_automation_control", control)
+    monkeypatch.setattr(dashboard, "_gmail_readonly_status", lambda: "Connected Read-Only")
+    body = TestClient(dashboard.app).get("/automation").text
+    assert "READY" in body
+    assert "COMPLETED_WITH_WARNINGS" in body
+    assert "historical Gmail invalid_grant" in body
+    assert "Connected Read-Only" in body
