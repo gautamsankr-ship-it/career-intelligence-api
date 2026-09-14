@@ -292,12 +292,6 @@ class AutomationControlService:
             return "WAITING FOR YOU"
         if latest and latest["lifecycle_status"] in {"FAILED", "INTERRUPTED", "COMPLETED_WITH_WARNINGS"}:
             return "ATTENTION REQUIRED"
-        if crm is not None:
-            try:
-                if crm.action_required_items():
-                    return "WAITING FOR YOU"
-            except Exception:
-                return "ATTENTION REQUIRED"
         return "READY"
 
     def run_async(self, mode: str, trigger: str = "WEB") -> dict:

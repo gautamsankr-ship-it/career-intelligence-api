@@ -49,3 +49,15 @@ def test_automation_stop_route_is_idempotent(tmp_path, monkeypatch):
     response = client.post("/automation/stop", follow_redirects=False)
     assert response.status_code == 303
     assert control.get(run["run_id"])["stop_requested"] is True
+
+
+def test_automation_page_reports_effective_persistent_configuration(tmp_path, monkeypatch):
+    control = AutomationControlService(tmp_path / "history.db", tmp_path / "automation.lock")
+    monkeypatch.setattr(dashboard, "_automation_control", control)
+    monkeypatch.setattr(dashboard, "APPLICATION_BROWSER_SESSION_MODE", "PERSISTENT_AUTHENTICATED")
+
+    body = TestClient(dashboard.app).get("/automation").text
+    assert "Browser session" in body
+    assert "PERSISTENT_AUTHENTICATED" in body
+    assert "LinkedIn Session" in body
+    assert "Unknown" in body

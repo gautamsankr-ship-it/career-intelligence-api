@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 
 from app.config import (
     APPLICATION_AUTO_SUBMIT,
+    APPLICATION_BROWSER_SESSION_MODE,
     APPLICATION_BROWSER_SESSION_MODE_ISOLATED,
     APPLICATION_BROWSER_SESSION_MODE_PERSISTENT_AUTHENTICATED,
     APPLICATION_BROWSER_TIMEOUT_MS,
@@ -726,6 +727,8 @@ class ApplicationBrowserService:
 
     async def _preview_url(self, url, vacancy, tracker_id, headed, application_date, fill_preview, pause_seconds):
         self.validate_url(url)
+        if APPLICATION_BROWSER_SESSION_MODE == APPLICATION_BROWSER_SESSION_MODE_PERSISTENT_AUTHENTICATED:
+            return await self._preview_url_persistent(url, vacancy, tracker_id, headed, application_date, fill_preview, pause_seconds)
         try:
             from playwright.async_api import async_playwright
         except ImportError as exc: raise RuntimeError("Playwright is required. Install project dependencies and Chromium before live preview.") from exc
@@ -744,6 +747,33 @@ class ApplicationBrowserService:
             folder.mkdir(parents=True, exist_ok=True); await page.screenshot(path=str(folder / "landing.png"), full_page=True)
             await context.close(); await browser.close()
             return plan
+
+    async def _preview_url_persistent(self, url, vacancy, tracker_id, headed, application_date, fill_preview, pause_seconds):
+        """Run the same no-submit preparation against the configured profile.
+
+        The profile is opened only through the existing caller-managed
+        persistent-session primitive.  No credentials, cookies, or storage
+        state are imported, and the session is always closed before returning.
+        """
+        session = await self.open_persistent_session(url, headed=headed)
+        try:
+            page = session.page
+            html = await page.content()
+            route = self.route_resolver.resolve(vacancy or {"job_url": url}, html, page.url)
+            if route.resolution_status == "RESOLVED" and route.application_url and route.application_url != page.url:
+                await page.goto(route.application_url, wait_until="domcontentloaded", timeout=APPLICATION_BROWSER_TIMEOUT_MS)
+                html = await page.content()
+            plan = self.preview_html(html, page.url, vacancy, tracker_id, application_date, route)
+            if fill_preview and plan.page_purpose == "APPLICATION_FORM" and plan.portal in {"GREENHOUSE", "LEVER", "GENERIC"}:
+                await self._fill_supported(page, plan)
+                if pause_seconds and headed:
+                    await page.wait_for_timeout(min(pause_seconds, 300) * 1000)
+            folder = self.preview_folder / str(tracker_id or "url") / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            folder.mkdir(parents=True, exist_ok=True)
+            await page.screenshot(path=str(folder / "landing.png"), full_page=True)
+            return plan
+        finally:
+            await session.close()
 
     @staticmethod
     def _surface_url(surface: "Page | Frame | ApplicationSurface") -> str:

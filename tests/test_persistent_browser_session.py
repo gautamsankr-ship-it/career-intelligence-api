@@ -50,6 +50,23 @@ def test_isolated_context_creation_comment_and_behavior_are_untouched():
     assert "isolated: no imported browser profile/cookies" in source
 
 
+def test_persistent_mode_routes_preparation_through_persistent_session(monkeypatch):
+    import app.services.application_browser_service as module
+
+    service = ApplicationBrowserService()
+    sentinel = object()
+    called = {}
+
+    async def persistent_preview(*args, **kwargs):
+        called["args"] = args
+        return sentinel
+
+    monkeypatch.setattr(module, "APPLICATION_BROWSER_SESSION_MODE", "PERSISTENT_AUTHENTICATED")
+    monkeypatch.setattr(service, "_preview_url_persistent", persistent_preview)
+    assert _run(service._preview_url("https://example.com/apply", {}, None, False, None, True, 0)) is sentinel
+    assert called["args"][0] == "https://example.com/apply"
+
+
 # --- (3)/(4) fail-closed profile resolution ----------------------------------
 
 def test_persistent_mode_requires_configured_external_profile_path(monkeypatch):

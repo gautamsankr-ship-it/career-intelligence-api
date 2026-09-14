@@ -81,3 +81,22 @@ def test_gmail_summary_does_not_expose_message_content(tmp_path):
     record = control.get(run["run_id"])
     assert record["summary_counts"] == {"messages_checked": 3, "matched": 1, "human_review": 0}
     assert "details" not in record["summary_counts"]
+
+
+def test_preexisting_crm_action_items_do_not_change_ready_global_state(tmp_path):
+    control = service(tmp_path)
+
+    class ExistingActions:
+        def action_required_items(self):
+            return [{"tracker_id": 1, "reason": "Existing application action"}] * 114
+
+    assert control.global_state(ExistingActions()) == "READY"
+
+
+def test_waiting_for_human_run_is_distinct_from_existing_crm_actions(tmp_path):
+    control = service(tmp_path)
+    run = control.acquire("FULL", "TEST")
+    control.update(run["run_id"], status="WAITING_FOR_HUMAN", stage="BROWSER_PREPARATION",
+                   human_pause_reason="CAPTCHA requires human action")
+    control._release_lock(run["run_id"])
+    assert control.global_state() == "WAITING FOR YOU"
