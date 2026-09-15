@@ -20,6 +20,7 @@ from google.oauth2.credentials import Credentials
 from app.models.application_package import ApplicationPackage
 from app.services import analytics_service
 from app.services.execution_readiness_service import ExecutionReadinessService
+from app.services.execution_resolution_service import ExecutionResolutionService
 from app.services import interview_briefing_service as briefing_service
 from app.services.application_answer_vault import ApplicationAnswerVault
 from app.services.application_eligibility_policy import intelligence_priority_gate
@@ -900,16 +901,25 @@ def action_required(
 def resolve_action_blocker(
     blocker_id: int,
     note: str = Form(""),
+    reusable: str = Form(""),
+    concept: str = Form(""),
+    answer: str = Form(""),
+    confirm: str = Form(""),
     service: OpportunityCRMService = Depends(get_crm_service),
 ):
-    """Reuses the EXISTING `resolve_human_blocker()` exactly as-is -- the
-    same mechanism `python job_tracker.py`/the CLI already use. Never
-    solves/bypasses the underlying CAPTCHA or MFA itself; this only records
-    that a human has already handled it outside this page (e.g. in a
-    terminal or a live browser session) so the existing automation runner
-    can continue from where it paused."""
+    """Record an explicit human resolution through the shared resolution
+    service. Never solves/bypasses CAPTCHA or MFA itself; a browser/security
+    resolution must already have happened outside this page."""
     try:
-        service.resolve_human_blocker(blocker_id, resolution_note=note, resolved_by="USER")
+        ExecutionResolutionService(service).resolve_blocker(
+            blocker_id,
+            resolution=note,
+            reusable=bool(reusable),
+            concept=concept,
+            answer=answer if answer else note,
+            confirm=bool(confirm),
+            actor="USER",
+        )
     except ValueError:
         pass
     return RedirectResponse(url="/action-required", status_code=303)
